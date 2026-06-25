@@ -1,0 +1,199 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  username       String         @unique
+  password       String
+  name           String?
+  avatar         String?
+  bio            String?
+  role           String         @default("user")
+  status         String         @default("offline")
+  verified       Boolean        @default(false)
+  badges         String[]       @default([])
+  reputation     Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  communities    CommunityMember[]
+  rooms          RoomMember[]
+  messages       Message[]
+  reactions      Reaction[]
+  notifications  Notification[] @relation("ReceivedNotifications")
+  triggeredNotifs Notification[] @relation("TriggeredNotifications")
+  reportsFiled   Report[]       @relation("ReportsFiled")
+  reportsAgainst Report[]       @relation("ReportsAgainst")
+  activityLogs   ActivityLog[]
+  activities     Activity[]
+  createdCommunities Community[] @relation("CommunityCreator")
+  createdRooms   Room[]         @relation("RoomCreator")
+  @@map("users")
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  imageUrl    String?
+  category    String   @default("General")
+  banner      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("CommunityCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members     CommunityMember[]
+  rooms       Room[]
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String   @id @default(cuid())
+  userId      String
+  communityId String
+  role        String   @default("member")
+  joinedAt    DateTime @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  @@unique([userId, communityId])
+  @@map("community_members")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  tags        String[] @default([])
+  imageUrl    String?
+  sourceUrl   String?
+  trending    Boolean  @default(false)
+  isNew       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  articleId   String?
+  article     Article?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?      @relation("RoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members     RoomMember[]
+  messages    Message[]
+  reports     Report[]
+  activities  Activity[]
+  @@map("rooms")
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  joinedAt DateTime @default(now())
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  @@unique([userId, roomId])
+  @@map("room_members")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  edited    Boolean  @default(false)
+  deleted   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Message?  @relation("MessageReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Message[] @relation("MessageReplies")
+  reactions Reaction[]
+  reports   Report[]
+  @@map("messages")
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  @@unique([userId, messageId, emoji])
+  @@map("reactions")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String
+  title       String
+  body        String
+  read        Boolean  @default(false)
+  roomId      String?
+  referenceId String?
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  triggerId   String?
+  trigger     User?    @relation("TriggeredNotifications", fields: [triggerId], references: [id], onDelete: SetNull)
+  @@map("notifications")
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  reason         String
+  description    String
+  status         String   @default("pending")
+  severity       String   @default("medium")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  reporterId     String
+  reporter       User     @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId String?
+  reportedUser   User?    @relation("ReportsAgainst", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  messageId      String?
+  message        Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  roomId         String?
+  room           Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  @@map("reports")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("activity_logs")
+}
+
+model Article {
+  id             String   @id @default(cuid())
+  title          String
+  url            String   @unique
+  normalized_url String   @unique
+  source         String?
+  createdAt      DateTime @default(now())
+  rooms          Room[]
+  @@map("articles")
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  userId     String
+  roomId     String
+  actionType String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  @@map("activities")
+}

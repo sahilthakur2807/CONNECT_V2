@@ -1,0 +1,7 @@
+node_modules
+.env
+dist
+.DS_store
+package-lock.json
+.gitignore
+uploadssrc/components/features/landing/freetube-0.24.1-beta-mac-x64.dmg
