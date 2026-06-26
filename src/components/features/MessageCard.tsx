@@ -112,6 +112,7 @@ export function MessageCard({ message, onReply, currentUserId, isReply = false, 
             <span className="text-[11px] font-medium text-muted-foreground/60">@{user.username}</span>
             <div className="flex gap-1">
               {user.verified && <Badge variant="verified" size="sm" showIcon={false} className="h-4 px-1.5" />}
+              {user.role === 'superadmin' && <Badge variant="superadmin" size="sm" showIcon={false} className="h-4 px-1.5" />}
               {user.role === 'admin' && <Badge variant="admin" size="sm" showIcon={false} className="h-4 px-1.5" />}
               {user.role === 'moderator' && <Badge variant="moderator" size="sm" showIcon={false} className="h-4 px-1.5" />}
             </div>

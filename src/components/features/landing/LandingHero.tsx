@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { useAuth } from "@/hooks/use-auth";
+import { connectSocket, getSocket } from '@/services/socket';
 
 
 
@@ -37,6 +38,22 @@ export function LandingHero() {
         }
       })
       .catch(console.error);
+
+    connectSocket();
+    const socket = getSocket();
+    const handleStatsUpdate = (data: any) => {
+      setCount({
+        topics: data.totalRooms || 0,
+        threads: data.totalMessages || 0,
+        community: data.totalUsers || 0,
+      });
+    };
+
+    socket.on('stats_update', handleStatsUpdate);
+
+    return () => {
+      socket.off('stats_update', handleStatsUpdate);
+    };
   }, []);
 
   const fmt = (n: number) =>

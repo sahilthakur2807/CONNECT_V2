@@ -44,7 +44,7 @@ notificationsRouter.post('/read', authenticateJWT, async (req: AuthenticatedRequ
 notificationsRouter.post('/:id/read', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
     await prisma.notification.update({
-      where: { id: req.params.id, userId: req.user!.id },
+      where: { id: (req.params.id as string), userId: req.user!.id },
       data: { read: true }
     });
     res.json({ success: true });

@@ -18,6 +18,9 @@ import { statsRouter } from './server/routes/stats.js';
 import { searchRouter } from './server/routes/search.js';
 import { activityRouter } from './server/routes/activity.js';
 import { extensionRouter } from './server/routes/extension.js';
+import { adminRouter } from './server/routes/admin.js';
+import { prisma } from './server/db.js';
+import { optionalJWT, sanitizeResponseMiddleware } from './server/middleware.js';
 
 dotenv.config();
 
@@ -26,7 +29,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.set('trust proxy', 1);
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 // Security Headers & Rate Limiting
 app.use(helmet({
@@ -44,6 +47,8 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later.' }
 });
 app.use('/api', apiLimiter);
+app.use('/api', optionalJWT, sanitizeResponseMiddleware);
+
 
 // Serve static files from the Vite build directory and uploads
 app.use(express.static(path.join(__dirname, 'dist')));
@@ -58,12 +63,23 @@ app.use('/api/users', usersRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/reports', reportsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/admin', adminRouter);
 app.use('/api/search', searchRouter);
 app.use('/api/activity', activityRouter);
 app.use('/api/extension', extensionRouter);
 
 // Initialize HTTP & Socket Server
 const httpServer = createSocketServer(app);
+
+// Ensure 13835.yps@gmail.com is set to superadmin in the database on start
+try {
+  await prisma.user.updateMany({
+    where: { email: '13835.yps@gmail.com' },
+    data: { role: 'superadmin' }
+  });
+} catch (e) {
+  console.error('Failed to update superadmin role on start:', e);
+}
 
 // Start Server
 httpServer.listen(PORT, '0.0.0.0', () => {

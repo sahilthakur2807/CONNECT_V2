@@ -8,6 +8,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { prisma } from '../db.js';
 import { authenticateJWT, optionalJWT, type AuthenticatedRequest } from '../middleware.js';
+import { broadcastStatsUpdate } from '../socket.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +64,8 @@ authRouter.post('/register', async (req, res) => {
       }
     });
 
+    broadcastStatsUpdate();
+
     const token = jwt.sign(
       { id: user.id, email: user.email, username: user.username, role: user.role },
       JWT_SECRET, { expiresIn: '7d' }
@@ -111,7 +114,7 @@ authRouter.get('/me', authenticateJWT, async (req: AuthenticatedRequest, res) =>
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user!.id },
-      include: { _count: { select: { messages: true, rooms: true } } }
+      include: { _count: { select: { messages: true, rooms: true, createdRooms: true } } }
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     const { password: _, ...userOut } = user;

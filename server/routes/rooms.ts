@@ -2,9 +2,38 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { authenticateJWT, type AuthenticatedRequest } from '../middleware.js';
-import { io, pushRealtimeNotification } from '../socket.js';
+import { io, pushRealtimeNotification, broadcastStatsUpdate, getRoomActiveCount } from '../socket.js';
 
 export const roomsRouter = Router();
+
+// Helper to attach correct non-deleted message counts and active users counts to rooms
+async function attachMessageCounts(rooms: any[]) {
+  if (rooms.length === 0) return rooms;
+  const roomIds = rooms.map(r => r.id);
+  const messageCounts = await prisma.message.groupBy({
+    by: ['roomId'],
+    where: {
+      roomId: { in: roomIds },
+      deleted: false
+    },
+    _count: {
+      id: true
+    }
+  });
+
+  const countsMap = new Map<string, number>(
+    messageCounts.map(c => [c.roomId, c._count.id])
+  );
+
+  return rooms.map(r => ({
+    ...r,
+    activeNow: getRoomActiveCount(r.id),
+    _count: {
+      ...r._count,
+      messages: countsMap.get(r.id) || 0
+    }
+  }));
+}
 
 // Get rooms
 roomsRouter.get('/', async (req, res) => {
@@ -24,7 +53,7 @@ roomsRouter.get('/', async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(rooms);
+    res.json(await attachMessageCounts(rooms));
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch rooms' });
   }
@@ -35,7 +64,7 @@ roomsRouter.get('/trending', async (req, res) => {
   try {
     const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
     
-    // Find rooms with most activity in last 24h
+    // Find rooms with most activity in last 24h (excluding deleted messages)
     const rooms = await prisma.room.findMany({
       include: {
         community: true,
@@ -43,15 +72,17 @@ roomsRouter.get('/trending', async (req, res) => {
           select: { members: true, messages: true }
         },
         messages: {
-          where: { createdAt: { gte: last24h } },
+          where: { createdAt: { gte: last24h }, deleted: false },
           select: { id: true }
         }
       },
       take: 20
     });
 
+    const roomsWithCounts = await attachMessageCounts(rooms);
+
     // Sort by message count
-    const trendingRooms = rooms
+    const trendingRooms = roomsWithCounts
       .sort((a, b) => {
         const scoreA = a._count.messages;
         const scoreB = b._count.messages;
@@ -80,7 +111,9 @@ roomsRouter.get('/hot', async (req, res) => {
       take: 20
     });
 
-    const hotRooms = rooms
+    const roomsWithCounts = await attachMessageCounts(rooms);
+
+    const hotRooms = roomsWithCounts
       .sort((a, b) => {
         const scoreA = a._count.members;
         const scoreB = b._count.members;
@@ -105,7 +138,7 @@ roomsRouter.get('/new', async (req, res) => {
       orderBy: { createdAt: 'desc' },
       take: 6
     });
-    res.json(newRooms);
+    res.json(await attachMessageCounts(newRooms));
   } catch (error) {
     console.error('Fetch new rooms error:', error);
     res.status(500).json({ error: 'Failed to fetch newly created rooms' });
@@ -116,7 +149,7 @@ roomsRouter.get('/new', async (req, res) => {
 roomsRouter.get('/:id', async (req, res) => {
   try {
     const room = await prisma.room.findUnique({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       include: {
         community: true,
         members: {
@@ -129,6 +162,14 @@ roomsRouter.get('/:id', async (req, res) => {
       }
     });
     if (!room) return res.status(404).json({ error: 'Room not found' });
+
+    // Exclude deleted messages from count
+    const nonDeletedMessages = await prisma.message.count({
+      where: { roomId: room.id, deleted: false }
+    });
+    room._count.messages = nonDeletedMessages;
+    (room as any).activeNow = getRoomActiveCount(room.id);
+
     res.json(room);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch room' });
@@ -159,6 +200,8 @@ roomsRouter.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) =>
       }
     });
 
+    broadcastStatsUpdate();
+
     // Create ActivityLog
     await prisma.activityLog.create({
       data: {
@@ -183,6 +226,14 @@ roomsRouter.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) =>
       }
     });
 
+    if (roomWithCounts) {
+      const nonDeletedMessages = await prisma.message.count({
+        where: { roomId: roomWithCounts.id, deleted: false }
+      });
+      roomWithCounts._count.messages = nonDeletedMessages;
+      (roomWithCounts as any).activeNow = getRoomActiveCount(roomWithCounts.id);
+    }
+
     res.status(201).json(roomWithCounts);
   } catch (error) {
     console.error(error);
@@ -193,7 +244,7 @@ roomsRouter.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) =>
 // Join room
 roomsRouter.post('/:id/join', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const roomId = req.params.id;
+    const roomId = (req.params.id as string);
     const existing = await prisma.roomMember.findUnique({
       where: { userId_roomId: { userId: req.user!.id, roomId } }
     });
@@ -208,6 +259,11 @@ roomsRouter.post('/:id/join', authenticateJWT, async (req: AuthenticatedRequest,
       });
     }
 
+    const memberCount = await prisma.roomMember.count({ where: { roomId } });
+    if (io) {
+      io.emit('room_stats_update', { roomId, memberCount });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to join room' });
@@ -217,10 +273,16 @@ roomsRouter.post('/:id/join', authenticateJWT, async (req: AuthenticatedRequest,
 // Leave room
 roomsRouter.post('/:id/leave', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const roomId = req.params.id;
+    const roomId = (req.params.id as string);
     await prisma.roomMember.delete({
       where: { userId_roomId: { userId: req.user!.id, roomId } }
     });
+
+    const memberCount = await prisma.roomMember.count({ where: { roomId } });
+    if (io) {
+      io.emit('room_stats_update', { roomId, memberCount });
+    }
+
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to leave room' });
@@ -231,7 +293,7 @@ roomsRouter.post('/:id/leave', authenticateJWT, async (req: AuthenticatedRequest
 roomsRouter.get('/:roomId/messages', async (req, res) => {
   try {
     const messages = await prisma.message.findMany({
-      where: { roomId: req.params.roomId, deleted: false, parentId: null },
+      where: { roomId: (req.params.roomId as string), deleted: false, parentId: null },
       include: {
         user: {
           select: {
@@ -297,7 +359,7 @@ roomsRouter.post('/:roomId/messages', authenticateJWT, async (req: Authenticated
 
   try {
     const { content, parentId } = parsed.data;
-    const roomId = req.params.roomId;
+    const roomId = (req.params.roomId as string);
 
     const message = await prisma.message.create({
       data: {
@@ -353,6 +415,12 @@ roomsRouter.post('/:roomId/messages', authenticateJWT, async (req: Authenticated
     // Broadcast new message via Socket.IO
     if (io) {
       io.to(`room:${roomId}`).emit('new_message', message);
+    }
+
+    broadcastStatsUpdate();
+    const messageCount = await prisma.message.count({ where: { roomId, deleted: false } });
+    if (io) {
+      io.emit('room_stats_update', { roomId, messageCount });
     }
 
     res.status(201).json(message);

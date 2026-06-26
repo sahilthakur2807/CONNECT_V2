@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { authenticateJWT, type AuthenticatedRequest } from '../middleware.js';
+import { broadcastStatsUpdate } from '../socket.js';
 
 export const communitiesRouter = Router();
 
@@ -21,7 +22,7 @@ communitiesRouter.get('/', async (req, res) => {
 communitiesRouter.get('/:id', async (req, res) => {
   try {
     const community = await prisma.community.findUnique({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       include: { _count: { select: { members: true, rooms: true } } }
     });
     if (!community) return res.status(404).json({ error: 'Community not found' });
@@ -59,6 +60,8 @@ communitiesRouter.post('/', authenticateJWT, async (req: AuthenticatedRequest, r
       data: { userId: req.user!.id, communityId: community.id, role: 'admin' }
     });
 
+    broadcastStatsUpdate();
+
     res.status(201).json(community);
   } catch (error) {
     console.error(error);
@@ -69,7 +72,7 @@ communitiesRouter.post('/', authenticateJWT, async (req: AuthenticatedRequest, r
 // Join community
 communitiesRouter.post('/:id/join', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const communityId = req.params.id;
+    const communityId = (req.params.id as string);
     const existing = await prisma.communityMember.findUnique({
       where: { userId_communityId: { userId: req.user!.id, communityId } }
     });
@@ -85,7 +88,7 @@ communitiesRouter.post('/:id/join', authenticateJWT, async (req: AuthenticatedRe
 // Leave community
 communitiesRouter.post('/:id/leave', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const communityId = req.params.id;
+    const communityId = (req.params.id as string);
     await prisma.communityMember.delete({
       where: { userId_communityId: { userId: req.user!.id, communityId } }
     });
@@ -99,7 +102,7 @@ communitiesRouter.post('/:id/leave', authenticateJWT, async (req: AuthenticatedR
 communitiesRouter.get('/:id/members', async (req, res) => {
   try {
     const members = await prisma.communityMember.findMany({
-      where: { communityId: req.params.id },
+      where: { communityId: (req.params.id as string) },
       include: {
         user: {
           select: {

@@ -1,6 +1,6 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
-export type UserRole = 'user' | 'moderator' | 'admin';
+export type UserRole = 'user' | 'moderator' | 'admin' | 'superadmin';
 export type UserStatus = 'online' | 'offline';
 export type ReportStatus = 'pending' | 'reviewed' | 'dismissed';
 
@@ -24,6 +24,7 @@ export interface User {
     messages: number;
     rooms: number;
     communities?: number;
+    createdRooms?: number;
   };
 }
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db.js';
 import { authenticateJWT, type AuthenticatedRequest } from '../middleware.js';
+import { broadcastStatsUpdate } from '../socket.js';
 
 export const extensionRouter = Router();
 
@@ -82,6 +83,8 @@ extensionRouter.post('/rooms', authenticateJWT, async (req: AuthenticatedRequest
       }
     });
 
+    broadcastStatsUpdate();
+
     // Create activity record
     await prisma.activity.create({
       data: {
@@ -116,7 +119,7 @@ extensionRouter.post('/rooms', authenticateJWT, async (req: AuthenticatedRequest
 
 // Extension Join Room
 extensionRouter.post('/rooms/:roomId/join', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  const { roomId } = req.params;
+  const roomId = req.params.roomId as string;
 
   try {
     const existingMember = await prisma.roomMember.findUnique({

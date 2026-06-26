@@ -48,6 +48,7 @@ export function DiscussionRoom() {
   const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
 
   const [isJoined, setIsJoined] = useState(false);
+  const [activeVoices, setActiveVoices] = useState<any[]>([]);
   const feedRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -109,12 +110,18 @@ export function DiscussionRoom() {
       useNotificationStore.getState().addNotification(notification);
     });
 
+    const handleActiveUsersUpdate = (usersList: any[]) => {
+      setActiveVoices(usersList);
+    };
+    socket.on('room_active_users_update', handleActiveUsersUpdate);
+
     return () => {
       socket.emit('leave_room', roomId);
       socket.off('new_message');
       socket.off('update_message');
       socket.off('delete_message');
       socket.off('notification');
+      socket.off('room_active_users_update', handleActiveUsersUpdate);
       closeRoom();
     };
   }, [roomId, openRoom, closeRoom, addMessage, updateMessageInList, removeMessageFromList]);
@@ -182,9 +189,6 @@ export function DiscussionRoom() {
   const titleParts = room.title.split(/::|\||—/).map(s => s.trim()).filter(Boolean);
   const mainTitle = titleParts[0] || room.title;
   const roomTags = titleParts.slice(1);
-
-  // Sync active users from the database room members instead of global users
-  const roomMembers = (room as any).members?.map((m: any) => m.user) || [];
 
   return (
     <div className="flex-1 flex overflow-hidden bg-background">
@@ -393,17 +397,17 @@ export function DiscussionRoom() {
               Active Voices
             </h3>
             <span className="text-[10px] font-black text-primary uppercase tracking-widest px-2 py-1 bg-primary/5 rounded-md">
-              {roomMembers.length} Here
+              {activeVoices.length} Here
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {roomMembers.slice(0, 16).map((u: any) => (
+            {activeVoices.slice(0, 16).map((u: any) => (
               <div key={u.id} className="group relative">
                 <Avatar
                   src={u.avatar}
                   name={u.name || u.username}
                   size="sm"
-                  status={u.status}
+                  status="online"
                   showStatus
                   className="ring-2 ring-transparent group-hover:ring-primary/10 transition-all cursor-pointer rounded-xl"
                 />
@@ -412,8 +416,8 @@ export function DiscussionRoom() {
                 </div>
               </div>
             ))}
-            {roomMembers.length === 0 && (
-              <p className="text-xs text-muted-foreground italic font-medium">Be the first to join.</p>
+            {activeVoices.length === 0 && (
+              <p className="text-xs text-muted-foreground italic font-medium">No active voices.</p>
             )}
           </div>
         </div>

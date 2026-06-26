@@ -247,8 +247,9 @@ export function Navbar() {
                 </div>
                 <div className="flex gap-1.5 mt-3">
                   {user.verified && <Badge variant="verified" size="sm" className="h-5" />}
-                  {user.role === 'moderator' && <Badge variant="moderator" size="sm" className="h-5" />}
+                  {user.role === 'superadmin' && <Badge variant="superadmin" size="sm" className="h-5" />}
                   {user.role === 'admin' && <Badge variant="admin" size="sm" className="h-5" />}
+                  {user.role === 'moderator' && <Badge variant="moderator" size="sm" className="h-5" />}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -269,7 +270,7 @@ export function Navbar() {
                   )}
                 </Link>
               </DropdownMenuItem>
-              {(user.role === 'moderator' || user.role === 'admin') && (
+              {(user.role === 'moderator' || user.role === 'admin' || user.role === 'superadmin' || (user._count?.createdRooms && user._count.createdRooms > 0)) && (
                 <DropdownMenuItem className="p-0 rounded-xl overflow-hidden">
                   <Link to="/moderator" className="flex items-center gap-3 w-full p-2.5 text-purple-600 dark:text-purple-400 hover:bg-accent transition-colors">
                     <Shield size={16} />
@@ -277,7 +278,7 @@ export function Navbar() {
                   </Link>
                 </DropdownMenuItem>
               )}
-              {user.role === 'admin' && (
+              {(user.role === 'admin' || user.role === 'superadmin') && (
                 <DropdownMenuItem className="p-0 rounded-xl overflow-hidden">
                   <Link to="/admin" className="flex items-center gap-3 w-full p-2.5 text-blue-600 dark:text-blue-400 hover:bg-accent transition-colors">
                     <Settings size={16} />

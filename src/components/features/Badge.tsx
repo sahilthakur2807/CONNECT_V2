@@ -4,6 +4,8 @@ import { cn } from '@/utils/cn';
 
 export type BadgeVariant =
   | 'verified'
+  | 'superadmin'
+  | 'super-admin'
   | 'admin'
   | 'moderator'
   | 'trending'
@@ -28,6 +30,16 @@ const configs: Record<BadgeVariant, { label: string; icon: React.ReactNode; clas
     label: 'Verified',
     icon: <ShieldCheck size={12} />,
     className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800',
+  },
+  'super-admin': {
+    label: 'Super Admin',
+    icon: <Shield size={12} />,
+    className: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+  },
+  superadmin: {
+    label: 'Super Admin',
+    icon: <Shield size={12} />,
+    className: 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
   },
   admin: {
     label: 'Admin',
@@ -88,6 +100,7 @@ const configs: Record<BadgeVariant, { label: string; icon: React.ReactNode; clas
 
 export function Badge({ variant, size = 'sm', showIcon = true, className }: BadgeProps) {
   const config = configs[variant];
+  if (!config) return null;
   const sizeClass = size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs';
 
   return (

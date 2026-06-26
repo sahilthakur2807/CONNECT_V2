@@ -5,14 +5,36 @@ import { authenticateJWT, type AuthenticatedRequest } from '../middleware.js';
 
 export const reportsRouter = Router();
 
-// Get reports (admin/moderator only)
+// Get reports (admin/moderator/room creators only)
 reportsRouter.get('/', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  if (req.user!.role !== 'admin' && req.user!.role !== 'moderator') {
-    return res.status(403).json({ error: 'Access denied' });
-  }
+  const isAdminOrSuperAdmin = req.user!.role === 'admin' || req.user!.role === 'superadmin';
+  const isCommonModerator = req.user!.role === 'moderator';
 
   try {
+    let whereClause: any = {};
+    
+    if (!isAdminOrSuperAdmin && !isCommonModerator) {
+      // Find rooms created by the user
+      const createdRooms = await prisma.room.findMany({
+        where: { createdById: req.user!.id },
+        select: { id: true }
+      });
+      const createdRoomIds = createdRooms.map(r => r.id);
+      
+      if (createdRoomIds.length === 0) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      
+      whereClause = {
+        OR: [
+          { roomId: { in: createdRoomIds } },
+          { message: { roomId: { in: createdRoomIds } } }
+        ]
+      };
+    }
+
     const reports = await prisma.report.findMany({
+      where: whereClause,
       include: {
         reporter: { select: { id: true, username: true, name: true } },
         reportedUser: { select: { id: true, username: true, name: true } },
@@ -56,17 +78,39 @@ reportsRouter.post('/', authenticateJWT, async (req: AuthenticatedRequest, res) 
 
 // Update report (resolve/dismiss)
 reportsRouter.patch('/:id', authenticateJWT, async (req: AuthenticatedRequest, res) => {
-  if (req.user!.role !== 'admin' && req.user!.role !== 'moderator') {
-    return res.status(403).json({ error: 'Access denied' });
-  }
-
   const reportSchema = z.object({ status: z.string() });
   const parsed = reportSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
 
   try {
+    const report = await prisma.report.findUnique({ where: { id: (req.params.id as string) } });
+    if (!report) return res.status(404).json({ error: 'Report not found' });
+
+    const isAdminOrSuperAdmin = req.user!.role === 'admin' || req.user!.role === 'superadmin';
+    const isCommonModerator = req.user!.role === 'moderator';
+
+    let isRoomCreator = false;
+    if (report.roomId) {
+      const room = await prisma.room.findUnique({ where: { id: report.roomId } });
+      if (room && room.createdById === req.user!.id) {
+        isRoomCreator = true;
+      }
+    } else if (report.messageId) {
+      const message = await prisma.message.findUnique({ where: { id: report.messageId } });
+      if (message) {
+        const room = await prisma.room.findUnique({ where: { id: message.roomId } });
+        if (room && room.createdById === req.user!.id) {
+          isRoomCreator = true;
+        }
+      }
+    }
+
+    if (!isAdminOrSuperAdmin && !isCommonModerator && !isRoomCreator) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const updated = await prisma.report.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data: { status: parsed.data.status }
     });
     res.json(updated);

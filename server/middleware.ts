@@ -12,6 +12,82 @@ export interface AuthenticatedRequest extends express.Request {
   };
 }
 
+export function sanitizeUserForClient(user: any, requesterRole?: string) {
+  if (!user) return user;
+
+  const targetRole = user.role;
+  let shouldSanitize = false;
+
+  if (targetRole === 'superadmin') {
+    // Only superadmin can see superadmin
+    if (requesterRole !== 'superadmin') {
+      shouldSanitize = true;
+    }
+  } else if (targetRole === 'admin') {
+    // Only superadmin and admin can see admin
+    if (requesterRole !== 'superadmin' && requesterRole !== 'admin') {
+      shouldSanitize = true;
+    }
+  }
+
+  if (shouldSanitize) {
+    const sanitized = { ...user };
+    sanitized.role = 'user';
+    if (sanitized.badges) {
+      sanitized.badges = sanitized.badges.filter((b: string) => {
+        const lower = b.toLowerCase();
+        return !lower.includes('admin') && !lower.includes('super');
+      });
+    }
+    return sanitized;
+  }
+
+  return user;
+}
+
+export function sanitizePayload(data: any, requesterRole?: string): any {
+  if (data === null || data === undefined) return data;
+
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizePayload(item, requesterRole));
+  }
+
+  if (typeof data === 'object') {
+    if ('role' in data && ('username' in data || 'email' in data || 'avatar' in data)) {
+      const sanitizedUser = sanitizeUserForClient(data, requesterRole);
+      const result: any = {};
+      for (const key of Object.keys(sanitizedUser)) {
+        result[key] = sanitizePayload(sanitizedUser[key], requesterRole);
+      }
+      return result;
+    }
+
+    const result: any = {};
+    for (const key of Object.keys(data)) {
+      result[key] = sanitizePayload(data[key], requesterRole);
+    }
+    return result;
+  }
+
+  return data;
+}
+
+export const sanitizeResponseMiddleware = (
+  req: AuthenticatedRequest,
+  res: express.Response,
+  next: express.NextFunction
+) => {
+  const originalJson = res.json;
+  res.json = function (body: any) {
+    const isAuthRoute = req.originalUrl.includes('/api/auth/login') || req.originalUrl.includes('/api/auth/register');
+    if (!isAuthRoute && body && typeof body === 'object') {
+      body = sanitizePayload(body, req.user?.role);
+    }
+    return originalJson.call(this, body);
+  };
+  next();
+};
+
 /** Requires a valid Bearer JWT – returns 401/403 otherwise. */
 export const authenticateJWT = (
   req: AuthenticatedRequest,
@@ -48,3 +124,4 @@ export const optionalJWT = (
     next();
   }
 };
+

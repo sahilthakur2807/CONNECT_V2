@@ -1,15 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Home, TrendingUp, Sparkles, Flame, Activity, X } from 'lucide-react';
+import { Home, TrendingUp, Sparkles, Flame, Activity, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { RoomCard } from '@/components/features/RoomCard';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/utils/cn';
+import { connectSocket, getSocket } from '@/services/socket';
 
 export function HomeDashboard() {
   const navigate = useNavigate();
+  const activeFriendsRef = useRef<HTMLDivElement>(null);
   
   const [trendingRooms, setTrendingRooms] = useState<any[]>([]);
   const [newRooms, setNewRooms] = useState<any[]>([]);
@@ -17,6 +19,12 @@ export function HomeDashboard() {
   const [activeUsers, setActiveUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'trending' | 'hot' | 'new'>('trending');
+
+  // Friend search states
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showSearch, setShowSearch] = useState(false);
+  const [addingFriendId, setAddingFriendId] = useState('');
 
   // Dialog states
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -33,7 +41,7 @@ export function HomeDashboard() {
         fetch('/api/rooms/trending', { headers }),
         fetch('/api/rooms/new', { headers }),
         fetch('/api/rooms/hot', { headers }),
-        fetch('/api/users/active', { headers })
+        fetch('/api/users/active-friends', { headers })
       ]);
       
       const rooms = await roomsRes.json();
@@ -54,6 +62,69 @@ export function HomeDashboard() {
 
   useEffect(() => {
     fetchData();
+    connectSocket();
+
+    const socket = getSocket();
+    const handleFriendOnline = (friend: any) => {
+      setActiveUsers((prev) => {
+        const friendWithOnline = { ...friend, status: 'online' };
+        let updated;
+        if (prev.some((u) => u.id === friend.id)) {
+          updated = prev.map((u) => u.id === friend.id ? { ...u, ...friendWithOnline } : u);
+        } else {
+          updated = [...prev, friendWithOnline];
+        }
+        return [...updated].sort((a, b) => {
+          if (a.status === 'online' && b.status !== 'online') return -1;
+          if (a.status !== 'online' && b.status === 'online') return 1;
+          return (a.name || a.username).localeCompare(b.name || b.username);
+        });
+      });
+    };
+
+    const handleFriendOffline = ({ userId }: { userId: string }) => {
+      setActiveUsers((prev) => {
+        const updated = prev.map((u) => u.id === userId ? { ...u, status: 'offline' } : u);
+        return [...updated].sort((a, b) => {
+          if (a.status === 'online' && b.status !== 'online') return -1;
+          if (a.status !== 'online' && b.status === 'online') return 1;
+          return (a.name || a.username).localeCompare(b.name || b.username);
+        });
+      });
+    };
+
+    const handleRoomStatsUpdate = ({ roomId, messageCount, memberCount, activeNow }: { roomId: string; messageCount?: number; memberCount?: number; activeNow?: number }) => {
+      const updateFn = (prev: any[]) => prev.map(room => {
+        if (room.id !== roomId) return room;
+        const updated = { ...room };
+        if (messageCount !== undefined) {
+          if (!updated._count) updated._count = {};
+          updated._count.messages = messageCount;
+        }
+        if (memberCount !== undefined) {
+          if (!updated._count) updated._count = {};
+          updated._count.members = memberCount;
+        }
+        if (activeNow !== undefined) {
+          updated.activeNow = activeNow;
+        }
+        return updated;
+      });
+
+      setTrendingRooms(updateFn);
+      setNewRooms(updateFn);
+      setHotRooms(updateFn);
+    };
+
+    socket.on('friend_online', handleFriendOnline);
+    socket.on('friend_offline', handleFriendOffline);
+    socket.on('room_stats_update', handleRoomStatsUpdate);
+
+    return () => {
+      socket.off('friend_online', handleFriendOnline);
+      socket.off('friend_offline', handleFriendOffline);
+      socket.off('room_stats_update', handleRoomStatsUpdate);
+    };
   }, []);
 
   const handleCreateRoom = async (e: React.FormEvent) => {
@@ -111,6 +182,60 @@ export function HomeDashboard() {
     }
   };
 
+  const handleFriendSearch = async (query: string) => {
+    setFriendSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearch(false);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('newsconnect_token');
+      const res = await fetch(`/api/users/search-by-username?q=${encodeURIComponent(query)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const users = await res.json();
+        setSearchResults(users);
+        setShowSearch(true);
+      }
+    } catch (err) {
+      console.error('Failed to search friends:', err);
+    }
+  };
+
+  const handleAddFriend = async (friendId: string) => {
+    setAddingFriendId(friendId);
+    try {
+      const token = localStorage.getItem('newsconnect_token');
+      const res = await fetch('/api/users/add-friend', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ friendId })
+      });
+      if (res.ok) {
+        setSearchResults(prev => prev.map(u => u.id === friendId ? { ...u, isFriend: true } : u));
+        // Refresh active friends list
+        const friendsRes = await fetch('/api/users/active-friends', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (friendsRes.ok) {
+          const activeFriends = await friendsRes.json();
+          setActiveUsers(activeFriends);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to add friend:', err);
+    } finally {
+      setAddingFriendId('');
+    }
+  };
+
+
   if (loading) {
     return <div className="p-10 flex justify-center"><Activity className="animate-spin text-primary" /></div>;
   }
@@ -134,37 +259,124 @@ export function HomeDashboard() {
         }
       />
 
-      {/* Active Citizens (Horizontal list) */}
-      {activeUsers.length > 0 && (
-        <div className="space-y-4 bg-card border border-border/50 p-6 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between">
+      {/* Active Friends (Horizontal list) */}
+      <div className="space-y-4 bg-card border border-border/50 p-6 rounded-3xl shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
             <h3 
               className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
-              Active Citizens
+              Friends
             </h3>
             <span 
               className="flex items-center gap-1.5 text-green-500 text-[10px] font-black uppercase tracking-[0.1em]" 
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              {activeUsers.length} Online
+              {activeUsers.filter((u) => u.status === 'online').length} Online
             </span>
           </div>
-          <div className="flex gap-5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+
+          <div className="flex flex-1 max-w-sm items-center gap-4">
+            {/* Search Input */}
+            <div className="relative flex-1">
+              <div className="relative">
+                <Input 
+                  placeholder="Add friend by username..." 
+                  value={friendSearchQuery}
+                  onChange={(e) => handleFriendSearch(e.target.value)}
+                  className="h-8 pr-8 bg-secondary/50 border-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all rounded-xl text-xs font-bold"
+                />
+                {friendSearchQuery ? (
+                  <button 
+                    onClick={() => handleFriendSearch('')} 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                ) : (
+                  <Search size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50" />
+                )}
+              </div>
+
+              {/* Search results popover */}
+              {showSearch && searchResults.length > 0 && (
+                <div className="absolute z-20 mt-2 left-0 right-0 bg-popover border border-border rounded-2xl shadow-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                  {searchResults.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between gap-3 p-1.5 rounded-xl hover:bg-secondary transition-colors">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img src={user.avatar} className="w-8 h-8 rounded-full object-cover border border-border" alt="" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{user.name || user.username}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">@{user.username}</p>
+                        </div>
+                      </div>
+                      
+                      {user.isFriend ? (
+                        <span className="text-[9px] font-black uppercase text-green-500 tracking-widest mr-2">Friends</span>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          disabled={addingFriendId === user.id}
+                          onClick={() => handleAddFriend(user.id)}
+                          className="h-7 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 hover:bg-primary hover:text-primary-foreground cursor-pointer transition-colors"
+                        >
+                          {addingFriendId === user.id ? 'Adding...' : '+ Add'}
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Navigation arrows (only visible if we have online friends to scroll) */}
+            {activeUsers.length > 0 && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button 
+                  onClick={() => activeFriendsRef.current?.scrollBy({ left: -200, behavior: 'smooth' })}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                  title="Scroll Left"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button 
+                  onClick={() => activeFriendsRef.current?.scrollBy({ left: 200, behavior: 'smooth' })}
+                  className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                  title="Scroll Right"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {activeUsers.length > 0 ? (
+          <div 
+            ref={activeFriendsRef}
+            className="flex gap-5 overflow-x-auto pb-2 scrollbar-none snap-x"
+            style={{ scrollbarWidth: 'none' }}
+          >
             {activeUsers.map((u) => (
               <div 
                 key={u.id} 
-                className="flex flex-col items-center gap-2 min-w-[76px] group cursor-pointer text-center"
+                className="flex flex-col items-center gap-2 min-w-[76px] snap-start group cursor-pointer text-center"
                 onClick={() => navigate(`/profile/${u.id}`)}
               >
                 <div className="relative">
-                  <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-card shadow-sm ring-2 ring-border group-hover:ring-primary/40 transition-all duration-300 group-hover:scale-105">
+                  <div className={cn(
+                    "w-14 h-14 rounded-full overflow-hidden border-2 border-card shadow-sm ring-2 ring-border group-hover:ring-primary/40 transition-all duration-300 group-hover:scale-105",
+                    u.status !== 'online' && "opacity-60 grayscale-[30%]"
+                  )}>
                     <img src={u.avatar} alt="" className="w-full h-full object-cover" />
                   </div>
-                  {u.status === 'online' && (
+                  {u.status === 'online' ? (
                     <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-card" />
+                  ) : (
+                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-400 rounded-full border-2 border-card" />
                   )}
                 </div>
                 <div className="min-w-0 w-full">
@@ -178,8 +390,12 @@ export function HomeDashboard() {
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="py-6 text-center text-xs text-muted-foreground font-medium">
+            No friends added yet. Search above to find and add friends!
+          </div>
+        )}
+      </div>
 
       {/* Debate of the Day Hero Banner */}
       {trendingRooms.length > 0 && (
@@ -195,13 +411,13 @@ export function HomeDashboard() {
               </div>
               
               <h2 
-                className="text-2xl sm:text-3xl lg:text-4xl leading-tight max-w-3xl font-black text-card-foreground dark:text-foreground"
+                className="text-2xl sm:text-3xl lg:text-4xl leading-tight max-w-3xl font-black text-background dark:text-foreground"
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
                 "{trendingRooms[0].title}"
               </h2>
               
-              <p className="text-muted-foreground text-sm max-w-xl line-clamp-2" style={{ fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6 }}>
+              <p className="text-background/70 dark:text-muted-foreground text-sm max-w-xl line-clamp-2" style={{ fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.6 }}>
                 {trendingRooms[0].description}
               </p>
             </div>
@@ -210,11 +426,11 @@ export function HomeDashboard() {
               <div className="flex items-center gap-8">
                 <div className="space-y-1">
                   <span className="text-muted-foreground block text-[9px] font-black uppercase tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Voices</span>
-                  <span className="text-base font-bold text-card-foreground dark:text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>{trendingRooms[0]._count?.members || 0} Citizens</span>
+                  <span className="text-base font-bold text-background dark:text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>{trendingRooms[0]._count?.members || 0} Citizens</span>
                 </div>
                 <div className="space-y-1">
                   <span className="text-muted-foreground block text-[9px] font-black uppercase tracking-widest" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Activity</span>
-                  <span className="text-base font-bold text-card-foreground dark:text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>{trendingRooms[0]._count?.messages || 0} Replies</span>
+                  <span className="text-base font-bold text-background dark:text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>{trendingRooms[0]._count?.messages || 0} Replies</span>
                 </div>
               </div>
               
@@ -265,7 +481,7 @@ export function HomeDashboard() {
                 ...room,
                 memberCount: room._count?.members || 0,
                 messageCount: room._count?.messages || 0,
-                activeNow: Math.ceil((room._count?.members || 1) * 0.4)
+                activeNow: room.activeNow ?? 0
               }}
               onClick={(id) => navigate(`/room/${id}`)}
               onJoin={(id) => navigate(`/room/${id}`)}
@@ -279,7 +495,7 @@ export function HomeDashboard() {
                 ...room,
                 memberCount: room._count?.members || 0,
                 messageCount: room._count?.messages || 0,
-                activeNow: Math.ceil((room._count?.members || 1) * 0.4)
+                activeNow: room.activeNow ?? 0
               }}
               onClick={(id) => navigate(`/room/${id}`)}
               onJoin={(id) => navigate(`/room/${id}`)}
@@ -293,7 +509,7 @@ export function HomeDashboard() {
                 ...room,
                 memberCount: room._count?.members || 0,
                 messageCount: room._count?.messages || 0,
-                activeNow: Math.ceil((room._count?.members || 1) * 0.3)
+                activeNow: room.activeNow ?? 0
               }}
               onClick={(id) => navigate(`/room/${id}`)}
               onJoin={(id) => navigate(`/room/${id}`)}

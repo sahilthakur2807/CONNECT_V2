@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { MessageSquare, Flame, Sparkles, Activity } from 'lucide-react';
+import { MessageSquare, Flame, Sparkles, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Button } from '@/components/ui/button';
 import { motion } from 'motion/react';
@@ -9,6 +9,7 @@ import { cn } from '@/utils/cn';
 
 export function DiscussionsDashboard() {
   const navigate = useNavigate();
+  const trendingRoomsRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,14 +65,32 @@ export function DiscussionsDashboard() {
 
       {/* Hero Thread Section - Horizontal Scroll */}
       <div className="space-y-6">
-        <div className="flex items-center gap-2 px-2">
-          <Sparkles size={20} className="text-primary" />
-          <h2 className="text-2xl font-black text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-            Trending Rooms
-          </h2>
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <Sparkles size={20} className="text-primary" />
+            <h2 className="text-2xl font-black text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Trending Rooms
+            </h2>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button 
+              onClick={() => trendingRoomsRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
+              className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Scroll Left"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button 
+              onClick={() => trendingRoomsRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
+              className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Scroll Right"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
         </div>
         
-        <div className="flex gap-6 overflow-x-auto pb-8 pt-2 px-2 snap-x hide-scrollbar" style={{ scrollbarWidth: 'none' }}>
+        <div ref={trendingRoomsRef} className="flex gap-6 overflow-x-auto pb-8 pt-2 px-2 snap-x hide-scrollbar" style={{ scrollbarWidth: 'none' }}>
           {rooms.slice(0, 5).map((room, i) => (
             <motion.div
               key={room.id}
@@ -172,10 +191,3 @@ export function DiscussionsDashboard() {
   );
 }
 
-function ChevronRight({ size, className }: { size: number, className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="m9 18 6-6-6-6"/>
-    </svg>
-  );
-}

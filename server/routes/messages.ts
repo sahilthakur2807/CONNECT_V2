@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { authenticateJWT, type AuthenticatedRequest } from '../middleware.js';
-import { io, pushRealtimeNotification } from '../socket.js';
+import { io, pushRealtimeNotification, broadcastStatsUpdate } from '../socket.js';
 
 export const messagesRouter = Router();
 
@@ -50,14 +50,15 @@ messagesRouter.patch('/:id', authenticateJWT, async (req: AuthenticatedRequest, 
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
 
   try {
-    const message = await prisma.message.findUnique({ where: { id: req.params.id } });
+    const message = await prisma.message.findUnique({ where: { id: (req.params.id as string) } });
     if (!message) return res.status(404).json({ error: 'Message not found' });
-    if (message.userId !== req.user!.id && req.user!.role !== 'admin') {
+    const isAdminOrSuperAdmin = req.user!.role === 'admin' || req.user!.role === 'superadmin';
+    if (message.userId !== req.user!.id && !isAdminOrSuperAdmin) {
       return res.status(403).json({ error: 'Unauthorized to edit this message' });
     }
 
     const updated = await prisma.message.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data: { content: parsed.data.content, edited: true },
       include: {
         user: {
@@ -91,20 +92,32 @@ messagesRouter.patch('/:id', authenticateJWT, async (req: AuthenticatedRequest, 
 // Delete message
 messagesRouter.delete('/:id', authenticateJWT, async (req: AuthenticatedRequest, res) => {
   try {
-    const message = await prisma.message.findUnique({ where: { id: req.params.id } });
+    const message = await prisma.message.findUnique({ where: { id: (req.params.id as string) } });
     if (!message) return res.status(404).json({ error: 'Message not found' });
-    if (message.userId !== req.user!.id && req.user!.role !== 'admin' && req.user!.role !== 'moderator') {
+
+    const room = await prisma.room.findUnique({ where: { id: message.roomId } });
+    const isRoomCreator = room?.createdById === req.user!.id;
+    const isCommonModerator = req.user!.role === 'moderator';
+    const isAdminOrSuperAdmin = req.user!.role === 'admin' || req.user!.role === 'superadmin';
+
+    if (message.userId !== req.user!.id && !isAdminOrSuperAdmin && !isCommonModerator && !isRoomCreator) {
       return res.status(403).json({ error: 'Unauthorized to delete this message' });
     }
 
     await prisma.message.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data: { deleted: true }
     });
 
     // Broadcast message deletion to room channel
     if (io) {
-      io.to(`room:${message.roomId}`).emit('delete_message', req.params.id);
+      io.to(`room:${message.roomId}`).emit('delete_message', (req.params.id as string));
+    }
+
+    broadcastStatsUpdate();
+    const messageCount = await prisma.message.count({ where: { roomId: message.roomId, deleted: false } });
+    if (io) {
+      io.emit('room_stats_update', { roomId: message.roomId, messageCount });
     }
 
     res.json({ success: true });
@@ -120,7 +133,7 @@ messagesRouter.post('/:messageId/replies', authenticateJWT, async (req: Authenti
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
 
   try {
-    const parentId = req.params.messageId;
+    const parentId = (req.params.messageId as string);
     const parentMessage = await prisma.message.findUnique({ where: { id: parentId } });
     if (!parentMessage) return res.status(404).json({ error: 'Parent message not found' });
 
@@ -175,6 +188,12 @@ messagesRouter.post('/:messageId/replies', authenticateJWT, async (req: Authenti
       io.to(`room:${parentMessage.roomId}`).emit('new_message', message);
     }
 
+    broadcastStatsUpdate();
+    const messageCount = await prisma.message.count({ where: { roomId: parentMessage.roomId, deleted: false } });
+    if (io) {
+      io.emit('room_stats_update', { roomId: parentMessage.roomId, messageCount });
+    }
+
     res.status(201).json(message);
   } catch (error) {
     res.status(500).json({ error: 'Failed to reply' });
@@ -188,7 +207,7 @@ messagesRouter.post('/:messageId/reactions', authenticateJWT, async (req: Authen
   if (!parsed.success) return res.status(400).json({ error: parsed.error.message });
 
   const { emoji } = parsed.data;
-  const messageId = req.params.messageId;
+  const messageId = (req.params.messageId as string);
 
   try {
     const message = await prisma.message.findUnique({ where: { id: messageId } });
