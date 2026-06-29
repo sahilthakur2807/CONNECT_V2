@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/utils/cn';
 import { connectSocket, getSocket } from '@/services/socket';
+import { apiClient } from '@/services/api';
 
 export function HomeDashboard() {
   const navigate = useNavigate();
@@ -34,25 +35,17 @@ export function HomeDashboard() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('newsconnect_token');
-      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
       const [roomsRes, newRoomsRes, hotRes, usersRes] = await Promise.all([
-        fetch('/api/rooms/trending', { headers }),
-        fetch('/api/rooms/new', { headers }),
-        fetch('/api/rooms/hot', { headers }),
-        fetch('/api/users/active-friends', { headers })
+        apiClient.get('/rooms/trending'),
+        apiClient.get('/rooms/new'),
+        apiClient.get('/rooms/hot'),
+        apiClient.get('/users/active-friends')
       ]);
-      
-      const rooms = await roomsRes.json();
-      const newR = await newRoomsRes.json();
-      const hot = await hotRes.json();
-      const users = await usersRes.json();
 
-      setTrendingRooms(rooms);
-      setNewRooms(newR); 
-      setHotRooms(hot);
-      setActiveUsers(users);
+      setTrendingRooms(roomsRes.data);
+      setNewRooms(newRoomsRes.data); 
+      setHotRooms(hotRes.data);
+      setActiveUsers(usersRes.data);
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
     } finally {
@@ -127,28 +120,68 @@ export function HomeDashboard() {
     };
   }, []);
 
+  const handleJoinRoom = async (roomId: string) => {
+    try {
+      const res = await apiClient.post(`/rooms/${roomId}/join`);
+      if (res.status === 200 || res.status === 201) {
+        const updateFn = (prev: any[]) => prev.map(r => {
+          if (r.id !== roomId) return r;
+          return {
+            ...r,
+            isJoined: true,
+            _count: {
+              ...r._count,
+              members: (r._count?.members || 0) + 1
+            }
+          };
+        });
+        setTrendingRooms(updateFn);
+        setNewRooms(updateFn);
+        setHotRooms(updateFn);
+      }
+    } catch (err) {
+      console.error('Failed to join room:', err);
+    }
+  };
+
+  const handleLeaveRoom = async (roomId: string) => {
+    try {
+      const res = await apiClient.post(`/rooms/${roomId}/leave`);
+      if (res.status === 200 || res.status === 201) {
+        const updateFn = (prev: any[]) => prev.map(r => {
+          if (r.id !== roomId) return r;
+          return {
+            ...r,
+            isJoined: false,
+            _count: {
+              ...r._count,
+              members: Math.max(0, (r._count?.members || 0) - 1)
+            }
+          };
+        });
+        setTrendingRooms(updateFn);
+        setNewRooms(updateFn);
+        setHotRooms(updateFn);
+      }
+    } catch (err) {
+      console.error('Failed to leave room:', err);
+    }
+  };
+
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!roomForm.title || !roomForm.description || !roomForm.category) return;
     try {
-      const token = localStorage.getItem('newsconnect_token');
       const tagsArray = roomForm.tags.split(',').map(t => t.trim()).filter(Boolean);
-      const res = await fetch('/api/rooms', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          title: roomForm.title,
-          description: roomForm.description,
-          category: roomForm.category,
-          tags: tagsArray,
-          sourceUrl: roomForm.sourceUrl || undefined
-        })
+      const res = await apiClient.post('/rooms', {
+        title: roomForm.title,
+        description: roomForm.description,
+        category: roomForm.category,
+        tags: tagsArray,
+        sourceUrl: roomForm.sourceUrl || undefined
       });
-      if (res.ok) {
-        const newRoom = await res.json();
+      if (res.status === 200 || res.status === 201) {
+        const newRoom = res.data;
         setShowCreateRoom(false);
         setRoomForm({ title: '', description: '', category: 'General', tags: '', sourceUrl: '' });
         fetchData();
@@ -163,16 +196,8 @@ export function HomeDashboard() {
     e.preventDefault();
     if (!communityForm.name || !communityForm.description) return;
     try {
-      const token = localStorage.getItem('newsconnect_token');
-      const res = await fetch('/api/communities', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(communityForm)
-      });
-      if (res.ok) {
+      const res = await apiClient.post('/communities', communityForm);
+      if (res.status === 200 || res.status === 201) {
         setShowCreateCommunity(false);
         setCommunityForm({ name: '', description: '', category: 'General' });
         fetchData();
@@ -191,15 +216,9 @@ export function HomeDashboard() {
     }
 
     try {
-      const token = localStorage.getItem('newsconnect_token');
-      const res = await fetch(`/api/users/search-by-username?q=${encodeURIComponent(query)}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const users = await res.json();
-        setSearchResults(users);
-        setShowSearch(true);
-      }
+      const res = await apiClient.get(`/users/search-by-username?q=${encodeURIComponent(query)}`);
+      setSearchResults(res.data);
+      setShowSearch(true);
     } catch (err) {
       console.error('Failed to search friends:', err);
     }
@@ -208,25 +227,12 @@ export function HomeDashboard() {
   const handleAddFriend = async (friendId: string) => {
     setAddingFriendId(friendId);
     try {
-      const token = localStorage.getItem('newsconnect_token');
-      const res = await fetch('/api/users/add-friend', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ friendId })
-      });
-      if (res.ok) {
+      const res = await apiClient.post('/users/add-friend', { friendId });
+      if (res.status === 200 || res.status === 201) {
         setSearchResults(prev => prev.map(u => u.id === friendId ? { ...u, isFriend: true } : u));
         // Refresh active friends list
-        const friendsRes = await fetch('/api/users/active-friends', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (friendsRes.ok) {
-          const activeFriends = await friendsRes.json();
-          setActiveUsers(activeFriends);
-        }
+        const friendsRes = await apiClient.get('/users/active-friends');
+        setActiveUsers(friendsRes.data);
       }
     } catch (err) {
       console.error('Failed to add friend:', err);
@@ -484,7 +490,8 @@ export function HomeDashboard() {
                 activeNow: room.activeNow ?? 0
               }}
               onClick={(id) => navigate(`/room/${id}`)}
-              onJoin={(id) => navigate(`/room/${id}`)}
+              onJoin={handleJoinRoom}
+              onLeave={handleLeaveRoom}
               className="bg-card border border-border/50 rounded-3xl p-6 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
             />
           ))}
@@ -498,7 +505,8 @@ export function HomeDashboard() {
                 activeNow: room.activeNow ?? 0
               }}
               onClick={(id) => navigate(`/room/${id}`)}
-              onJoin={(id) => navigate(`/room/${id}`)}
+              onJoin={handleJoinRoom}
+              onLeave={handleLeaveRoom}
               className="bg-card border border-border/50 rounded-3xl p-6 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
             />
           ))}
@@ -512,7 +520,8 @@ export function HomeDashboard() {
                 activeNow: room.activeNow ?? 0
               }}
               onClick={(id) => navigate(`/room/${id}`)}
-              onJoin={(id) => navigate(`/room/${id}`)}
+              onJoin={handleJoinRoom}
+              onLeave={handleLeaveRoom}
               className="bg-card border border-border/50 rounded-3xl p-6 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
             />
           ))}

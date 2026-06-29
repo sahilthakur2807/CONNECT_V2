@@ -10,14 +10,16 @@ interface RoomCardProps {
     memberCount?: number;
     messageCount?: number;
     activeNow?: number;
+    isJoined?: boolean;
   };
   onJoin?: (id: string) => void;
+  onLeave?: (id: string) => void;
   onClick?: (id: string) => void;
   compact?: boolean;
   className?: string;
 }
 
-export function RoomCard({ room, onJoin, onClick, compact = false, className }: RoomCardProps) {
+export function RoomCard({ room, onJoin, onLeave, onClick, compact = false, className }: RoomCardProps) {
   const memberCount = room.memberCount ?? room._count?.members ?? 0;
   const messageCount = room.messageCount ?? room._count?.messages ?? 0;
   const activeNow = room.activeNow ?? Math.ceil(memberCount * 0.4);
@@ -101,16 +103,31 @@ export function RoomCard({ room, onJoin, onClick, compact = false, className }: 
           {activeNow.toLocaleString()} active
         </div>
 
-        <Button
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onJoin?.(room.id);
-          }}
-          className="h-8 px-4 font-semibold cursor-pointer"
-        >
-          Join
-        </Button>
+        {room.isJoined ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={(e) => {
+              e.stopPropagation();
+              onLeave?.(room.id);
+            }}
+            className="h-8 px-4 font-semibold cursor-pointer group/btn border-green-200 text-green-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 dark:border-green-900/30 dark:text-green-400 dark:hover:border-red-950/20 transition-all"
+          >
+            <span className="group-hover/btn:hidden">Joined</span>
+            <span className="hidden group-hover/btn:inline">Leave</span>
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onJoin?.(room.id);
+            }}
+            className="h-8 px-4 font-semibold cursor-pointer"
+          >
+            Join
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

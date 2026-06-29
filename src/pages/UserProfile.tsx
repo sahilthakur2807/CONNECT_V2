@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/utils/cn';
 import { motion } from 'motion/react';
+import { apiClient } from '@/services/api';
 
 export function UserProfile() {
   const { id } = useParams();
@@ -33,25 +34,22 @@ export function UserProfile() {
     async function fetchUserData() {
       try {
         setLoading(true);
-        const token = localStorage.getItem('newsconnect_token');
-        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
-
         let userData: any = null;
         if (id) {
-          const res = await fetch(`/api/users/${id}`, { headers });
-          if (res.ok) userData = await res.json();
+          const res = await apiClient.get(`/users/${id}`);
+          userData = res.data;
         } else {
-          const res = await fetch('/api/auth/me', { headers });
-          if (res.ok) userData = await res.json();
+          const res = await apiClient.get('/auth/me');
+          userData = res.data;
         }
         setUser(userData);
 
         if (userData) {
-          const msgRes = await fetch(`/api/users/${userData.id}/messages`, { headers });
-          if (msgRes.ok) setUserMessages(await msgRes.json());
+          const msgRes = await apiClient.get(`/users/${userData.id}/messages`);
+          setUserMessages(msgRes.data);
 
-          const roomRes = await fetch(`/api/users/${userData.id}/rooms`, { headers });
-          if (roomRes.ok) setUserRooms(await roomRes.json());
+          const roomRes = await apiClient.get(`/users/${userData.id}/rooms`);
+          setUserRooms(roomRes.data);
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -80,21 +78,60 @@ export function UserProfile() {
     }
   };
 
+  const handleJoinRoom = async (roomId: string) => {
+    try {
+      const res = await apiClient.post(`/rooms/${roomId}/join`);
+      if (res.status === 200 || res.status === 201) {
+        setUserRooms(prev => prev.map(r => {
+          if (r.id !== roomId) return r;
+          return {
+            ...r,
+            isJoined: true,
+            _count: {
+              ...r._count,
+              members: (r._count?.members || 0) + 1
+            }
+          };
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to join room from profile:', err);
+    }
+  };
+
+  const handleLeaveRoom = async (roomId: string) => {
+    try {
+      const res = await apiClient.post(`/rooms/${roomId}/leave`);
+      if (res.status === 200 || res.status === 201) {
+        setUserRooms(prev => prev.map(r => {
+          if (r.id !== roomId) return r;
+          return {
+            ...r,
+            isJoined: false,
+            _count: {
+              ...r._count,
+              members: Math.max(0, (r._count?.members || 0) - 1)
+            }
+          };
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to leave room from profile:', err);
+    }
+  };
+
   const handleSaveProfile = async () => {
     try {
       let uploadedUser = null;
       if (avatarFile) {
         const formData = new FormData();
         formData.append('avatar', avatarFile);
-        const token = localStorage.getItem('newsconnect_token');
-        const res = await fetch('/api/auth/avatar', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` },
-          body: formData
+        const res = await apiClient.post('/auth/avatar', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
         });
-        if (res.ok) {
-          uploadedUser = await res.json();
-        }
+        uploadedUser = res.data;
       }
 
       const payload: any = { name: editForm.name, bio: editForm.bio };
@@ -358,10 +395,11 @@ export function UserProfile() {
                     ...room,
                     memberCount: room._count?.members || 0,
                     messageCount: room._count?.messages || 0,
-                    activeNow: Math.ceil((room._count?.members || 1) * 0.4)
+                    activeNow: room.activeNow ?? 0
                   }}
                   onClick={(id) => navigate(`/room/${id}`)}
-                  onJoin={(id) => navigate(`/room/${id}`)}
+                  onJoin={handleJoinRoom}
+                  onLeave={handleLeaveRoom}
                 />
               ))
             ) : (

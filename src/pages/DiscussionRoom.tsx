@@ -12,6 +12,7 @@ import {
   Award,
   Info
 } from 'lucide-react';
+
 import { Avatar } from '@/components/features/Avatar';
 import { MessageCard } from '@/components/features/MessageCard';
 import { RoomCard } from '@/components/features/RoomCard';
@@ -22,6 +23,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/hooks/use-auth';
 import { useRoomStore } from '@/store/useRoomStore';
 import { useNotificationStore } from '@/store/useNotificationStore';
+import { apiClient } from '@/services/api';
 import { connectSocket, getSocket } from '@/services/socket';
 
 export function DiscussionRoom() {
@@ -62,8 +64,8 @@ export function DiscussionRoom() {
     // Fetch auxiliary dashboard stats
     const fetchAuxData = async () => {
       try {
-        const trendingRes = await fetch('/api/rooms/trending');
-        if (trendingRes.ok) setTrendingRooms(await trendingRes.json());
+        const response = await apiClient.get('/rooms/trending');
+        setTrendingRooms(response.data);
       } catch (err) {
         console.error('Failed to fetch sidebar data:', err);
       }
@@ -73,12 +75,10 @@ export function DiscussionRoom() {
     // Check if user is already a member
     const checkMembership = async () => {
       try {
-        const res = await fetch(`/api/rooms/${roomId}`);
-        if (res.ok) {
-          await res.json();
-          // We assume user is member if they are in the database relation (custom implementation detail check if wanted)
-          setIsJoined(true);
-        }
+        const response = await apiClient.get(`/rooms/${roomId}`);
+        const roomData = response.data;
+        const hasJoined = roomData.members?.some((m: any) => m.userId === currentUser?.id);
+        setIsJoined(!!hasJoined);
       } catch (e) { }
     };
     checkMembership();
@@ -131,17 +131,16 @@ export function DiscussionRoom() {
     const text = messageText.trim();
     if (!text || !currentUser || !roomId) return;
 
-    // Clear input immediately to prevent double submissions if Enter is pressed twice
     setMessageText('');
     const replyTargetId = replyingTo?.id;
     setReplyingTo(null);
 
     try {
       await sendMessage(roomId, text, replyTargetId || undefined);
-      // Focus back to input
+    
       inputRef.current?.focus();
     } catch (error) {
-      // Revert on error
+
       setMessageText(text);
       console.error('Failed to publish take:', error);
     }
@@ -185,11 +184,12 @@ export function DiscussionRoom() {
 
   const otherTrending = trendingRooms.filter((r) => r.id !== room.id).slice(0, 4);
 
-  // Extract main title and tags
+
   const titleParts = room.title.split(/::|\||—/).map(s => s.trim()).filter(Boolean);
   const mainTitle = titleParts[0] || room.title;
   const roomTags = titleParts.slice(1);
 
+  
   return (
     <div className="flex-1 flex overflow-hidden bg-background">
       {/* ── Left Navigation ── */}

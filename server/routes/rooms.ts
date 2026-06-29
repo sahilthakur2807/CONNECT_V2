@@ -7,7 +7,7 @@ import { io, pushRealtimeNotification, broadcastStatsUpdate, getRoomActiveCount 
 export const roomsRouter = Router();
 
 // Helper to attach correct non-deleted message counts and active users counts to rooms
-async function attachMessageCounts(rooms: any[]) {
+async function attachMessageCounts(rooms: any[], userId?: string) {
   if (rooms.length === 0) return rooms;
   const roomIds = rooms.map(r => r.id);
   const messageCounts = await prisma.message.groupBy({
@@ -25,9 +25,22 @@ async function attachMessageCounts(rooms: any[]) {
     messageCounts.map(c => [c.roomId, c._count.id])
   );
 
+  const joinedRoomIds = new Set<string>();
+  if (userId) {
+    const memberships = await prisma.roomMember.findMany({
+      where: {
+        userId,
+        roomId: { in: roomIds }
+      },
+      select: { roomId: true }
+    });
+    memberships.forEach(m => joinedRoomIds.add(m.roomId));
+  }
+
   return rooms.map(r => ({
     ...r,
     activeNow: getRoomActiveCount(r.id),
+    isJoined: userId ? joinedRoomIds.has(r.id) : false,
     _count: {
       ...r._count,
       messages: countsMap.get(r.id) || 0
@@ -53,7 +66,7 @@ roomsRouter.get('/', async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(await attachMessageCounts(rooms));
+    res.json(await attachMessageCounts(rooms, (req as any).user?.id));
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch rooms' });
   }
@@ -79,7 +92,7 @@ roomsRouter.get('/trending', async (req, res) => {
       take: 20
     });
 
-    const roomsWithCounts = await attachMessageCounts(rooms);
+    const roomsWithCounts = await attachMessageCounts(rooms, (req as any).user?.id);
 
     // Sort by message count
     const trendingRooms = roomsWithCounts
@@ -111,7 +124,7 @@ roomsRouter.get('/hot', async (req, res) => {
       take: 20
     });
 
-    const roomsWithCounts = await attachMessageCounts(rooms);
+    const roomsWithCounts = await attachMessageCounts(rooms, (req as any).user?.id);
 
     const hotRooms = roomsWithCounts
       .sort((a, b) => {
@@ -138,7 +151,7 @@ roomsRouter.get('/new', async (req, res) => {
       orderBy: { createdAt: 'desc' },
       take: 6
     });
-    res.json(await attachMessageCounts(newRooms));
+    res.json(await attachMessageCounts(newRooms, (req as any).user?.id));
   } catch (error) {
     console.error('Fetch new rooms error:', error);
     res.status(500).json({ error: 'Failed to fetch newly created rooms' });

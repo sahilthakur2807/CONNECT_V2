@@ -47,6 +47,7 @@
     "@radix-ui/react-tooltip": "1.1.8",
     "@types/multer": "^2.1.0",
     "@types/pg": "^8.20.0",
+    "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
     "canvas-confetti": "1.9.4",
     "class-variance-authority": "0.7.1",

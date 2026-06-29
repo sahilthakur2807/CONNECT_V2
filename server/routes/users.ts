@@ -6,7 +6,7 @@ import { handleFriendAdded, broadcastStatsUpdate, getRoomActiveCount } from '../
 export const usersRouter = Router();
 
 // Helper to attach correct non-deleted message counts and active users counts to rooms
-async function attachMessageCounts(rooms: any[]) {
+async function attachMessageCounts(rooms: any[], userId?: string) {
   if (rooms.length === 0) return rooms;
   const roomIds = rooms.map(r => r.id);
   const messageCounts = await prisma.message.groupBy({
@@ -24,9 +24,22 @@ async function attachMessageCounts(rooms: any[]) {
     messageCounts.map(c => [c.roomId, c._count.id])
   );
 
+  const joinedRoomIds = new Set<string>();
+  if (userId) {
+    const memberships = await prisma.roomMember.findMany({
+      where: {
+        userId,
+        roomId: { in: roomIds }
+      },
+      select: { roomId: true }
+    });
+    memberships.forEach(m => joinedRoomIds.add(m.roomId));
+  }
+
   return rooms.map(r => ({
     ...r,
     activeNow: getRoomActiveCount(r.id),
+    isJoined: userId ? joinedRoomIds.has(r.id) : false,
     _count: {
       ...r._count,
       messages: countsMap.get(r.id) || 0
@@ -285,7 +298,7 @@ usersRouter.get('/:id/rooms', async (req, res) => {
       },
       orderBy: { createdAt: 'desc' }
     });
-    res.json(await attachMessageCounts(rooms));
+    res.json(await attachMessageCounts(rooms, (req as any).user?.id));
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch user rooms' });
   }

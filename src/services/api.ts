@@ -1,3 +1,4 @@
+import axios from 'axios';
 import type {
   User,
   Community,
@@ -10,27 +11,37 @@ import type {
 
 // ─── Base client ─────────────────────────────────────────────────────────────
 
-const API_BASE = '/api';
+export const apiClient = axios.create({
+  baseURL: '/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Automatically inject Authorization header if token exists in localStorage
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('newsconnect_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const token = localStorage.getItem('newsconnect_token');
-
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...options?.headers,
-  };
-
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    const error = new Error(err.error || 'Request failed') as Error & { status?: number };
-    error.status = res.status;
-    throw error;
+  try {
+    const response = await apiClient.request({
+      url: path,
+      method: options?.method || 'GET',
+      headers: options?.headers as any,
+      data: options?.body ? JSON.parse(options.body as string) : undefined,
+    });
+    return response.data;
+  } catch (error: any) {
+    const errData = error.response?.data || { error: error.message };
+    const err = new Error(errData.error || 'Request failed') as Error & { status?: number };
+    err.status = error.response?.status;
+    throw err;
   }
-
-  return res.json();
 }
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
