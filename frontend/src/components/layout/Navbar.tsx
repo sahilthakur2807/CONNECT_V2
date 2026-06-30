@@ -262,7 +262,7 @@ export function Navbar() {
                   )}
                 </Link>
               </DropdownMenuItem>
-              {(user.role === 'moderator' || user.role === 'admin' || user.role === 'superadmin' || (user._count?.createdRooms && user._count.createdRooms > 0)) && (
+              {(user.role === 'moderator' || user.role === 'admin' || user.role === 'superadmin' || (user._count?.createdRooms || 0) > 0) && (
                 <DropdownMenuItem className="p-0 rounded-xl overflow-hidden">
                   <Link to="/moderator" className="flex items-center gap-3 w-full p-2.5 text-purple-600 dark:text-purple-400 hover:bg-accent transition-colors">
                     <Shield size={16} />

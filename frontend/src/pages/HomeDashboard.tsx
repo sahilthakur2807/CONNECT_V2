@@ -86,6 +86,10 @@ export function HomeDashboard() {
       });
     };
 
+    const handleFriendRemoved = ({ friendId }: { friendId: string }) => {
+      setActiveUsers((prev) => prev.filter((u) => u.id !== friendId));
+    };
+
     const handleRoomStatsUpdate = ({ roomId, messageCount, memberCount, activeNow }: { roomId: string; messageCount?: number; memberCount?: number; activeNow?: number }) => {
       const updateFn = (prev: any[]) => prev.map(room => {
         if (room.id !== roomId) return room;
@@ -111,11 +115,13 @@ export function HomeDashboard() {
 
     socket.on('friend_online', handleFriendOnline);
     socket.on('friend_offline', handleFriendOffline);
+    socket.on('friend_removed', handleFriendRemoved);
     socket.on('room_stats_update', handleRoomStatsUpdate);
 
     return () => {
       socket.off('friend_online', handleFriendOnline);
       socket.off('friend_offline', handleFriendOffline);
+      socket.off('friend_removed', handleFriendRemoved);
       socket.off('room_stats_update', handleRoomStatsUpdate);
     };
   }, []);

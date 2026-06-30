@@ -11,7 +11,9 @@ import {
   setLoading
 } from '@/store/slices/authSlice';
 import type { User } from '@/types';
-import { connectSocket, disconnectSocket } from '@/services/socket';
+import { connectSocket, disconnectSocket, getSocket } from '@/services/socket';
+import { addNotification, fetchNotifications } from '@/store/slices/notificationSlice';
+import { toast } from 'sonner';
 
 interface AuthContextType {
   user: User | null;
@@ -46,6 +48,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       dispatch(setLoading(false));
     }
   }, [dispatch]);
+
+  useEffect(() => {
+    if (!token) return;
+
+    // Fetch initial notifications count on mount/login
+    dispatch(fetchNotifications());
+
+    const socket = getSocket();
+    
+    const handleNotification = (n: any) => {
+      dispatch(addNotification(n));
+      toast(n.title, {
+        description: n.body,
+        action: {
+          label: 'View',
+          onClick: () => {
+            window.location.href = '/notifications';
+          }
+        }
+      });
+    };
+
+    socket.on('notification', handleNotification);
+
+    return () => {
+      socket.off('notification', handleNotification);
+    };
+  }, [token, dispatch]);
 
   const login = async (email: string, password: string) => {
     await dispatch(loginThunk({ email, password })).unwrap();

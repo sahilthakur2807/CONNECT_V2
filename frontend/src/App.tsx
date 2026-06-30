@@ -14,6 +14,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { Navbar } from '@/components/layout/Navbar';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/hooks/use-auth';
+import { Toaster } from '@/components/ui/sonner';
 
 function RoomLayout() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <Toaster />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:font-medium"

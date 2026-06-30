@@ -188,7 +188,7 @@ export class RejectFriendHandler {
     });
 
     if (!friendship) {
-      throw new NotFoundError('Friend request not found');
+      return;
     }
 
     await prisma.friendship.delete({
