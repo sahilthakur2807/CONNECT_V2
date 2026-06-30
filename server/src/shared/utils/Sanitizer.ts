@@ -4,12 +4,10 @@ export function sanitizeUserForClient(user: any, requesterRole?: string) {
   const targetRole = user.role;
   let shouldSanitize = false;
 
-  if (targetRole === 'superadmin') {
-    if (requesterRole !== 'superadmin') {
-      shouldSanitize = true;
-    }
-  } else if (targetRole === 'admin') {
-    if (requesterRole !== 'superadmin' && requesterRole !== 'admin') {
+  const isRequesterAdminOrSuper = requesterRole === 'superadmin' || requesterRole === 'admin';
+
+  if (targetRole === 'superadmin' || targetRole === 'admin') {
+    if (!isRequesterAdminOrSuper) {
       shouldSanitize = true;
     }
   }
@@ -34,6 +32,10 @@ export function sanitizePayload(data: any, requesterRole?: string): any {
 
   if (Array.isArray(data)) {
     return data.map(item => sanitizePayload(item, requesterRole));
+  }
+
+  if (data instanceof Date) {
+    return data;
   }
 
   if (typeof data === 'object') {

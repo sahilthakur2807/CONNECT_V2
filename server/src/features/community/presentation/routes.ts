@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticateJWT, type AuthenticatedRequest } from '@presentation/middlewares/AuthMiddleware.js';
-import { CreateCommunityCommand, JoinCommunityCommand, LeaveCommunityCommand } from '../application/commands/CommunityCommands.js';
-import type { CreateCommunityHandler, JoinCommunityHandler, LeaveCommunityHandler } from '../application/commands/CommunityCommands.js';
+import { CreateCommunityCommand, JoinCommunityCommand, LeaveCommunityCommand, DeleteCommunityCommand } from '../application/commands/CommunityCommands.js';
+import type { CreateCommunityHandler, JoinCommunityHandler, LeaveCommunityHandler, DeleteCommunityHandler } from '../application/commands/CommunityCommands.js';
 import { GetCommunitiesQuery, GetCommunityByIdQuery, GetCommunityMembersQuery } from '../application/queries/CommunityQueries.js';
 import type { GetCommunitiesHandler, GetCommunityByIdHandler, GetCommunityMembersHandler } from '../application/queries/CommunityQueries.js';
 
@@ -10,6 +10,7 @@ export function createCommunitiesRouter(
   createCommunityHandler: CreateCommunityHandler,
   joinCommunityHandler: JoinCommunityHandler,
   leaveCommunityHandler: LeaveCommunityHandler,
+  deleteCommunityHandler: DeleteCommunityHandler,
   getCommunitiesHandler: GetCommunitiesHandler,
   getCommunityByIdHandler: GetCommunityByIdHandler,
   getCommunityMembersHandler: GetCommunityMembersHandler
@@ -95,6 +96,17 @@ export function createCommunitiesRouter(
       const query = new GetCommunityMembersQuery(req.params.id as string);
       const result = await getCommunityMembersHandler.execute(query);
       res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Delete community (admin / superadmin only)
+  router.delete('/:id', authenticateJWT, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const command = new DeleteCommunityCommand(req.params.id as string, req.user!.id, req.user!.role);
+      await deleteCommunityHandler.execute(command);
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }

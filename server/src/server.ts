@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import dotenv from 'dotenv';
+dotenv.config();
 import morgan from 'morgan';
 
 // Infrastructure
@@ -29,7 +30,8 @@ import { createAuthRouter } from '@features/auth/presentation/routes.js';
 import {
   CreateCommunityHandler,
   JoinCommunityHandler,
-  LeaveCommunityHandler
+  LeaveCommunityHandler,
+  DeleteCommunityHandler
 } from '@features/community/application/commands/CommunityCommands.js';
 import {
   GetCommunitiesHandler,
@@ -43,7 +45,8 @@ import {
   CreateRoomHandler,
   JoinRoomHandler,
   LeaveRoomHandler,
-  CreateRoomMessageHandler
+  CreateRoomMessageHandler,
+  DeleteRoomHandler
 } from '@features/room/application/commands/RoomCommands.js';
 import {
   GetRoomsHandler,
@@ -101,6 +104,9 @@ import { createAdminRouter } from '@features/admin/presentation/routes.js';
 // Features - User
 import {
   AddFriendHandler,
+  AcceptFriendHandler,
+  RejectFriendHandler,
+  RemoveFriendHandler,
   UpdateUserRoleHandler,
   DeleteUserHandler
 } from '@features/user/application/commands/UserCommands.js';
@@ -111,7 +117,8 @@ import {
   SearchUsersByUsernameHandler,
   GetUserProfileHandler,
   GetUserMessagesHandler,
-  GetUserRoomsHandler
+  GetUserRoomsHandler,
+  GetPendingFriendRequestsHandler
 } from '@features/user/application/queries/UserQueries.js';
 import { createUsersRouter } from '@features/user/presentation/routes.js';
 
@@ -122,8 +129,6 @@ import {
   JoinExtensionRoomHandler
 } from '@features/extension/application/commands/ExtensionCommands.js';
 import { createExtensionRouter } from '@features/extension/presentation/routes.js';
-
-dotenv.config();
 
 const app = express();
 app.set('trust proxy', 1);
@@ -168,6 +173,7 @@ const logoutHandler = new LogoutHandler();
 const createCommunityHandler = new CreateCommunityHandler();
 const joinCommunityHandler = new JoinCommunityHandler();
 const leaveCommunityHandler = new LeaveCommunityHandler();
+const deleteCommunityHandler = new DeleteCommunityHandler();
 const getCommunitiesHandler = new GetCommunitiesHandler();
 const getCommunityByIdHandler = new GetCommunityByIdHandler();
 const getCommunityMembersHandler = new GetCommunityMembersHandler();
@@ -177,6 +183,7 @@ const createRoomHandler = new CreateRoomHandler();
 const joinRoomHandler = new JoinRoomHandler();
 const leaveRoomHandler = new LeaveRoomHandler();
 const createRoomMessageHandler = new CreateRoomMessageHandler();
+const deleteRoomHandler = new DeleteRoomHandler();
 const getRoomsHandler = new GetRoomsHandler();
 const getTrendingRoomsHandler = new GetTrendingRoomsHandler();
 const getHotRoomsHandler = new GetHotRoomsHandler();
@@ -216,6 +223,9 @@ const updateSettingsHandler = new UpdateSettingsHandler();
 
 // User
 const addFriendHandler = new AddFriendHandler();
+const acceptFriendHandler = new AcceptFriendHandler();
+const rejectFriendHandler = new RejectFriendHandler();
+const removeFriendHandler = new RemoveFriendHandler();
 const updateUserRoleHandler = new UpdateUserRoleHandler();
 const deleteUserHandler = new DeleteUserHandler();
 const getUsersHandler = new GetUsersHandler();
@@ -225,6 +235,7 @@ const searchUsersByUsernameHandler = new SearchUsersByUsernameHandler();
 const getUserProfileHandler = new GetUserProfileHandler();
 const getUserMessagesHandler = new GetUserMessagesHandler();
 const getUserRoomsHandler = new GetUserRoomsHandler();
+const getPendingFriendRequestsHandler = new GetPendingFriendRequestsHandler();
 
 // Extension
 const lookupRoomHandler = new LookupRoomHandler();
@@ -233,10 +244,10 @@ const joinExtensionRoomHandler = new JoinExtensionRoomHandler();
 
 // --- Mount API Routers ---
 app.use('/api/auth', createAuthRouter(registerHandler, loginHandler, updateProfileHandler, updateAvatarHandler, logoutHandler));
-app.use('/api/communities', createCommunitiesRouter(createCommunityHandler, joinCommunityHandler, leaveCommunityHandler, getCommunitiesHandler, getCommunityByIdHandler, getCommunityMembersHandler));
-app.use('/api/rooms', createRoomsRouter(createRoomHandler, joinRoomHandler, leaveRoomHandler, createRoomMessageHandler, getRoomsHandler, getTrendingRoomsHandler, getHotRoomsHandler, getNewRoomsHandler, getRoomByIdHandler, getRoomMessagesHandler));
+app.use('/api/communities', createCommunitiesRouter(createCommunityHandler, joinCommunityHandler, leaveCommunityHandler, deleteCommunityHandler, getCommunitiesHandler, getCommunityByIdHandler, getCommunityMembersHandler));
+app.use('/api/rooms', createRoomsRouter(createRoomHandler, joinRoomHandler, leaveRoomHandler, createRoomMessageHandler, deleteRoomHandler, getRoomsHandler, getTrendingRoomsHandler, getHotRoomsHandler, getNewRoomsHandler, getRoomByIdHandler, getRoomMessagesHandler));
 app.use('/api/messages', createMessagesRouter(editMessageHandler, deleteMessageHandler, createReplyHandler, toggleReactionHandler, getTrendingMessagesHandler));
-app.use('/api/users', createUsersRouter(addFriendHandler, updateUserRoleHandler, deleteUserHandler, getUsersHandler, getActiveUsersHandler, getActiveFriendsHandler, searchUsersByUsernameHandler, getUserProfileHandler, getUserMessagesHandler, getUserRoomsHandler));
+app.use('/api/users', createUsersRouter(addFriendHandler, acceptFriendHandler, rejectFriendHandler, removeFriendHandler, updateUserRoleHandler, deleteUserHandler, getUsersHandler, getActiveUsersHandler, getActiveFriendsHandler, searchUsersByUsernameHandler, getUserProfileHandler, getUserMessagesHandler, getUserRoomsHandler, getPendingFriendRequestsHandler));
 app.use('/api/notifications', createNotificationsRouter(markAllReadHandler, markSingleReadHandler, getNotificationsHandler));
 app.use('/api/reports', createReportsRouter(createReportHandler, updateReportHandler, getReportsHandler));
 app.use('/api/search', createSearchRouter(searchQueryHandler));

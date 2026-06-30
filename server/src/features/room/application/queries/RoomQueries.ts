@@ -124,7 +124,10 @@ export class GetTrendingRoomsHandler {
         const scoreB = b._count.messages;
         if (a.trending && !b.trending) return -1;
         if (!a.trending && b.trending) return 1;
-        return scoreB - scoreA;
+        if (scoreB !== scoreA) {
+          return scoreB - scoreA;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
       })
       .slice(0, 10);
   }

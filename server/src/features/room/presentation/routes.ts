@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { authenticateJWT, optionalJWT, type AuthenticatedRequest } from '@presentation/middlewares/AuthMiddleware.js';
-import { CreateRoomCommand, JoinRoomCommand, LeaveRoomCommand, CreateRoomMessageCommand } from '../application/commands/RoomCommands.js';
-import type { CreateRoomHandler, JoinRoomHandler, LeaveRoomHandler, CreateRoomMessageHandler } from '../application/commands/RoomCommands.js';
+import { CreateRoomCommand, JoinRoomCommand, LeaveRoomCommand, CreateRoomMessageCommand, DeleteRoomCommand } from '../application/commands/RoomCommands.js';
+import type { CreateRoomHandler, JoinRoomHandler, LeaveRoomHandler, CreateRoomMessageHandler, DeleteRoomHandler } from '../application/commands/RoomCommands.js';
 import { GetRoomsQuery, GetTrendingRoomsQuery, GetHotRoomsQuery, GetNewRoomsQuery, GetRoomByIdQuery, GetRoomMessagesQuery } from '../application/queries/RoomQueries.js';
 import type { GetRoomsHandler, GetTrendingRoomsHandler, GetHotRoomsHandler, GetNewRoomsHandler, GetRoomByIdHandler, GetRoomMessagesHandler } from '../application/queries/RoomQueries.js';
 
@@ -11,6 +11,7 @@ export function createRoomsRouter(
   joinRoomHandler: JoinRoomHandler,
   leaveRoomHandler: LeaveRoomHandler,
   createRoomMessageHandler: CreateRoomMessageHandler,
+  deleteRoomHandler: DeleteRoomHandler,
   getRoomsHandler: GetRoomsHandler,
   getTrendingRoomsHandler: GetTrendingRoomsHandler,
   getHotRoomsHandler: GetHotRoomsHandler,
@@ -169,6 +170,17 @@ export function createRoomsRouter(
       );
       const message = await createRoomMessageHandler.execute(command);
       res.status(201).json(message);
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Delete room (admin / superadmin only)
+  router.delete('/:id', authenticateJWT, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const command = new DeleteRoomCommand(req.params.id as string, req.user!.id, req.user!.role);
+      await deleteRoomHandler.execute(command);
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }

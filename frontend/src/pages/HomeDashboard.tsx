@@ -218,7 +218,7 @@ export function HomeDashboard() {
     try {
       const res = await apiClient.post('/users/add-friend', { friendId });
       if (res.status === 200 || res.status === 201) {
-        setSearchResults(prev => prev.map(u => u.id === friendId ? { ...u, isFriend: true } : u));
+        setSearchResults(prev => prev.map(u => u.id === friendId ? { ...u, friendshipStatus: 'pending_sent' } : u));
         // Refresh active friends list
         const friendsRes = await apiClient.get('/users/active-friends');
         setActiveUsers(friendsRes.data);
@@ -227,6 +227,30 @@ export function HomeDashboard() {
       console.error('Failed to add friend:', err);
     } finally {
       setAddingFriendId('');
+    }
+  };
+
+  const handleAcceptFriend = async (requesterId: string) => {
+    try {
+      const res = await apiClient.post('/users/accept-friend', { requesterId });
+      if (res.status === 200) {
+        setSearchResults(prev => prev.map(u => u.id === requesterId ? { ...u, isFriend: true, friendshipStatus: 'accepted' } : u));
+        const friendsRes = await apiClient.get('/users/active-friends');
+        setActiveUsers(friendsRes.data);
+      }
+    } catch (err) {
+      console.error('Failed to accept friend:', err);
+    }
+  };
+
+  const handleRemoveFriend = async (friendId: string) => {
+    if (!confirm('Are you sure you want to remove this friend?')) return;
+    try {
+      await apiClient.post('/users/remove-friend', { friendId });
+      const friendsRes = await apiClient.get('/users/active-friends');
+      setActiveUsers(friendsRes.data);
+    } catch (err) {
+      console.error('Failed to remove friend:', err);
     }
   };
 
@@ -308,8 +332,19 @@ export function HomeDashboard() {
                         </div>
                       </div>
                       
-                      {user.isFriend ? (
+                      {user.friendshipStatus === 'accepted' || user.isFriend ? (
                         <span className="text-[9px] font-black uppercase text-green-500 tracking-widest mr-2">Friends</span>
+                      ) : user.friendshipStatus === 'pending_sent' ? (
+                        <span className="text-[9px] font-black uppercase text-amber-500 tracking-widest mr-2">Sent</span>
+                      ) : user.friendshipStatus === 'pending_received' ? (
+                        <Button 
+                          size="sm" 
+                          variant="default"
+                          onClick={() => handleAcceptFriend(user.id)}
+                          className="h-7 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest bg-green-500 hover:bg-green-600 text-white cursor-pointer transition-colors"
+                        >
+                          Accept
+                        </Button>
                       ) : (
                         <Button 
                           size="sm" 
@@ -373,6 +408,17 @@ export function HomeDashboard() {
                   ) : (
                     <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-gray-400 rounded-full border-2 border-card" />
                   )}
+                  {/* Remove friend button */}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveFriend(u.id);
+                    }}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md scale-0 group-hover:scale-100 transition-all duration-200 cursor-pointer"
+                    title="Remove Friend"
+                  >
+                    <X size={10} />
+                  </button>
                 </div>
                 <div className="min-w-0 w-full">
                   <p className="text-[10px] font-bold text-foreground truncate group-hover:text-primary transition-colors">

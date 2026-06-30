@@ -205,6 +205,7 @@ model Friendship {
   id        String   @id @default(cuid())
   userId    String
   friendId  String
+  status    String   @default("pending") // "pending" | "accepted"
   createdAt DateTime @default(now())
   user      User     @relation("FriendshipUser", fields: [userId], references: [id], onDelete: Cascade)
   friend    User     @relation("FriendshipFriend", fields: [friendId], references: [id], onDelete: Cascade)

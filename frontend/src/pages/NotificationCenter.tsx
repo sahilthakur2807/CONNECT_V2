@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Bell, MessageSquare, AtSign, TrendingUp, Shield, Heart, MoreHorizontal, CheckCircle2, Zap, Activity } from 'lucide-react';
+import { Bell, MessageSquare, AtSign, TrendingUp, Shield, Heart, MoreHorizontal, CheckCircle2, Zap, Activity, UserPlus, UserCheck } from 'lucide-react';
 import { Avatar } from '@/components/features/Avatar';
 import { DashboardHeader } from '@/components/layout/DashboardHeader';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { cn } from '@/utils/cn';
 import { motion } from 'motion/react';
 import { useNotificationStore } from '@/store/useNotificationStore';
 import { useNavigate } from 'react-router';
+import { apiClient } from '@/services/api';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,8 @@ const ICON_MAP: Record<string, any> = {
   reaction: { icon: <Heart size={16} />, color: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400', label: 'Reaction' },
   room_update: { icon: <TrendingUp size={16} />, color: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400', label: 'Update' },
   moderation: { icon: <Shield size={16} />, color: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400', label: 'System' },
+  friend_request: { icon: <UserPlus size={16} />, color: 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400', label: 'Friend Request' },
+  friend_accept: { icon: <UserCheck size={16} />, color: 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400', label: 'Friend Added' },
 };
 
 export function NotificationCenter() {
@@ -43,6 +46,32 @@ export function NotificationCenter() {
       await markAllRead();
     } catch (e) {
       console.error('Failed to mark all notifications read:', e);
+    }
+  };
+
+  const handleAcceptRequest = async (e: React.MouseEvent, n: any) => {
+    e.stopPropagation();
+    try {
+      await apiClient.post('/users/accept-friend', { requesterId: n.triggerId });
+      if (!n.read) {
+        await markRead(n.id);
+      }
+      fetchNotifications();
+    } catch (err) {
+      console.error('Failed to accept friend request:', err);
+    }
+  };
+
+  const handleRejectRequest = async (e: React.MouseEvent, n: any) => {
+    e.stopPropagation();
+    try {
+      await apiClient.post('/users/reject-friend', { requesterId: n.triggerId });
+      if (!n.read) {
+        await markRead(n.id);
+      }
+      fetchNotifications();
+    } catch (err) {
+      console.error('Failed to reject friend request:', err);
     }
   };
 
@@ -145,9 +174,35 @@ export function NotificationCenter() {
                     </p>
 
                     <div className="flex items-center gap-4 pt-2">
-                       <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-primary text-xs hover:bg-primary/5 px-4">
-                         View Discussion
-                       </Button>
+                       {n.type === 'friend_request' ? (
+                         <>
+                           <Button 
+                             onClick={(e) => handleAcceptRequest(e, n)} 
+                             variant="default" 
+                             size="sm" 
+                             className="h-8 rounded-xl font-bold bg-green-500 hover:bg-green-600 text-white text-xs px-4"
+                           >
+                             Accept
+                           </Button>
+                           <Button 
+                             onClick={(e) => handleRejectRequest(e, n)} 
+                             variant="outline" 
+                             size="sm" 
+                             className="h-8 rounded-xl font-bold text-red-500 hover:bg-red-50 text-xs px-4"
+                           >
+                             Reject
+                           </Button>
+                         </>
+                       ) : n.roomId ? (
+                         <Button 
+                           onClick={() => navigate(`/room/${n.roomId}`)}
+                           variant="ghost" 
+                           size="sm" 
+                           className="h-8 rounded-xl font-bold text-primary text-xs hover:bg-primary/5 px-4"
+                         >
+                           View Discussion
+                         </Button>
+                       ) : null}
                     </div>
                   </div>
 

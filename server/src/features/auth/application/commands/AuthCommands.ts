@@ -47,14 +47,18 @@ export class LogoutCommand {
 
 export class RegisterHandler {
   async execute(command: RegisterCommand) {
-    const existing = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: command.email }, { username: command.username }]
-      }
+    const existingUsername = await prisma.user.findUnique({
+      where: { username: command.username }
     });
+    if (existingUsername) {
+      throw new BadRequestError('Username is already taken. Please choose a different handler.');
+    }
 
-    if (existing) {
-      throw new BadRequestError('User already exists');
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: command.email }
+    });
+    if (existingEmail) {
+      throw new BadRequestError('Email is already registered.');
     }
 
     const hashedPassword = await bcrypt.hash(command.password, 10);

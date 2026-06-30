@@ -95,10 +95,38 @@ export class GetActiveUsersHandler {
   }
 }
 
+export class GetPendingFriendRequestsQuery {
+  constructor(public readonly userId: string) {}
+}
+
+export class GetPendingFriendRequestsHandler {
+  async execute(query: GetPendingFriendRequestsQuery) {
+    const pending = await prisma.friendship.findMany({
+      where: {
+        friendId: query.userId,
+        status: 'pending'
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            avatar: true,
+            badges: true
+          }
+        }
+      }
+    });
+    return pending.map(p => p.user);
+  }
+}
+
 export class GetActiveFriendsHandler {
   async execute(query: GetActiveFriendsQuery) {
     const friendships = await prisma.friendship.findMany({
       where: {
+        status: 'accepted',
         OR: [
           { userId: query.userId },
           { friendId: query.userId }
@@ -135,7 +163,10 @@ export class SearchUsersByUsernameHandler {
 
     const matchedUsers = await prisma.user.findMany({
       where: {
-        username: { contains: query.queryText, mode: 'insensitive' },
+        OR: [
+          { username: { contains: query.queryText, mode: 'insensitive' } },
+          { name: { contains: query.queryText, mode: 'insensitive' } }
+        ],
         id: { not: query.userId },
         role: { not: 'admin' }
       },
@@ -158,12 +189,29 @@ export class SearchUsersByUsernameHandler {
       }
     });
 
-    const friendIds = new Set(friendships.map(f => f.userId === query.userId ? f.friendId : f.userId));
+    return matchedUsers.map(u => {
+      const friendship = friendships.find(
+        f => (f.userId === query.userId && f.friendId === u.id) || 
+             (f.userId === u.id && f.friendId === query.userId)
+      );
 
-    return matchedUsers.map(u => ({
-      ...u,
-      isFriend: friendIds.has(u.id)
-    }));
+      let friendshipStatus: 'none' | 'pending_sent' | 'pending_received' | 'accepted' = 'none';
+      if (friendship) {
+        if (friendship.status === 'accepted') {
+          friendshipStatus = 'accepted';
+        } else if (friendship.userId === query.userId) {
+          friendshipStatus = 'pending_sent';
+        } else {
+          friendshipStatus = 'pending_received';
+        }
+      }
+
+      return {
+        ...u,
+        isFriend: friendshipStatus === 'accepted',
+        friendshipStatus
+      };
+    });
   }
 }
 

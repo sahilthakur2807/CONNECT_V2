@@ -34,8 +34,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { connectSocket, getSocket } from '@/services/socket';
+import { useNavigate } from 'react-router';
 
 export function AdminDashboard() {
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const [userSearch, setUserSearch] = useState('');
   const [users, setUsers] = useState<any[]>([]);
@@ -272,7 +274,7 @@ export function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="analytics" className="space-y-8">
-        <div className="bg-white p-1.5 border border-black/[0.04] rounded-2xl inline-flex shadow-sm overflow-x-auto max-w-full">
+        <div className="bg-white p-1.5 border border-black/[0.04] rounded-2xl inline-flex shadow-sm overflow-x-auto max-w-full scrollbar-none">
           <TabsList className="bg-transparent border-none p-0 flex gap-1">
             <TabsTrigger value="analytics" className="rounded-xl px-6 h-11 data-[state=active]:bg-[#0d0d0d] data-[state=active]:text-white font-bold text-xs uppercase tracking-widest transition-all">
               <BarChart2 size={16} className="mr-2 animate-pulse" /> Analytics Pulse
@@ -405,7 +407,11 @@ export function AdminDashboard() {
                     </TableCell>
                     <TableCell className="text-right pr-8">
                        <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" className="rounded-xl font-black uppercase text-[9px] tracking-widest h-9 px-4">
+                        <Button 
+                          variant="outline" 
+                          className="rounded-xl font-black uppercase text-[9px] tracking-widest h-9 px-4"
+                          onClick={() => navigate(`/profile/${u.id}`)}
+                        >
                           Profile
                         </Button>
                         <DropdownMenu>

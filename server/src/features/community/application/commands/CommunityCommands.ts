@@ -1,6 +1,6 @@
 import { prisma } from '@infrastructure/db/PrismaClient.js';
 import { broadcastStatsUpdate } from '@infrastructure/socket/SocketServer.js';
-import { BadRequestError, NotFoundError } from '@shared/errors/AppError.js';
+import { BadRequestError, NotFoundError, UnauthorizedError } from '@shared/errors/AppError.js';
 
 // --- Commands ---
 
@@ -25,6 +25,14 @@ export class LeaveCommunityCommand {
   constructor(
     public readonly userId: string,
     public readonly communityId: string
+  ) {}
+}
+
+export class DeleteCommunityCommand {
+  constructor(
+    public readonly communityId: string,
+    public readonly userId: string,
+    public readonly userRole: string
   ) {}
 }
 
@@ -103,5 +111,25 @@ export class LeaveCommunityHandler {
     } catch {
       throw new NotFoundError('Community membership not found');
     }
+  }
+}
+
+export class DeleteCommunityHandler {
+  async execute(command: DeleteCommunityCommand): Promise<void> {
+    const community = await prisma.community.findUnique({ where: { id: command.communityId } });
+    if (!community) {
+      throw new NotFoundError('Community not found');
+    }
+
+    const isAdminOrSuperAdmin = command.userRole === 'admin' || command.userRole === 'superadmin';
+    if (!isAdminOrSuperAdmin) {
+      throw new UnauthorizedError('Access denied: Admins/Super Admins only');
+    }
+
+    await prisma.community.delete({
+      where: { id: command.communityId }
+    });
+
+    broadcastStatsUpdate();
   }
 }

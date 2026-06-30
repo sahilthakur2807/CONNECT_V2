@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/use-auth';
-import { cn } from '@/utils/cn';
 import { motion } from 'motion/react';
 import { apiClient } from '@/services/api';
 import { connectSocket, getSocket } from '@/services/socket';
@@ -218,20 +217,22 @@ export function UserProfile() {
         {/* Profile Card Header Info */}
         <div className="px-8 pb-8 relative">
           {/* Avatar and Edit Profile row */}
-          <div className="flex justify-between items-start -mt-16 mb-4">
+          <div className="flex justify-between items-start -mt-20 mb-4">
             {/* Avatar overlapping banner */}
-            <div className="relative p-1 bg-card rounded-full shadow-sm inline-block">
-              <Avatar src={user.avatar} name={user.name || user.username} size="xl" className="w-28 h-28 border-4 border-card" />
-              {/* Online/Offline Status dot */}
-              <div className={cn(
-                "absolute bottom-2 right-2 w-4 h-4 rounded-full border-2 border-card",
-                user.status === 'online' ? "bg-green-500" : "bg-gray-400"
-              )} />
+            <div className="relative p-1 bg-card rounded-full shadow-md inline-block">
+              <Avatar 
+                src={user.avatar} 
+                name={user.name || user.username} 
+                size="xl" 
+                status={user.status}
+                showStatus={true}
+                className="w-32 h-32 border-4 border-card" 
+              />
             </div>
 
             {/* Edit identity button */}
             {!id && (
-              <Button onClick={openEdit} variant="outline" className="mt-20 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 h-10 px-5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all">
+              <Button onClick={openEdit} variant="outline" className="mt-24 rounded-2xl font-black uppercase text-[10px] tracking-widest border-2 h-10 px-5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all">
                 <Pencil size={14} className="mr-2" /> Edit Identity
               </Button>
             )}
@@ -274,7 +275,15 @@ export function UserProfile() {
             {/* Joined Date */}
             <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
               <Calendar size={14} className="text-muted-foreground/80" />
-              <span>Joined {user.createdAt ? new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long' }) : 'Unknown Date'}</span>
+              <span>
+                Joined {(() => {
+                  if (!user.createdAt) return 'Unknown Date';
+                  const d = new Date(user.createdAt);
+                  return isNaN(d.getTime()) 
+                    ? 'Unknown Date' 
+                    : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' });
+                })()}
+              </span>
             </div>
           </div>
         </div>

@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import { authenticateJWT, optionalJWT, type AuthenticatedRequest } from '@presentation/middlewares/AuthMiddleware.js';
-import { AddFriendCommand, UpdateUserRoleCommand, DeleteUserCommand } from '../application/commands/UserCommands.js';
-import type { AddFriendHandler, UpdateUserRoleHandler, DeleteUserHandler } from '../application/commands/UserCommands.js';
-import { GetUsersQuery, GetActiveUsersQuery, GetActiveFriendsQuery, SearchUsersByUsernameQuery, GetUserProfileQuery, GetUserMessagesQuery, GetUserRoomsQuery } from '../application/queries/UserQueries.js';
-import type { GetUsersHandler, GetActiveUsersHandler, GetActiveFriendsHandler, SearchUsersByUsernameHandler, GetUserProfileHandler, GetUserMessagesHandler, GetUserRoomsHandler } from '../application/queries/UserQueries.js';
+import { AddFriendCommand, AcceptFriendCommand, RejectFriendCommand, RemoveFriendCommand, UpdateUserRoleCommand, DeleteUserCommand } from '../application/commands/UserCommands.js';
+import type { AddFriendHandler, AcceptFriendHandler, RejectFriendHandler, RemoveFriendHandler, UpdateUserRoleHandler, DeleteUserHandler } from '../application/commands/UserCommands.js';
+import { GetUsersQuery, GetActiveUsersQuery, GetActiveFriendsQuery, SearchUsersByUsernameQuery, GetUserProfileQuery, GetUserMessagesQuery, GetUserRoomsQuery, GetPendingFriendRequestsQuery } from '../application/queries/UserQueries.js';
+import type { GetUsersHandler, GetActiveUsersHandler, GetActiveFriendsHandler, SearchUsersByUsernameHandler, GetUserProfileHandler, GetUserMessagesHandler, GetUserRoomsHandler, GetPendingFriendRequestsHandler } from '../application/queries/UserQueries.js';
 
 export function createUsersRouter(
   addFriendHandler: AddFriendHandler,
+  acceptFriendHandler: AcceptFriendHandler,
+  rejectFriendHandler: RejectFriendHandler,
+  removeFriendHandler: RemoveFriendHandler,
   updateUserRoleHandler: UpdateUserRoleHandler,
   deleteUserHandler: DeleteUserHandler,
   getUsersHandler: GetUsersHandler,
@@ -15,7 +18,8 @@ export function createUsersRouter(
   searchUsersByUsernameHandler: SearchUsersByUsernameHandler,
   getUserProfileHandler: GetUserProfileHandler,
   getUserMessagesHandler: GetUserMessagesHandler,
-  getUserRoomsHandler: GetUserRoomsHandler
+  getUserRoomsHandler: GetUserRoomsHandler,
+  getPendingFriendRequestsHandler: GetPendingFriendRequestsHandler
 ): Router {
   const router = Router();
 
@@ -142,6 +146,56 @@ export function createUsersRouter(
       );
       await deleteUserHandler.execute(command);
       res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Accept friend request
+  router.post('/accept-friend', authenticateJWT, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { requesterId } = req.body;
+      if (!requesterId) return res.status(400).json({ error: 'requesterId is required' });
+      const command = new AcceptFriendCommand(req.user!.id, requesterId);
+      await acceptFriendHandler.execute(command);
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Reject friend request
+  router.post('/reject-friend', authenticateJWT, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { requesterId } = req.body;
+      if (!requesterId) return res.status(400).json({ error: 'requesterId is required' });
+      const command = new RejectFriendCommand(req.user!.id, requesterId);
+      await rejectFriendHandler.execute(command);
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Remove friend
+  router.post('/remove-friend', authenticateJWT, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const { friendId } = req.body;
+      if (!friendId) return res.status(400).json({ error: 'friendId is required' });
+      const command = new RemoveFriendCommand(req.user!.id, friendId);
+      await removeFriendHandler.execute(command);
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Get pending requests
+  router.get('/pending-requests', authenticateJWT, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const query = new GetPendingFriendRequestsQuery(req.user!.id);
+      const result = await getPendingFriendRequestsHandler.execute(query);
+      res.json(result);
     } catch (err) {
       next(err);
     }

@@ -22,12 +22,14 @@ export class GetTrendingMessagesHandler {
       take: 20
     });
 
-    // Sort by heat score: (replies * 3) + (reactions * 1)
     return messages
       .sort((a, b) => {
         const scoreA = (a._count.replies * 3) + (a._count.reactions);
         const scoreB = (b._count.replies * 3) + (b._count.reactions);
-        return scoreB - scoreA;
+        if (scoreB !== scoreA) {
+          return scoreB - scoreA;
+        }
+        return b.createdAt.getTime() - a.createdAt.getTime();
       })
       .slice(0, 5);
   }

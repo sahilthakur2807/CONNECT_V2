@@ -1,6 +1,6 @@
 import { prisma } from '@infrastructure/db/PrismaClient.js';
 import { io, pushRealtimeNotification, broadcastStatsUpdate, getRoomActiveCount } from '@infrastructure/socket/SocketServer.js';
-import { BadRequestError, NotFoundError } from '@shared/errors/AppError.js';
+import { BadRequestError, NotFoundError, UnauthorizedError } from '@shared/errors/AppError.js';
 import { EventBus } from '@shared/event-bus/EventBus.js';
 
 // --- Commands ---
@@ -38,6 +38,14 @@ export class CreateRoomMessageCommand {
     public readonly roomId: string,
     public readonly content: string,
     public readonly parentId?: string
+  ) {}
+}
+
+export class DeleteRoomCommand {
+  constructor(
+    public readonly roomId: string,
+    public readonly userId: string,
+    public readonly userRole: string
   ) {}
 }
 
@@ -202,5 +210,25 @@ export class CreateRoomMessageHandler {
     }
 
     return message;
+  }
+}
+
+export class DeleteRoomHandler {
+  async execute(command: DeleteRoomCommand): Promise<void> {
+    const room = await prisma.room.findUnique({ where: { id: command.roomId } });
+    if (!room) {
+      throw new NotFoundError('Room not found');
+    }
+
+    const isAdminOrSuperAdmin = command.userRole === 'admin' || command.userRole === 'superadmin';
+    if (!isAdminOrSuperAdmin) {
+      throw new UnauthorizedError('Access denied: Admins/Super Admins only');
+    }
+
+    await prisma.room.delete({
+      where: { id: command.roomId }
+    });
+
+    broadcastStatsUpdate();
   }
 }
