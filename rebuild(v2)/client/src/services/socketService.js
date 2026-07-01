@@ -17,11 +17,12 @@ export function getSocket() {
 }
 
 export function connectSocket() {
-  const s = getSocket();
   const token = store.getState().auth.accessToken;
-  if (token) {
-    s.auth = { token };
+  if (!token) {
+    return;
   }
+  const s = getSocket();
+  s.auth = { token };
   if (!s.connected) {
     s.connect();
   }
