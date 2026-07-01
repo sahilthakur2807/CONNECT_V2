@@ -1,0 +1,430 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  username        String            @unique
+  password        String
+  name            String?
+  avatar          String?
+  bio             String?
+  role            String            @default("user")
+  status          String            @default("offline")
+  verified                  Boolean           @default(false)
+  emailVerified             Boolean           @default(false)
+  verificationToken         String?
+  verificationTokenExpires  DateTime?
+  passwordResetToken        String?
+  passwordResetTokenExpires DateTime?
+  failedLoginAttempts       Int               @default(0)
+  lockoutUntil              DateTime?
+  badges                    String[]          @default([])
+  reputation                Int               @default(0)
+  createdAt                 DateTime          @default(now())
+  updatedAt                 DateTime          @updatedAt
+  sessions                  Session[]
+  oauthAccounts             OAuthAccount[]
+  communities               CommunityMember[]
+  rooms           RoomMember[]
+  messages        Message[]
+  reactions       Reaction[]
+  notifications   Notification[]    @relation("ReceivedNotifications")
+  triggeredNotifs Notification[]    @relation("TriggeredNotifications")
+  reportsFiled    Report[]          @relation("ReportsFiled")
+  reportsAgainst  Report[]          @relation("ReportsAgainst")
+  activityLogs    ActivityLog[]
+  activities      Activity[]
+  createdCommunities Community[]    @relation("CommunityCreator")
+  createdRooms    Room[]            @relation("RoomCreator")
+  friendshipsInitiated Friendship[] @relation("FriendshipUser")
+  friendshipsReceived  Friendship[] @relation("FriendshipFriend")
+  lastSeen             DateTime?
+  blocksInitiated      Block[]      @relation("BlockingUser")
+  blocksReceived       Block[]      @relation("BlockedUser")
+  reportsAssigned      Report[]     @relation("AssignedModerator")
+  reportsResolved      Report[]     @relation("ResolvingModerator")
+  appealsResolved      Appeal[]     @relation("ResolvingAppealModerator")
+  auditLogsInitiated   AuditLog[]   @relation("AuditLogsInitiated")
+  moderationActions    ModerationAction[] @relation("UserEnforcements")
+  moderatorActionsLogged ModerationAction[] @relation("ModeratorActions")
+  appealsSubmitted     Appeal[]     @relation("UserAppeals")
+  activitiesFeed       ActivityFeedItem[] @relation("UserActivities")
+  reputationLogs       ReputationLog[]
+
+  @@map("users")
+}
+
+model Community {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  imageUrl    String?
+  category    String   @default("General")
+  banner      String?
+  archived    Boolean  @default(false)
+  deleted     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("CommunityCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members           CommunityMember[]
+  rooms             Room[]
+  reports           Report[]
+  moderationActions ModerationAction[]
+  activitiesFeed    ActivityFeedItem[] @relation("CommunityActivities")
+
+  @@index([createdById])
+  @@map("communities")
+}
+
+model CommunityMember {
+  id          String   @id @default(cuid())
+  userId      String
+  communityId String
+  role        String   @default("member")
+  joinedAt    DateTime @default(now())
+  nickname    String?
+  muted       Boolean  @default(false)
+  mutedUntil  DateTime?
+  banned      Boolean  @default(false)
+  banReason   String?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@index([communityId])
+  @@map("community_members")
+}
+
+model Room {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  tags        String[] @default([])
+  imageUrl    String?
+  sourceUrl   String?
+  trending    Boolean  @default(false)
+  isNew       Boolean  @default(true)
+  archived    Boolean  @default(false)
+  deleted     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  articleId   String?
+  article     Article?   @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?      @relation("RoomCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  members     RoomMember[]
+  messages    Message[]
+  reports     Report[]
+  activities  Activity[]
+  activitiesFeed ActivityFeedItem[] @relation("RoomActivities")
+
+  @@index([communityId])
+  @@index([articleId])
+  @@index([createdById])
+  @@map("rooms")
+}
+
+model RoomMember {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  joinedAt DateTime @default(now())
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roomId])
+  @@index([roomId])
+  @@map("room_members")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  content   String
+  edited    Boolean  @default(false)
+  deleted   Boolean  @default(false)
+  clientMessageId String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  roomId    String
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Message?  @relation("MessageReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Message[] @relation("MessageReplies")
+  reactions Reaction[]
+  reports   Report[]
+
+  @@index([roomId])
+  @@index([userId])
+  @@index([parentId])
+  @@map("messages")
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+  @@index([messageId])
+  @@map("reactions")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String
+  title       String
+  body        String
+  read        Boolean  @default(false)
+  status      String?  @default("pending")
+  roomId      String?
+  referenceId String?
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation("ReceivedNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  triggerId   String?
+  trigger     User?    @relation("TriggeredNotifications", fields: [triggerId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([triggerId])
+  @@map("notifications")
+}
+
+model Report {
+  id                  String   @id @default(cuid())
+  reason              String
+  description         String
+  status              String   @default("pending")
+  severity            String   @default("medium")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  reporterId          String
+  reporter            User     @relation("ReportsFiled", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId      String?
+  reportedUser        User?    @relation("ReportsAgainst", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  messageId           String?
+  message             Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  roomId              String?
+  room                Room?    @relation(fields: [roomId], references: [id], onDelete: SetNull)
+  assignedId          String?
+  assigned            User?    @relation("AssignedModerator", fields: [assignedId], references: [id], onDelete: SetNull)
+  resolvedById        String?
+  resolvedBy          User?    @relation("ResolvingModerator", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolutionReason    String?
+  resolvedAt          DateTime?
+  reportedCommunityId String?
+  reportedCommunity   Community? @relation(fields: [reportedCommunityId], references: [id], onDelete: SetNull)
+
+  @@index([reporterId])
+  @@index([reportedUserId])
+  @@index([messageId])
+  @@index([roomId])
+  @@index([assignedId])
+  @@index([resolvedById])
+  @@index([reportedCommunityId])
+  @@map("reports")
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("activity_logs")
+}
+
+model Article {
+  id             String   @id @default(cuid())
+  title          String
+  url            String   @unique
+  normalized_url String   @unique
+  source         String?
+  createdAt      DateTime @default(now())
+  rooms          Room[]
+
+  @@map("articles")
+}
+
+model Activity {
+  id         String   @id @default(cuid())
+  userId     String
+  roomId     String
+  actionType String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([roomId])
+  @@map("activities")
+}
+
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+  user      User     @relation("FriendshipUser", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User     @relation("FriendshipFriend", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([friendId])
+  @@map("friendships")
+}
+
+model SystemSetting {
+  key   String @id
+  value String
+
+  @@map("system_settings")
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  deviceInfo String?
+  ipAddress  String?
+  revoked    Boolean  @default(false)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model OAuthAccount {
+  id             String   @id @default(cuid())
+  provider       String
+  providerUserId String
+  createdAt      DateTime @default(now())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerUserId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  userId    String
+  blockedId String
+  createdAt DateTime @default(now())
+  user      User     @relation("BlockingUser", fields: [userId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("BlockedUser", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blockedId])
+  @@index([blockedId])
+  @@map("blocks")
+}
+
+model ModerationAction {
+  id          String   @id @default(cuid())
+  type        String
+  reason      String
+  active      Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  userId      String
+  user        User     @relation("UserEnforcements", fields: [userId], references: [id], onDelete: Cascade)
+  actorId     String
+  actor       User     @relation("ModeratorActions", fields: [actorId], references: [id], onDelete: Cascade)
+  communityId String?
+  community   Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  appeals     Appeal[]
+
+  @@index([userId])
+  @@index([actorId])
+  @@index([communityId])
+  @@map("moderation_actions")
+}
+
+model Appeal {
+  id           String   @id @default(cuid())
+  reason       String
+  status       String   @default("pending")
+  resolution   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  userId       String
+  user         User     @relation("UserAppeals", fields: [userId], references: [id], onDelete: Cascade)
+  actionId     String
+  action       ModerationAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+  resolvedById String?
+  resolvedBy   User?    @relation("ResolvingAppealModerator", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([actionId])
+  @@index([resolvedById])
+  @@map("appeals")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  targetId   String?
+  targetType String?
+  details    String?
+  createdAt  DateTime @default(now())
+  actorId    String
+  actor      User     @relation("AuditLogsInitiated", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@map("audit_logs")
+}
+
+model ActivityFeedItem {
+  id          String   @id @default(cuid())
+  type        String
+  userId      String
+  user        User     @relation("UserActivities", fields: [userId], references: [id], onDelete: Cascade)
+  communityId String?
+  community   Community? @relation("CommunityActivities", fields: [communityId], references: [id], onDelete: SetNull)
+  roomId      String?
+  room        Room?      @relation("RoomActivities", fields: [roomId], references: [id], onDelete: SetNull)
+  metadata    String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([communityId])
+  @@index([roomId])
+  @@map("activity_feed_items")
+}
+
+model ReputationLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  change    Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("reputation_logs")
+}
+

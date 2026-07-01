@@ -6,3 +6,7 @@ package-lock.json
 .gitignore
 uploads
 .vercel
+AGENT.md
+rebuild_plan.md
+walkthrough.md
+task.md
