@@ -4,12 +4,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "build": "tsc && tsc-alias",
-    "start": "node dist/server.js",
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "node prisma/seed.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^6.19.3",
@@ -32,22 +32,10 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/cookie-parser": "^1.4.7",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/morgan": "^1.9.10",
-    "@types/multer": "^2.1.0",
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.20.0",
     "prisma": "^6.19.3",
-    "tsx": "^4.22.4",
-    "tsc-alias": "^1.8.10",
-    "vitest": "^3.0.0",
-    "typescript": "^5"
+    "vitest": "^3.0.0"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node prisma/seed.js"
   }
 }
