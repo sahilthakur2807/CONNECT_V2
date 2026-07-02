@@ -216,5 +216,55 @@ export class RoomRepository extends BaseRepository {
       },
     });
   }
+
+  async findMembership(userId, roomId, tx) {
+    const delegate = tx ? tx.roomMember : prisma.roomMember;
+    return delegate.findUnique({
+      where: {
+        userId_roomId: { userId, roomId },
+      },
+    });
+  }
+
+  async createMembership(userId, roomId, status, tx) {
+    const delegate = tx ? tx.roomMember : prisma.roomMember;
+    return delegate.create({
+      data: { userId, roomId, status },
+    });
+  }
+
+  async deleteMembership(userId, roomId, tx) {
+    const delegate = tx ? tx.roomMember : prisma.roomMember;
+    return delegate.deleteMany({
+      where: { userId, roomId },
+    });
+  }
+
+  async findPendingMembers(roomId, tx) {
+    const delegate = tx ? tx.roomMember : prisma.roomMember;
+    return delegate.findMany({
+      where: {
+        roomId,
+        status: "pending",
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, name: true, avatar: true },
+        },
+      },
+    });
+  }
+
+  async updateMembershipStatus(userId, roomId, status, tx) {
+    const delegate = tx ? tx.roomMember : prisma.roomMember;
+    return delegate.update({
+      where: {
+        userId_roomId: { userId, roomId },
+      },
+      data: {
+        status,
+      },
+    });
+  }
 }
 export const roomRepository = new RoomRepository();

@@ -20,7 +20,6 @@ import { cn } from "@/utils/cn";
 import { useRooms } from "@/hooks/useRooms";
 import { useSocial } from "@/hooks/useSocial";
 import { useDiscovery } from "@/hooks/useDiscovery";
-import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -114,9 +113,6 @@ export function HomeDashboard() {
   const searchResults = (searchResultsData?.items || []).filter(
     (u) => u.id !== currentUser?.id
   );
-
-  // Initialize Socket.IO subscriptions to listen to presence changes
-  useSocketEvents();
 
   const isLoading =
     trendingLoading || hotLoading || newLoading || friendsLoading;

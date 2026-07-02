@@ -4,7 +4,6 @@ import {
   authenticateJWT,
   optionalJWT,
 } from "../../../presentation/middlewares/AuthMiddleware.js";
-import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 
 // Repositories
 import { RoomRepository } from "../infrastructure/repository/RoomRepository.js";
@@ -244,17 +243,11 @@ export function createRoomsRouter() {
       }
 
       // Check if already a member
-      const existing = await prisma.roomMember.findUnique({
-        where: {
-          userId_roomId: { userId, roomId },
-        },
-      });
+      const existing = await roomRepo.findMembership(userId, roomId);
 
       if (!existing) {
         const status = room.isPrivate ? "pending" : "joined";
-        await prisma.roomMember.create({
-          data: { userId, roomId, status },
-        });
+        await roomRepo.createMembership(userId, roomId, status);
         res.json({ success: true, data: { isJoined: !room.isPrivate, isPending: room.isPrivate } });
       } else {
         res.json({ success: true, data: { isJoined: existing.status === "joined", isPending: existing.status === "pending" } });
@@ -270,9 +263,7 @@ export function createRoomsRouter() {
       const roomId = req.params.id;
       const userId = req.user.id;
 
-      await prisma.roomMember.deleteMany({
-        where: { userId, roomId },
-      });
+      await roomRepo.deleteMembership(userId, roomId);
 
       res.json({ success: true, data: { isJoined: false, isPending: false } });
     } catch (err) {
@@ -292,17 +283,7 @@ export function createRoomsRouter() {
         return;
       }
 
-      const pending = await prisma.roomMember.findMany({
-        where: {
-          roomId,
-          status: "pending",
-        },
-        include: {
-          user: {
-            select: { id: true, username: true, name: true, avatar: true },
-          },
-        },
-      });
+      const pending = await roomRepo.findPendingMembers(roomId);
 
       res.json({ success: true, data: pending.map((p) => p.user) });
     } catch (err) {
@@ -323,14 +304,7 @@ export function createRoomsRouter() {
         return;
       }
 
-      await prisma.roomMember.update({
-        where: {
-          userId_roomId: { userId, roomId },
-        },
-        data: {
-          status: "joined",
-        },
-      });
+      await roomRepo.updateMembershipStatus(userId, roomId, "joined");
 
       res.json({ success: true });
     } catch (err) {

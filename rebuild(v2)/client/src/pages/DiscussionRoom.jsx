@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
   Send,
@@ -143,6 +143,9 @@ export function DiscussionRoom() {
     useMessagesQuery(roomId);
   const sendMessageMutation = useSendMessageMutation(roomId);
 
+  // Construct message tree for rendering (unconditionally at hook level)
+  const messageTree = useMemo(() => buildMessageTree(messages), [messages]);
+
   const deleteRoomMutation = useDeleteRoomMutation();
   const archiveRoomMutation = useArchiveRoomMutation();
   const updateRoomMutation = useUpdateRoomMutation();
@@ -199,6 +202,7 @@ export function DiscussionRoom() {
   const feedRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
 
   // Auto-resize composer textarea height
   useEffect(() => {
@@ -244,6 +248,12 @@ export function DiscussionRoom() {
       socket.emit("chat.room.left", { roomId });
       socket.off("connect", joinRoom);
       socket.off("room_active_users_update", handleActiveUsersUpdate);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTypingRef.current) {
+        socket.emit("chat.typing.stopped", { roomId });
+      }
     };
   }, [roomId]);
 
@@ -340,13 +350,18 @@ export function DiscussionRoom() {
   const handleTyping = () => {
     if (!roomId) return;
     const socket = getSocket();
-    socket.emit("chat.typing.started", { roomId });
+    
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socket.emit("chat.typing.started", { roomId });
+    }
 
     // Reset typing timeout
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit("chat.typing.stopped", { roomId });
+      isTypingRef.current = false;
     }, 2000);
   };
 
@@ -468,9 +483,6 @@ export function DiscussionRoom() {
     .filter(Boolean);
   const mainTitle = titleParts[0] || room.title;
   const roomTags = room.tags || [];
-
-  // Construct message tree for rendering
-  const messageTree = buildMessageTree(messages);
 
   // Right sidebar widgets markup (reused on desktop sidebar & mobile popup dialog)
   const sidebarWidgetsContent = (

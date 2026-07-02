@@ -71,6 +71,7 @@ export function App() {
       }
     };
     initAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!initialized && user) {

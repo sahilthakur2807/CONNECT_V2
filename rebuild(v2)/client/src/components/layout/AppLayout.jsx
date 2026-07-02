@@ -22,6 +22,7 @@ import { useAppSelector, useAppDispatch } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { setUnreadNotificationsCount } from "@/store/slices/uiSlice";
 import { cn } from "@/utils/cn";
+import { useGlobalSocketEvents } from "@/hooks/useGlobalSocketEvents";
 
 const CATEGORIES = [
   "All Topics",
@@ -164,6 +165,9 @@ export function AppLayout() {
   const showSidebar = !isRoomPage;
 
   const dispatch = useAppDispatch();
+  
+  // Initialize global socket subscriptions
+  useGlobalSocketEvents();
 
   // Dynamically sync unread notification count globally
   const { useNotificationsQuery } = useNotifications();
