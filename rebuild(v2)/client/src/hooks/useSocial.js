@@ -1,34 +1,33 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 
-export function useSocial() {
+// --- Standalone Queries ---
+
+export const useFriendsQuery = () =>
+  useQuery({
+    queryKey: ["friends"],
+    queryFn: async () => {
+      const res = await apiClient.get("/friends");
+      return res.data.data;
+    },
+    refetchInterval: 10000,
+  });
+
+export const usePendingRequestsQuery = () =>
+  useQuery({
+    queryKey: ["friends", "pending"],
+    queryFn: async () => {
+      const res = await apiClient.get("/friends/pending");
+      return res.data.data;
+    },
+    refetchInterval: 10000,
+  });
+
+// --- Standalone Mutations ---
+
+export const useSendFriendRequestMutation = () => {
   const queryClient = useQueryClient();
-
-  // --- Queries ---
-
-  const useFriendsQuery = () =>
-    useQuery({
-      queryKey: ["friends"],
-      queryFn: async () => {
-        const res = await apiClient.get("/friends");
-        return res.data.data;
-      },
-      refetchInterval: 10000,
-    });
-
-  const usePendingRequestsQuery = () =>
-    useQuery({
-      queryKey: ["friends", "pending"],
-      queryFn: async () => {
-        const res = await apiClient.get("/friends/pending");
-        return res.data.data;
-      },
-      refetchInterval: 10000,
-    });
-
-  // --- Mutations ---
-
-  const sendFriendRequestMutation = useMutation({
+  return useMutation({
     mutationFn: async (targetUserId) => {
       const res = await apiClient.post("/friends/requests", {
         targetUserId,
@@ -39,8 +38,11 @@ export function useSocial() {
       queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
     },
   });
+};
 
-  const acceptFriendRequestMutation = useMutation({
+export const useAcceptFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: async (requestId) => {
       const res = await apiClient.post(`/friends/requests/${requestId}/accept`);
       return res.data.data;
@@ -50,8 +52,11 @@ export function useSocial() {
       queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
     },
   });
+};
 
-  const rejectFriendRequestMutation = useMutation({
+export const useRejectFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: async (requestId) => {
       await apiClient.post(`/friends/requests/${requestId}/reject`);
     },
@@ -59,8 +64,11 @@ export function useSocial() {
       queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
     },
   });
+};
 
-  const cancelFriendRequestMutation = useMutation({
+export const useCancelFriendRequestMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: async (requestId) => {
       await apiClient.delete(`/friends/requests/${requestId}`);
     },
@@ -68,8 +76,11 @@ export function useSocial() {
       queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
     },
   });
+};
 
-  const removeFriendMutation = useMutation({
+export const useRemoveFriendMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: async (friendId) => {
       await apiClient.delete(`/friends/${friendId}`);
     },
@@ -77,8 +88,11 @@ export function useSocial() {
       queryClient.invalidateQueries({ queryKey: ["friends"] });
     },
   });
+};
 
-  const blockUserMutation = useMutation({
+export const useBlockUserMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: async (userId) => {
       const res = await apiClient.post(`/blocks/${userId}`);
       return res.data.data;
@@ -88,22 +102,28 @@ export function useSocial() {
       queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
     },
   });
+};
 
-  const unblockUserMutation = useMutation({
+export const useUnblockUserMutation = () => {
+  return useMutation({
     mutationFn: async (userId) => {
       await apiClient.delete(`/blocks/${userId}`);
     },
   });
+};
 
+// --- Backward Compatible Wrapper Hook ---
+
+export function useSocial() {
   return {
     useFriendsQuery,
     usePendingRequestsQuery,
-    sendFriendRequestMutation,
-    acceptFriendRequestMutation,
-    rejectFriendRequestMutation,
-    cancelFriendRequestMutation,
-    removeFriendMutation,
-    blockUserMutation,
-    unblockUserMutation,
+    sendFriendRequestMutation: useSendFriendRequestMutation(),
+    acceptFriendRequestMutation: useAcceptFriendRequestMutation(),
+    rejectFriendRequestMutation: useRejectFriendRequestMutation(),
+    cancelFriendRequestMutation: useCancelFriendRequestMutation(),
+    removeFriendMutation: useRemoveFriendMutation(),
+    blockUserMutation: useBlockUserMutation(),
+    unblockUserMutation: useUnblockUserMutation(),
   };
 }

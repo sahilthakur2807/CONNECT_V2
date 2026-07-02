@@ -29,3 +29,14 @@ export function sanitizeRequestData(data) {
 
   return data;
 }
+
+export function extractHashtags(text) {
+  if (!text || typeof text !== "string") return [];
+  const regex = /#([a-zA-Z0-9_]+)/g;
+  const matches = [];
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    matches.push(match[1].toLowerCase());
+  }
+  return [...new Set(matches)];
+}

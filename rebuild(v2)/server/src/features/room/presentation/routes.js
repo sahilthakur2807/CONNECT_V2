@@ -182,6 +182,7 @@ export function createRoomsRouter() {
       category: z.string().min(2).max(30).optional(),
       tags: z.array(z.string()).optional(),
       imageUrl: z.string().url().optional(),
+      isPrivate: z.boolean().optional(),
     });
 
     try {
@@ -194,6 +195,7 @@ export function createRoomsRouter() {
         parsed.category,
         parsed.tags,
         parsed.imageUrl,
+        parsed.isPrivate,
       );
       const result = await updateRoomHandler.execute(command);
       res.json({ success: true, data: result });
@@ -249,12 +251,14 @@ export function createRoomsRouter() {
       });
 
       if (!existing) {
+        const status = room.isPrivate ? "pending" : "joined";
         await prisma.roomMember.create({
-          data: { userId, roomId },
+          data: { userId, roomId, status },
         });
+        res.json({ success: true, data: { isJoined: !room.isPrivate, isPending: room.isPrivate } });
+      } else {
+        res.json({ success: true, data: { isJoined: existing.status === "joined", isPending: existing.status === "pending" } });
       }
-
-      res.json({ success: true, data: { isJoined: true } });
     } catch (err) {
       next(err);
     }
@@ -270,7 +274,65 @@ export function createRoomsRouter() {
         where: { userId, roomId },
       });
 
-      res.json({ success: true, data: { isJoined: false } });
+      res.json({ success: true, data: { isJoined: false, isPending: false } });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 12. Get pending requests (only for creator)
+  router.get("/:id/pending-members", authenticateJWT, async (req, res, next) => {
+    try {
+      const roomId = req.params.id;
+      const creatorId = req.user.id;
+
+      const room = await roomRepo.findById(roomId);
+      if (!room || room.createdById !== creatorId) {
+        res.status(403).json({ success: false, error: "Only the creator can view requests" });
+        return;
+      }
+
+      const pending = await prisma.roomMember.findMany({
+        where: {
+          roomId,
+          status: "pending",
+        },
+        include: {
+          user: {
+            select: { id: true, username: true, name: true, avatar: true },
+          },
+        },
+      });
+
+      res.json({ success: true, data: pending.map((p) => p.user) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 13. Accept join request (only for creator)
+  router.post("/:id/accept-join", authenticateJWT, async (req, res, next) => {
+    try {
+      const roomId = req.params.id;
+      const creatorId = req.user.id;
+      const { userId } = req.body;
+
+      const room = await roomRepo.findById(roomId);
+      if (!room || room.createdById !== creatorId) {
+        res.status(403).json({ success: false, error: "Only the creator can accept requests" });
+        return;
+      }
+
+      await prisma.roomMember.update({
+        where: {
+          userId_roomId: { userId, roomId },
+        },
+        data: {
+          status: "joined",
+        },
+      });
+
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }

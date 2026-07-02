@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Check, ArrowRight, Sparkles, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/cn";
@@ -22,11 +22,20 @@ export function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [selectedInterests, setSelectedInterests] = useState([]);
 
+  // Lock body scrolling when onboarding mounts
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
+
   const toggleInterest = (interest) => {
     setSelectedInterests((prev) =>
       prev.includes(interest)
         ? prev.filter((i) => i !== interest)
-        : [...prev, interest],
+        : [...prev, interest]
     );
   };
 
@@ -36,142 +45,145 @@ export function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f4ef] flex flex-col items-center justify-center p-6">
-      <div className="max-w-2xl w-full space-y-12">
+    <div className="h-screen w-screen bg-[#f5f4ef] flex flex-col justify-between items-center p-4 md:p-6 overflow-hidden select-none">
+      <div className="max-w-2xl w-full h-full flex flex-col justify-between py-2 md:py-4">
+        
         {/* Progress bar */}
-        <div className="flex gap-2 max-w-[200px] mx-auto">
+        <div className="flex gap-2 max-w-[200px] w-full mx-auto mb-4 shrink-0">
           {[1, 2].map((i) => (
             <div
               key={i}
               className={cn(
                 "h-1 flex-1 rounded-full transition-all duration-500",
-                step >= i ? "bg-primary" : "bg-primary/10",
+                step >= i ? "bg-primary" : "bg-primary/10"
               )}
             />
           ))}
         </div>
 
-        {step === 1 ? (
-          <div className="space-y-10 text-center animate-in fade-in slide-in-from-bottom duration-300">
-            <div className="space-y-4">
-              <h1
-                className="text-4xl md:text-5xl text-[#0d0d0d] tracking-tight"
-                style={{
-                  fontFamily: "'Playfair Display', serif",
-                  fontWeight: 900,
-                }}
-              >
-                What topics move you?
-              </h1>
-              <p
-                className="text-[#888880] text-lg max-w-md mx-auto"
-                style={{ fontFamily: "'Inter', sans-serif" }}
-              >
-                Select your interests to personalize your conversation feed and
-                discover your first communities.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => toggleInterest(cat)}
-                  className={cn(
-                    "relative p-4 rounded-2xl border-2 transition-all duration-300 text-left group cursor-pointer",
-                    selectedInterests.includes(cat)
-                      ? "bg-white border-primary shadow-lg shadow-primary/5"
-                      : "bg-white/50 border-black/[0.04] hover:border-black/[0.1] hover:bg-white",
-                  )}
+        {/* Step Contents */}
+        <div className="flex-1 flex flex-col justify-center min-h-0 my-3">
+          {step === 1 ? (
+            <div className="space-y-6 text-center animate-in fade-in slide-in-from-bottom duration-300 flex flex-col justify-center h-full min-h-0">
+              <div className="space-y-2 shrink-0">
+                <h1
+                  className="text-2xl md:text-3xl font-black text-[#0d0d0d] tracking-tight"
+                  style={{
+                    fontFamily: "'Playfair Display', serif",
+                  }}
                 >
-                  <div className="flex flex-col gap-4">
-                    <div
-                      className={cn(
-                        "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                        selectedInterests.includes(cat)
-                          ? "bg-primary/10 text-primary"
-                          : "bg-black/5 text-[#888880]",
-                      )}
-                    >
-                      <Hash size={20} />
-                    </div>
-                    <span
-                      className={cn(
-                        "text-sm font-bold tracking-tight transition-colors",
-                        selectedInterests.includes(cat)
-                          ? "text-[#0d0d0d]"
-                          : "text-[#888880]",
-                      )}
-                    >
-                      {cat}
-                    </span>
-                  </div>
-                  {selectedInterests.includes(cat) && (
-                    <div className="absolute top-3 right-3 w-5 h-5 bg-primary rounded-full flex items-center justify-center text-white">
-                      <Check size={12} strokeWidth={3} />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-10 text-center animate-in fade-in slide-in-from-right duration-300">
-            <div className="space-y-4">
-              <div className="w-16 h-16 bg-primary/10 text-primary rounded-3xl flex items-center justify-center mx-auto mb-6">
-                <Sparkles size={32} />
+                  What topics move you?
+                </h1>
+                <p
+                  className="text-[#888880] text-sm md:text-base max-w-md mx-auto"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  Select your interests to personalize your conversation feed and
+                  discover your first communities.
+                </p>
               </div>
-              <h1
-                className="text-4xl md:text-5xl text-[#0d0d0d] tracking-tight"
-                style={{
-                  fontFamily: "'Playfair Display', serif",
-                  fontWeight: 900,
-                }}
-              >
-                You're all set.
-              </h1>
-              <p
-                className="text-[#888880] text-lg max-w-md mx-auto"
-                style={{ fontFamily: "'Inter', sans-serif" }}
-              >
-                We've curated a few conversations based on your interests. Dive
-                in and start debating.
-              </p>
-            </div>
 
-            <div className="bg-white rounded-3xl border border-black/[0.04] p-8 space-y-6 text-left">
-              <h3
-                className="text-[11px] font-black text-primary uppercase tracking-[0.2em]"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Personalized Preview
-              </h3>
-              <div className="space-y-4">
-                {selectedInterests.slice(0, 3).map((interest, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-4 p-4 rounded-2xl bg-[#f9fafb] border border-black/[0.02]"
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4 overflow-y-auto max-h-[50vh] pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => toggleInterest(cat)}
+                    className={cn(
+                      "relative p-3 rounded-2xl border-2 transition-all duration-300 text-left group cursor-pointer",
+                      selectedInterests.includes(cat)
+                        ? "bg-white border-primary shadow-lg shadow-primary/5"
+                        : "bg-white/50 border-black/[0.04] hover:border-black/[0.1] hover:bg-white"
+                    )}
                   >
-                    <div className="w-10 h-10 bg-white rounded-xl border border-black/[0.05] flex items-center justify-center text-[#0d0d0d] font-bold">
-                      {interest[0]}
+                    <div className="flex flex-col gap-2">
+                      <div
+                        className={cn(
+                          "w-8 h-8 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                          selectedInterests.includes(cat)
+                            ? "bg-primary/10 text-primary"
+                            : "bg-black/5 text-[#888880]"
+                        )}
+                      >
+                        <Hash size={16} />
+                      </div>
+                      <span
+                        className={cn(
+                          "text-xs md:text-sm font-bold tracking-tight transition-colors truncate",
+                          selectedInterests.includes(cat)
+                            ? "text-[#0d0d0d]"
+                            : "text-[#888880]"
+                        )}
+                      >
+                        {cat}
+                      </span>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-[#0d0d0d]">
-                        Top Discussion in {interest}
-                      </p>
-                      <p className="text-xs text-[#888880]">
-                        Join 1.2k participants debating now
-                      </p>
-                    </div>
-                    <ArrowRight size={16} className="text-[#888880]" />
-                  </div>
+                    {selectedInterests.includes(cat) && (
+                      <div className="absolute top-2.5 right-2.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center text-white">
+                        <Check size={10} strokeWidth={3} />
+                      </div>
+                    )}
+                  </button>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="space-y-6 text-center animate-in fade-in slide-in-from-right duration-300 flex flex-col justify-center h-full min-h-0">
+              <div className="space-y-2 shrink-0">
+                <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-2 shrink-0">
+                  <Sparkles size={24} />
+                </div>
+                <h1
+                  className="text-2xl md:text-3xl font-black text-[#0d0d0d] tracking-tight"
+                  style={{
+                    fontFamily: "'Playfair Display', serif",
+                  }}
+                >
+                  You're all set.
+                </h1>
+                <p
+                  className="text-[#888880] text-sm md:text-base max-w-md mx-auto"
+                  style={{ fontFamily: "'Inter', sans-serif" }}
+                >
+                  We've curated a few conversations based on your interests. Dive
+                  in and start debating.
+                </p>
+              </div>
 
-        <div className="flex items-center justify-between pt-8 border-t border-black/[0.04]">
+              <div className="bg-white rounded-2xl border border-black/[0.04] p-4 md:p-5 space-y-3 text-left mt-2 max-w-md mx-auto w-full overflow-y-auto max-h-[45vh] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <h3
+                  className="text-[9px] font-black text-primary uppercase tracking-[0.2em]"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  Personalized Preview
+                </h3>
+                <div className="space-y-2">
+                  {selectedInterests.slice(0, 3).map((interest, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3 p-3 rounded-xl bg-[#f9fafb] border border-black/[0.02]"
+                    >
+                      <div className="w-8 h-8 bg-white rounded-lg border border-black/[0.05] flex items-center justify-center text-[#0d0d0d] font-bold text-xs shrink-0">
+                        {interest[0]}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-[#0d0d0d] truncate">
+                          Top Discussion in {interest}
+                        </p>
+                        <p className="text-[10px] text-[#888880] truncate">
+                          Join 1.2k participants debating now
+                        </p>
+                      </div>
+                      <ArrowRight size={14} className="text-[#888880] shrink-0" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between pt-4 border-t border-black/[0.04] shrink-0">
           <Button
             variant="ghost"
             onClick={() => (step > 1 ? setStep(step - 1) : navigate(-1))}

@@ -1,4 +1,5 @@
 import { RoomPolicy } from "../RoomPolicy.js";
+import { extractHashtags } from "../../../../shared/utils/Sanitizer.js";
 import {
   BadRequestError,
   ForbiddenError,
@@ -31,7 +32,7 @@ export class CreateRoomCommand {
 }
 
 export class UpdateRoomCommand {
-  constructor(userId, roomId, title, description, category, tags, imageUrl) {
+  constructor(userId, roomId, title, description, category, tags, imageUrl, isPrivate) {
     this.userId = userId;
     this.roomId = roomId;
     this.title = title;
@@ -39,6 +40,7 @@ export class UpdateRoomCommand {
     this.category = category;
     this.tags = tags;
     this.imageUrl = imageUrl;
+    this.isPrivate = isPrivate;
   }
 }
 
@@ -123,6 +125,10 @@ export class CreateRoomHandler {
         "You do not have permission to create rooms in this community",
       );
 
+    const normalizedTags = (command.tags || [])
+      .map((t) => t.trim().replace(/^#/, "").toLowerCase())
+      .filter(Boolean);
+
     const room = await this.roomRepo.create({
       title: command.title,
       description: command.description,
@@ -133,6 +139,16 @@ export class CreateRoomHandler {
       createdBy: { connect: { id: command.userId } },
       ...(command.communityId
         ? { community: { connect: { id: command.communityId } } }
+        : {}),
+      ...(normalizedTags.length > 0
+        ? {
+            hashtags: {
+              connectOrCreate: normalizedTags.map((name) => ({
+                where: { name },
+                create: { name },
+              })),
+            },
+          }
         : {}),
     });
 
@@ -186,6 +202,7 @@ export class UpdateRoomHandler {
     if (command.category !== undefined) data.category = command.category;
     if (command.tags !== undefined) data.tags = command.tags;
     if (command.imageUrl !== undefined) data.imageUrl = command.imageUrl;
+    if (command.isPrivate !== undefined) data.isPrivate = command.isPrivate;
 
     return this.roomRepo.update(command.roomId, data);
   }
@@ -230,7 +247,7 @@ export class ArchiveRoomHandler {
       );
 
     const updated = await this.roomRepo.update(command.roomId, {
-      archived: true,
+      archived: !room.archived,
     });
     await EventBus.publish(new RoomArchivedEvent(command.roomId));
     return updated;

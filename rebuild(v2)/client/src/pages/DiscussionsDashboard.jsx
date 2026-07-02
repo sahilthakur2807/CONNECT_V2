@@ -80,7 +80,6 @@ export function DiscussionsDashboard() {
       <DashboardHeader
         title="Live Discussions"
         description="Jump into the most active and provocative conversations happening across the network right now."
-        icon={<MessageSquare size={24} />}
         actions={
           <div className="flex gap-2 p-1 bg-card border border-border/50 rounded-2xl shadow-sm">
             {["all", "hot", "new"].map((f) => (

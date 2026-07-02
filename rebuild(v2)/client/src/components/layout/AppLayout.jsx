@@ -159,7 +159,10 @@ function LeftSidebar() {
 
 export function AppLayout() {
   const location = useLocation();
+
   const isRoomPage = location.pathname.startsWith("/room/");
+  const showSidebar = !isRoomPage;
+
   const dispatch = useAppDispatch();
 
   // Dynamically sync unread notification count globally
@@ -174,13 +177,15 @@ export function AppLayout() {
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Navbar />
+
       <div className="flex-1 w-full px-4 sm:px-6 overflow-hidden">
         <div className="flex h-full">
-          {!isRoomPage && <LeftSidebar />}
+          {showSidebar && <LeftSidebar />}
+
           <main
             className={cn(
               "flex-1 h-full overflow-y-auto py-5 min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-              !isRoomPage && "pl-6",
+              showSidebar && "pl-6",
             )}
             id="main-content"
             tabIndex={-1}

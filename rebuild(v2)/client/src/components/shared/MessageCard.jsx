@@ -11,11 +11,12 @@ import {
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { Badge } from "./Badge";
-import { useMessages } from "@/hooks/useMessages";
+import { useEditMessageMutation, useDeleteMessageMutation } from "@/hooks/useMessages";
 import { useModeration } from "@/hooks/useModeration";
 import { cn } from "@/utils/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,9 +44,8 @@ export function MessageCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
 
-  const { editMessageMutation, deleteMessageMutation } = useMessages(
-    message.roomId,
-  );
+  const editMessageMutation = useEditMessageMutation();
+  const deleteMessageMutation = useDeleteMessageMutation(message.roomId);
   const { submitReportMutation } = useModeration();
 
   // Report Modal States
@@ -356,18 +356,19 @@ export function MessageCard({
               >
                 Reason
               </label>
-              <select
-                id="reason"
+              <Select
                 value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                className="w-full h-10 px-3 bg-secondary/50 rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/15"
+                onValueChange={setReportReason}
               >
-                <option>Inappropriate Content</option>
-                <option>Harassment / Bullying</option>
-                <option>Spam / Misinformation</option>
-                <option>Hate Speech</option>
-                <option>Other</option>
-              </select>
+                <SelectTrigger id="reason" />
+                <SelectContent>
+                  <SelectItem value="Inappropriate Content">Inappropriate Content</SelectItem>
+                  <SelectItem value="Harassment / Bullying">Harassment / Bullying</SelectItem>
+                  <SelectItem value="Spam / Misinformation">Spam / Misinformation</SelectItem>
+                  <SelectItem value="Hate Speech">Hate Speech</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">
@@ -377,16 +378,17 @@ export function MessageCard({
               >
                 Severity
               </label>
-              <select
-                id="severity"
+              <Select
                 value={reportSeverity}
-                onChange={(e) => setReportSeverity(e.target.value)}
-                className="w-full h-10 px-3 bg-secondary/50 rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/15"
+                onValueChange={setReportSeverity}
               >
-                <option value="low">Low - Minor infraction</option>
-                <option value="medium">Medium - Clear violation</option>
-                <option value="high">High - Extreme harassment/abuse</option>
-              </select>
+                <SelectTrigger id="severity" />
+                <SelectContent>
+                  <SelectItem value="low">Low - Minor infraction</SelectItem>
+                  <SelectItem value="medium">Medium - Clear violation</SelectItem>
+                  <SelectItem value="high">High - Extreme harassment/abuse</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

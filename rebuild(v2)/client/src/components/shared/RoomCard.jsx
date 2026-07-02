@@ -1,4 +1,4 @@
-import { Users, MessageSquare, Activity } from "lucide-react";
+import { Users, MessageSquare, Activity, Lock } from "lucide-react";
 import { Badge } from "./Badge";
 import { cn } from "@/utils/cn";
 import {
@@ -23,6 +23,7 @@ export function RoomCard({
   const messageCount = room.messageCount ?? room._count?.messages ?? 0;
   const activeNow = room.activeNow ?? 0;
   const isJoined = !!room.isJoined;
+  const isPending = !!room.isPending;
 
   if (compact) {
     return (
@@ -85,9 +86,19 @@ export function RoomCard({
       )}
 
       <CardHeader className="p-5 pb-2">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           {room.trending && <Badge variant="trending" size="sm" />}
           {room.isNew && <Badge variant="new" size="sm" />}
+          {room.isPrivate && (
+            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/20 px-2 py-0.5 rounded border border-amber-200/50 flex items-center gap-1">
+              <Lock size={10} /> Private
+            </span>
+          )}
+          {room.archived && (
+            <span className="text-[10px] font-bold text-gray-500 bg-gray-50 dark:text-gray-400 dark:bg-gray-850 px-2 py-0.5 rounded border border-gray-200/50">
+              Archived
+            </span>
+          )}
         </div>
         <CardTitle className="text-lg font-bold leading-tight group-hover:text-primary transition-colors line-clamp-2">
           {room.title}
@@ -140,6 +151,15 @@ export function RoomCard({
           >
             <span className="group-hover/btn:hidden">Joined</span>
             <span className="hidden group-hover/btn:inline">Leave</span>
+          </Button>
+        ) : isPending ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled
+            className="h-8 px-4 font-semibold border border-amber-200/50 bg-amber-50/55 text-amber-600 cursor-not-allowed"
+          >
+            Requested
           </Button>
         ) : (
           <Button

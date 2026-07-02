@@ -16,11 +16,13 @@ import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import { cn } from "@/utils/cn";
 import { useRooms } from "@/hooks/useRooms";
 import { useSocial } from "@/hooks/useSocial";
 import { useDiscovery } from "@/hooks/useDiscovery";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 const CATEGORIES = [
@@ -39,6 +41,7 @@ const CATEGORIES = [
 export function HomeDashboard() {
   const navigate = useNavigate();
   const activeFriendsRef = useRef(null);
+  const { user: currentUser } = useAuth();
   const {
     useTrendingRoomsQuery,
     useHotRoomsQuery,
@@ -109,7 +112,9 @@ export function HomeDashboard() {
 
   // Search Citizens
   const { data: searchResultsData } = useSearchUsersQuery(friendSearchQuery);
-  const searchResults = searchResultsData?.items || [];
+  const searchResults = (searchResultsData?.items || []).filter(
+    (u) => u.id !== currentUser?.id
+  );
 
   // Initialize Socket.IO subscriptions to listen to presence changes
   useSocketEvents();
@@ -261,17 +266,15 @@ export function HomeDashboard() {
         : newRooms;
 
   return (
-    <div className="pb-10 w-full space-y-12">
+    <div className="pb-10 w-full space-y-10 ">
       {/* Header */}
       <DashboardHeader
         title="Home"
         description="Your personalized living network of conversations and communities."
-        icon={<Home size={24} />}
         actions={
           <div className="flex gap-2.5">
             <Button
               onClick={() => setShowCreateCommunity(true)}
-              variant="outline"
               className="rounded-xl font-bold border-2 h-10 px-4 cursor-pointer"
             >
               + Sphere
@@ -287,11 +290,11 @@ export function HomeDashboard() {
       />
 
       {/* Active Friends Banner */}
-      <div className="space-y-4 bg-card border border-border/50 p-6 rounded-3xl shadow-sm">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+      <div className="space-y-1 bg-card border border-border/50 p-6 rounded-3xl shadow-sm pb-0">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
             <h3
-              className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]"
+              className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.1em]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               Friends
@@ -347,7 +350,10 @@ export function HomeDashboard() {
                         key={u.id}
                         className="flex items-center justify-between gap-3 p-1.5 rounded-xl hover:bg-secondary transition-colors"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          onClick={() => navigate(`/profile/${u.id}`)}
+                          className="flex items-center gap-2.5 min-w-0 cursor-pointer hover:opacity-80 transition-opacity"
+                        >
                           <img
                             src={u.avatar || undefined}
                             className="w-8 h-8 rounded-full object-cover border border-border"
@@ -438,7 +444,7 @@ export function HomeDashboard() {
         {friendsList.length > 0 ? (
           <div
             ref={activeFriendsRef}
-            className="flex gap-5 overflow-x-auto pb-2 scrollbar-none snap-x"
+            className="flex pt-2 gap-5 overflow-x-auto pb-2 scrollbar-none snap-x"
             style={{ scrollbarWidth: "none" }}
           >
             {friendsList.map((u) => (
@@ -450,14 +456,13 @@ export function HomeDashboard() {
                 <div className="relative">
                   <div
                     className={cn(
-                      "w-14 h-14 rounded-full overflow-hidden border-2 border-card shadow-sm ring-2 ring-border group-hover:ring-primary/40 transition-all duration-300 group-hover:scale-105",
+                      "mt-2 w-14 h-14 rounded-full overflow-hidden border-2 border-card bg-white shadow-sm ring-2 ring-border group-hover:ring-primary/40 transition-all duration-300 group-hover:scale-105 flex items-center justify-center",
                       u.status !== "online" && "opacity-60 grayscale-[30%]",
                     )}
                   >
                     <img
                       src={u.avatar || undefined}
                       alt=""
-                      className="w-full h-full object-cover"
                     />
                   </div>
                   {u.status === "online" ? (
@@ -725,20 +730,21 @@ export function HomeDashboard() {
                   >
                     Category
                   </label>
-                  <select
-                    id="room-cat"
+                  <Select
                     value={roomForm.category}
-                    onChange={(e) =>
-                      setRoomForm({ ...roomForm, category: e.target.value })
+                    onValueChange={(val) =>
+                      setRoomForm({ ...roomForm, category: val })
                     }
-                    className="w-full h-10 px-3 bg-secondary/50 rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/15"
                   >
-                    {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="room-cat" />
+                    <SelectContent>
+                      {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
                   <label
@@ -851,23 +857,24 @@ export function HomeDashboard() {
                 >
                   Category
                 </label>
-                <select
-                  id="comm-cat"
+                <Select
                   value={communityForm.category}
-                  onChange={(e) =>
+                  onValueChange={(val) =>
                     setCommunityForm({
                       ...communityForm,
-                      category: e.target.value,
+                      category: val,
                     })
                   }
-                  className="w-full h-10 px-3 bg-secondary/50 rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/15"
                 >
-                  {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="comm-cat" />
+                  <SelectContent>
+                    {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <Button
                 type="submit"

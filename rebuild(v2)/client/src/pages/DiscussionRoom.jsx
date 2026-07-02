@@ -11,6 +11,13 @@ import {
   Activity,
   Award,
   Info,
+  Lock,
+  Unlock,
+  MoreVertical,
+  LogOut,
+  Check,
+  Trash2,
+  Archive,
 } from "lucide-react";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -19,11 +26,69 @@ import { RoomCard } from "@/components/shared/RoomCard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/cn";
 import { useAuth } from "@/hooks/useAuth";
-import { useRooms } from "@/hooks/useRooms";
-import { useMessages } from "@/hooks/useMessages";
+import {
+  useRooms,
+  usePendingMembersQuery,
+  useAcceptJoinMutation,
+  useDeleteRoomMutation,
+  useArchiveRoomMutation,
+  useUpdateRoomMutation,
+} from "@/hooks/useRooms";
+import { useMessagesQuery, useSendMessageMutation } from "@/hooks/useMessages";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { getSocket } from "@/services/socketService";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+function PendingRequestsList({ roomId }) {
+  const { data: pendingMembers = [], isLoading } = usePendingMembersQuery(roomId);
+  const acceptJoinMutation = useAcceptJoinMutation(roomId);
+
+  const handleAccept = async (userId) => {
+    try {
+      await acceptJoinMutation.mutateAsync(userId);
+      toast.success("User admitted to the room!");
+    } catch (err) {
+      toast.error(err.message || "Failed to admit user");
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-[10px] text-muted-foreground px-2">Loading requests...</div>;
+  }
+
+  if (pendingMembers.length === 0) {
+    return <div className="text-[10px] text-muted-foreground px-2 font-medium">No pending requests.</div>;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {pendingMembers.map((member) => (
+        <div key={member.id} className="flex flex-col gap-2 p-3 bg-secondary/50 rounded-2xl border border-border/50">
+          <div className="flex items-center gap-2 min-w-0">
+            <Avatar name={member.name || member.username} src={member.avatar} size="xs" />
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold text-foreground truncate">{member.name || member.username}</p>
+              <p className="text-[9px] text-muted-foreground truncate">@{member.username}</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => handleAccept(member.id)}
+            className="w-full h-7 rounded-xl font-bold text-[9px] uppercase tracking-wider cursor-pointer"
+          >
+            Admit
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function DiscussionRoom() {
   const { roomId } = useParams();
@@ -45,9 +110,55 @@ export function DiscussionRoom() {
     currentUser?.role === "superadmin" ||
     (room?.createdBy?.id && room.createdBy.id === currentUser?.id);
 
-  const { useMessagesQuery, sendMessageMutation } = useMessages(roomId);
   const { data: messages = [], isLoading: messagesLoading } =
-    useMessagesQuery();
+    useMessagesQuery(roomId);
+  const sendMessageMutation = useSendMessageMutation(roomId);
+
+  const deleteRoomMutation = useDeleteRoomMutation();
+  const archiveRoomMutation = useArchiveRoomMutation();
+  const updateRoomMutation = useUpdateRoomMutation();
+
+  const handleDeleteRoom = async () => {
+    if (
+      window.confirm(
+        "Are you sure you want to permanently delete this room? This action cannot be undone."
+      )
+    ) {
+      try {
+        await deleteRoomMutation.mutateAsync(room.id);
+        toast.success("Room deleted successfully");
+        navigate("/home");
+      } catch (err) {
+        toast.error(err.message || "Failed to delete room");
+      }
+    }
+  };
+
+  const handleArchiveRoom = async () => {
+    const action = room.archived ? "unarchive" : "archive";
+    if (window.confirm(`Are you sure you want to ${action} this room?`)) {
+      try {
+        await archiveRoomMutation.mutateAsync(room.id);
+        toast.success(`Room ${action}d successfully`);
+      } catch (err) {
+        toast.error(err.message || `Failed to ${action} room`);
+      }
+    }
+  };
+
+  const handleTogglePrivacy = async () => {
+    const nextPrivate = !room.isPrivate;
+    const action = nextPrivate ? "private" : "public";
+    try {
+      await updateRoomMutation.mutateAsync({
+        roomId: room.id,
+        data: { isPrivate: nextPrivate },
+      });
+      toast.success(`Room is now ${action}`);
+    } catch (err) {
+      toast.error(err.message || `Failed to make room ${action}`);
+    }
+  };
 
   const [messageText, setMessageText] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
@@ -146,6 +257,7 @@ export function DiscussionRoom() {
     inputRef.current?.focus();
   };
 
+
   const handleJoinLeaveRoom = async () => {
     if (!room) return;
     try {
@@ -195,6 +307,50 @@ export function DiscussionRoom() {
     );
   }
 
+  const isCreator = room.createdBy?.id === currentUser?.id;
+  const showPrivateBarrier = room.isPrivate && !isJoined && !isCreator;
+
+  if (showPrivateBarrier) {
+    return (
+      <div className="flex-grow flex flex-col justify-center items-center h-[calc(100vh-4.5rem)] bg-background font-sans p-8 text-center max-w-md mx-auto space-y-6">
+        <div className="h-16 w-16 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded-full flex items-center justify-center border border-amber-200/50">
+          <Lock size={32} />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-2xl font-serif font-black tracking-tight text-foreground">
+            This Discussion is Private
+          </h2>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This room requires joining approval from the creator (<strong>{room.createdBy?.username || "creator"}</strong>).
+          </p>
+        </div>
+
+        {room.isPending ? (
+          <Button
+            disabled
+            className="w-full rounded-full h-12 font-black uppercase text-[10px] tracking-widest border border-amber-200 bg-amber-50/50 text-amber-600 cursor-not-allowed"
+          >
+            Request Pending Approval
+          </Button>
+        ) : (
+          <Button
+            onClick={handleJoinLeaveRoom}
+            className="w-full rounded-full h-12 font-black uppercase text-[10px] tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground transition-all cursor-pointer"
+          >
+            Request to Join
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          onClick={() => navigate(-1)}
+          className="text-xs text-muted-foreground uppercase font-black tracking-widest rounded-full cursor-pointer hover:bg-secondary px-6 h-10"
+        >
+          Go Back
+        </Button>
+      </div>
+    );
+  }
+
   const otherTrending = trendingRooms
     .filter((r) => r.id !== room.id)
     .slice(0, 4);
@@ -221,6 +377,21 @@ export function DiscussionRoom() {
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-10">
+          {isCreator && room.isPrivate && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-2 px-2">
+                <Lock size={14} className="text-amber-600" />
+                <h3
+                  className="text-muted-foreground uppercase tracking-[0.2em] text-[10px] font-black"
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  Admit Requests
+                </h3>
+              </div>
+              <PendingRequestsList roomId={room.id} />
+            </div>
+          )}
+
           <div className="space-y-6">
             <div className="flex items-center gap-2 px-2">
               <Activity size={14} className="text-primary" />
@@ -280,16 +451,69 @@ export function DiscussionRoom() {
               </p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <Button
-                variant={isJoined ? "default" : "outline"}
-                onClick={handleJoinLeaveRoom}
-                className={cn(
-                  "rounded-full px-8 h-12 font-black uppercase text-[10px] tracking-widest transition-all cursor-pointer",
-                  isJoined ? "shadow-xl shadow-primary/20" : "border-2",
-                )}
-              >
-                {isJoined ? "Joined" : "Join Discussion"}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger>
+                  <Button
+                    variant={isJoined ? "default" : "outline"}
+                    className={cn(
+                      "border-none"
+                    )}
+                  >
+                    <MoreVertical size={14} className="ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-md rounded-xl">
+                  {isJoined ? (
+                    <DropdownMenuItem
+                      onClick={handleJoinLeaveRoom}
+                      className="flex items-center gap-2 text-sm text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer"
+                    >
+                      <LogOut size={14} /> Leave Room
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={handleJoinLeaveRoom}
+                      className="flex items-center gap-2 text-sm text-green-600 focus:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg cursor-pointer"
+                    >
+                      <Check size={14} /> Join Room
+                    </DropdownMenuItem>
+                  )}
+
+                  {isCreator && (
+                    <>
+                      <DropdownMenuItem
+                        onClick={handleTogglePrivacy}
+                        className="flex items-center gap-2 text-sm rounded-lg cursor-pointer"
+                      >
+                        {room.isPrivate ? (
+                          <>
+                            <Unlock size={14} /> Make Public
+                          </>
+                        ) : (
+                          <>
+                            <Lock size={14} /> Make Private
+                          </>
+                        )}
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={handleArchiveRoom}
+                        className="flex items-center gap-2 text-sm rounded-lg cursor-pointer"
+                      >
+                        <Archive size={14} /> {room.archived ? "Unarchive Room" : "Archive Room"}
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={handleDeleteRoom}
+                        className="flex items-center gap-2 text-sm text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-bold"
+                      >
+                        <Trash2 size={14} /> Delete Room
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <Button
                 variant="secondary"
                 size="icon"
@@ -311,6 +535,16 @@ export function DiscussionRoom() {
           className="flex-grow overflow-y-auto px-8 py-10 flex flex-col gap-8 bg-background"
         >
           <div className="space-y-8 max-w-5xl mx-auto w-full">
+            {isCreator && room.isPrivate && (
+              <div className="xl:hidden block mb-6 p-4 bg-amber-50/20 border border-amber-200/50 rounded-2xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <Lock size={14} className="text-amber-600" />
+                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-700">Admit Requests</h4>
+                </div>
+                <PendingRequestsList roomId={room.id} />
+              </div>
+            )}
+
             {messagesLoading ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <Activity

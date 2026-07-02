@@ -58,7 +58,6 @@ export function RoomDiscovery() {
       <DashboardHeader
         title="Discover"
         description="Find your place in the network. Explore communities by topic, activity, or impact."
-        icon={<Compass size={24} />}
       />
 
       {/* Hero Search Section */}

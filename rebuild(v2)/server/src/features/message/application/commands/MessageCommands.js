@@ -1,4 +1,5 @@
 import { MessagePolicy } from "../MessagePolicy.js";
+import { extractHashtags } from "../../../../shared/utils/Sanitizer.js";
 import {
   BadRequestError,
   ForbiddenError,
@@ -133,6 +134,12 @@ export class SendMessageHandler {
         ? { parent: { connect: { id: command.parentId } } }
         : {}),
     });
+
+    // Extract and associate hashtags with the room
+    const hashtagNames = extractHashtags(command.content);
+    if (hashtagNames.length > 0) {
+      await this.roomRepo.associateHashtags(command.roomId, hashtagNames);
+    }
 
     // 5. Query full message details (including user details) for broadcast
     const fullMessage = await this.messageRepo.findById(message.id);
