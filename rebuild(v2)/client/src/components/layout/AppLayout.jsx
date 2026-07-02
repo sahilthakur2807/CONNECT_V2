@@ -184,8 +184,8 @@ export function AppLayout() {
 
           <main
             className={cn(
-              "flex-1 h-full overflow-y-auto py-5 min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-              showSidebar && "pl-6",
+              "flex-1 h-full min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+              showSidebar ? "overflow-y-auto py-5 pl-6" : "overflow-hidden flex flex-col",
             )}
             id="main-content"
             tabIndex={-1}

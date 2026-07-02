@@ -48,13 +48,17 @@ export function useSocketEvents(roomId, callbacks) {
       if (response.success && response.data) {
         const msg = response.data;
         if (msg.roomId === roomId) {
-          queryClient.setQueryData(
-            ["messages", roomId, undefined],
-            (old = []) => {
+          // Direct cache update for instant display
+          queryClient.setQueriesData({ queryKey: ["messages", roomId] }, (old) => {
+            if (!old) return old;
+            if (Array.isArray(old)) {
               if (old.some((m) => m.id === msg.id)) return old;
               return [...old, msg];
-            },
-          );
+            }
+            return old;
+          });
+          // Background query invalidation to ensure full sync
+          queryClient.invalidateQueries({ queryKey: ["messages", roomId] });
         }
         // Invalidate rooms to refresh message counts (Conversation count)
         queryClient.invalidateQueries({ queryKey: ["rooms"] });
@@ -69,20 +73,14 @@ export function useSocketEvents(roomId, callbacks) {
       if (response.success && response.data) {
         const msg = response.data;
         if (msg.roomId === roomId) {
-          queryClient.setQueryData(
-            ["messages", roomId, undefined],
-            (old = []) => {
+          queryClient.setQueriesData({ queryKey: ["messages", roomId] }, (old) => {
+            if (!old) return old;
+            if (Array.isArray(old)) {
               return old.map((m) => (m.id === msg.id ? msg : m));
-            },
-          );
-        }
-        if (msg.parentId) {
-          queryClient.setQueryData(
-            ["messages", "replies", msg.parentId],
-            (old = []) => {
-              return old.map((m) => (m.id === msg.id ? msg : m));
-            },
-          );
+            }
+            return old;
+          });
+          queryClient.invalidateQueries({ queryKey: ["messages", roomId] });
         }
       }
     };
@@ -90,13 +88,14 @@ export function useSocketEvents(roomId, callbacks) {
     const handleMessageDeleted = (response) => {
       if (response.success && response.data) {
         const { id } = response.data;
-        queryClient.setQueryData(
-          ["messages", roomId, undefined],
-          (old = []) => {
+        queryClient.setQueriesData({ queryKey: ["messages", roomId] }, (old) => {
+          if (!old) return old;
+          if (Array.isArray(old)) {
             return old.map((m) => (m.id === id ? { ...m, deleted: true } : m));
-          },
-        );
-        queryClient.invalidateQueries({ queryKey: ["messages", "replies"] });
+          }
+          return old;
+        });
+        queryClient.invalidateQueries({ queryKey: ["messages", roomId] });
       }
     };
 
@@ -104,21 +103,30 @@ export function useSocketEvents(roomId, callbacks) {
       if (response.success && response.data) {
         const msg = response.data;
         if (msg.roomId === roomId) {
-          queryClient.setQueryData(
-            ["messages", roomId, undefined],
-            (old = []) => {
+          queryClient.setQueriesData({ queryKey: ["messages", roomId] }, (old) => {
+            if (!old) return old;
+            if (Array.isArray(old)) {
               return old.map((m) => (m.id === msg.id ? msg : m));
-            },
-          );
+            }
+            return old;
+          });
+          queryClient.invalidateQueries({ queryKey: ["messages", roomId] });
         }
-        if (msg.parentId) {
-          queryClient.setQueryData(
-            ["messages", "replies", msg.parentId],
-            (old = []) => {
-              return old.map((m) => (m.id === msg.id ? msg : m));
-            },
-          );
-        }
+      }
+    };
+
+    const handleMessageReacted = (response) => {
+      if (response.success && response.data) {
+        const { messageId, reactionCounts } = response.data;
+        queryClient.setQueriesData({ queryKey: ["messages", roomId] }, (old) => {
+          if (!old) return old;
+          if (Array.isArray(old)) {
+            return old.map((m) =>
+              m.id === messageId ? { ...m, reactionCounts } : m
+            );
+          }
+          return old;
+        });
       }
     };
 
@@ -163,6 +171,7 @@ export function useSocketEvents(roomId, callbacks) {
     socket.on("chat.message.updated", handleMessageUpdated);
     socket.on("chat.message.deleted", handleMessageDeleted);
     socket.on("chat.message.restored", handleMessageRestored);
+    socket.on("chat.message.reacted", handleMessageReacted);
     socket.on("notification.created", handleNotificationCreated);
     socket.on("chat.typing.started", handleTypingStarted);
     socket.on("chat.typing.stopped", handleTypingStopped);
@@ -179,6 +188,7 @@ export function useSocketEvents(roomId, callbacks) {
       socket.off("chat.message.updated", handleMessageUpdated);
       socket.off("chat.message.deleted", handleMessageDeleted);
       socket.off("chat.message.restored", handleMessageRestored);
+      socket.off("chat.message.reacted", handleMessageReacted);
       socket.off("notification.created", handleNotificationCreated);
       socket.off("chat.typing.started", handleTypingStarted);
       socket.off("chat.typing.stopped", handleTypingStopped);

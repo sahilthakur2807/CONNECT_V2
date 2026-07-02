@@ -18,6 +18,12 @@ import {
   Check,
   Trash2,
   Archive,
+  Users,
+  Bold,
+  Italic,
+  Code,
+  Quote,
+  Link2,
 } from "lucide-react";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -44,6 +50,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 function PendingRequestsList({ roomId }) {
   const { data: pendingMembers = [], isLoading } = usePendingMembersQuery(roomId);
@@ -89,6 +96,30 @@ function PendingRequestsList({ roomId }) {
     </div>
   );
 }
+
+// Client-side tree builder to organize flat chronological messages into threads
+const buildMessageTree = (flatMessages) => {
+  if (!flatMessages || flatMessages.length === 0) return [];
+  const messageMap = {};
+  
+  // Create deep copies to avoid mutating React Query cache data
+  flatMessages.forEach((msg) => {
+    messageMap[msg.id] = { ...msg, replies: [] };
+  });
+
+  const rootMessages = [];
+  
+  flatMessages.forEach((msg) => {
+    const mappedMsg = messageMap[msg.id];
+    if (msg.parentId && messageMap[msg.parentId]) {
+      messageMap[msg.parentId].replies.push(mappedMsg);
+    } else {
+      rootMessages.push(mappedMsg);
+    }
+  });
+
+  return rootMessages;
+};
 
 export function DiscussionRoom() {
   const { roomId } = useParams();
@@ -165,9 +196,20 @@ export function DiscussionRoom() {
   const [isJoined, setIsJoined] = useState(false);
   const [activeVoices, setActiveVoices] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
+  
   const feedRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+
+  // Auto-resize composer textarea height
+  useEffect(() => {
+    const textarea = inputRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
+    }
+  }, [messageText]);
 
   // Auto scroll to bottom when messages load or change
   useEffect(() => {
@@ -226,8 +268,12 @@ export function DiscussionRoom() {
     const replyTargetId = replyingTo?.id;
     setReplyingTo(null);
 
+    // Reset height
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+
     try {
-      // Rebuilt server message composition
       await sendMessageMutation.mutateAsync({
         content: text,
         parentId: replyTargetId || null,
@@ -246,7 +292,7 @@ export function DiscussionRoom() {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -257,7 +303,6 @@ export function DiscussionRoom() {
     inputRef.current?.focus();
   };
 
-
   const handleJoinLeaveRoom = async () => {
     if (!room) return;
     try {
@@ -266,9 +311,18 @@ export function DiscussionRoom() {
         setIsJoined(false);
         toast.info("Left discussion room");
       } else {
-        await joinRoomMutation.mutateAsync(room.id);
-        setIsJoined(true);
-        toast.success("Joined discussion room!");
+        const res = await joinRoomMutation.mutateAsync(room.id);
+        if (res) {
+          setIsJoined(!!res.isJoined);
+          if (res.isPending) {
+            toast.success("Join request submitted! Awaiting creator approval.");
+          } else if (res.isJoined) {
+            toast.success("Joined discussion room!");
+          }
+        } else {
+          setIsJoined(true);
+          toast.success("Joined discussion room!");
+        }
       }
     } catch (e) {
       toast.error(e.message || "Failed to toggle room membership");
@@ -286,6 +340,51 @@ export function DiscussionRoom() {
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit("chat.typing.stopped", { roomId });
     }, 2000);
+  };
+
+  const insertMarkdown = (syntax) => {
+    const textarea = inputRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = messageText;
+    
+    let replacement = "";
+    let cursorOffset = 0;
+
+    switch (syntax) {
+      case "bold":
+        replacement = `**${text.substring(start, end) || "bold text"}**`;
+        cursorOffset = text.substring(start, end) ? replacement.length : 11;
+        break;
+      case "italic":
+        replacement = `*${text.substring(start, end) || "italic text"}*`;
+        cursorOffset = text.substring(start, end) ? replacement.length : 13;
+        break;
+      case "code":
+        replacement = `\`${text.substring(start, end) || "code"}\``;
+        cursorOffset = text.substring(start, end) ? replacement.length : 5;
+        break;
+      case "quote":
+        replacement = `\n> ${text.substring(start, end) || "quote"}\n`;
+        cursorOffset = text.substring(start, end) ? replacement.length + 1 : 8;
+        break;
+      case "link":
+        replacement = `[${text.substring(start, end) || "link text"}](https://)`;
+        cursorOffset = text.substring(start, end) ? replacement.length : 21;
+        break;
+      default:
+        return;
+    }
+
+    const newText = text.substring(0, start) + replacement + text.substring(end);
+    setMessageText(newText);
+    
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
+    }, 50);
   };
 
   if (roomLoading) {
@@ -312,7 +411,7 @@ export function DiscussionRoom() {
 
   if (showPrivateBarrier) {
     return (
-      <div className="flex-grow flex flex-col justify-center items-center h-[calc(100vh-4.5rem)] bg-background font-sans p-8 text-center max-w-md mx-auto space-y-6">
+      <div className="flex-grow flex flex-col justify-center items-center h-full bg-background font-sans p-8 text-center max-w-md mx-auto space-y-6">
         <div className="h-16 w-16 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded-full flex items-center justify-center border border-amber-200/50">
           <Lock size={32} />
         </div>
@@ -362,54 +461,165 @@ export function DiscussionRoom() {
   const mainTitle = titleParts[0] || room.title;
   const roomTags = room.tags || [];
 
+  // Construct message tree for rendering
+  const messageTree = buildMessageTree(messages);
+
+  // Right sidebar widgets markup (reused on desktop sidebar & mobile popup dialog)
+  const sidebarWidgetsContent = (
+    <>
+      {isModeratorOrOwner && (
+        <div className="p-4 bg-zinc-900 text-white rounded-[20px] border border-neutral-800 space-y-3 relative overflow-hidden dark:bg-[#151515]">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+          <div className="flex items-center gap-1.5">
+            <Pin size={13} className="text-primary animate-pulse" />
+            <h4 className="text-[9px] font-black text-primary uppercase tracking-widest font-mono">
+              Moderator Directive
+            </h4>
+          </div>
+          <p className="text-[11px] font-serif italic leading-relaxed relative z-10 text-white/90">
+            "Focus on policy implications rather than partisan rhetoric. This
+            room is being actively moderated for constructive debate."
+          </p>
+        </div>
+      )}
+
+      {/* Active Voices */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between border-b border-border/30 pb-2">
+          <h3 className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] font-mono">
+            Active Voices
+          </h3>
+          <span className="text-[9px] font-black text-primary uppercase tracking-widest px-2 py-0.5 bg-primary/5 rounded-md border border-primary/10">
+            {activeVoices.length} online
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          {activeVoices.slice(0, 16).map((u) => (
+            <div key={u.id} className="group relative">
+              <Avatar
+                src={u.avatar}
+                name={u.username}
+                size="sm"
+                status="online"
+                showStatus
+                className="ring-2 ring-transparent group-hover:ring-primary/20 transition-all cursor-pointer rounded-xl hover:scale-105"
+              />
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-popover text-popover-foreground text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap pointer-events-none shadow-xl z-50 uppercase tracking-wider border border-border">
+                @{u.username}
+              </div>
+            </div>
+          ))}
+          {activeVoices.length === 0 && (
+            <p className="text-xs text-muted-foreground italic font-medium">
+              Quiet hours. Be the first to speak.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Pulse Metrics */}
+      <div className="p-6 bg-secondary/35 rounded-[24px] border border-border/40 space-y-4">
+        <div className="flex items-center gap-2">
+          <Info size={14} className="text-foreground/80" />
+          <h3 className="text-[11px] font-black text-foreground uppercase tracking-wider font-mono">
+            Discussion Pulse
+          </h3>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+              <span>Heat score</span>
+              <span className="text-primary font-mono">85%</span>
+            </div>
+            <div className="h-1 bg-border/50 rounded-full overflow-hidden">
+              <div className="h-full bg-primary w-[85%] rounded-full animate-pulse" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-2.5 bg-card/65 rounded-xl border border-border/30">
+              <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">
+                Takes
+              </span>
+              <p className="text-xl font-bold text-foreground mt-0.5 font-mono">
+                {messages.length}
+              </p>
+            </div>
+            <div className="p-2.5 bg-card/65 rounded-xl border border-border/30">
+              <span className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">
+                Impact
+              </span>
+              <p className="text-xl font-bold text-foreground mt-0.5 font-mono">
+                {messages.length * 3}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hashtags */}
+      {roomTags.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] font-mono">
+            Keywords
+          </h3>
+          <div className="flex flex-wrap gap-1.5">
+            {roomTags.map((tag, idx) => (
+              <button
+                key={idx}
+                onClick={() => navigate(`/discover?q=${encodeURIComponent(tag)}`)}
+                className="px-2.5 py-1 bg-secondary/50 text-secondary-foreground text-[10px] font-bold rounded-lg border border-border/30 hover:bg-foreground hover:text-background transition-all cursor-pointer"
+              >
+                #{tag.replace(/^#/, "")}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className="flex-grow flex overflow-hidden bg-background h-[calc(100vh-4.5rem)] font-sans">
+    <div className="flex-grow flex overflow-hidden bg-background h-full font-sans">
       {/* Left Navigation */}
-      <aside className="hidden xl:flex flex-col w-42 shrink-0 border-r border-border/50 bg-card">
-        <div className="p-6 border-b border-border/50">
+      <aside className="hidden xl:flex flex-col w-42 shrink-0 border-r border-border bg-card">
+        <div className="p-5 border-b border-border/90">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate(-1)}
-            className="w-full justify-start gap-3 rounded-2xl hover:bg-secondary font-black uppercase text-[10px] tracking-widest text-muted-foreground cursor-pointer"
+            className="w-full justify-start gap-2.5 rounded-xl hover:bg-secondary font-black uppercase text-[9px] tracking-widest text-muted-foreground cursor-pointer"
           >
-            <ChevronLeft size={16} /> Back
+            <ChevronLeft size={14} /> Back
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto p-6 space-y-10">
+        <div className="flex-1 overflow-y-auto p-5 space-y-8">
           {isCreator && room.isPrivate && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-2 px-2">
-                <Lock size={14} className="text-amber-600" />
-                <h3
-                  className="text-muted-foreground uppercase tracking-[0.2em] text-[10px] font-black"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  Admit Requests
+            <div className="space-y-4">
+              <div className="flex items-center gap-1.5 px-2">
+                <Lock size={12} className="text-amber-600 animate-pulse" />
+                <h3 className="text-muted-foreground uppercase tracking-[0.2em] text-[9px] font-black font-mono">
+                  Admit Queue
                 </h3>
               </div>
               <PendingRequestsList roomId={room.id} />
             </div>
           )}
 
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 px-2">
-              <Activity size={14} className="text-primary" />
-              <h3
-                className="text-muted-foreground uppercase tracking-[0.2em] text-[10px] font-black"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Hot Now
+          <div className="space-y-4">
+            <div className="flex items-center gap-1.5 px-2">
+              <Activity size={12} className="text-primary" />
+              <h3 className="text-muted-foreground uppercase tracking-[0.2em] text-[9px] font-black font-mono">
+                Trending Discussions
               </h3>
             </div>
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
               {otherTrending.map((r) => (
                 <RoomCard
                   key={r.id}
                   room={r}
                   compact
                   onClick={(id) => navigate(`/room/${id}`)}
-                  className="bg-transparent hover:bg-secondary rounded-2xl p-2"
+                  className="bg-transparent hover:bg-secondary/40 rounded-xl p-1.5 transition-colors border border-transparent"
                 />
               ))}
             </div>
@@ -420,99 +630,123 @@ export function DiscussionRoom() {
       {/* Main Discussion Panel */}
       <div className="flex-1 flex flex-col min-w-0 h-full relative bg-card">
         {/* Room Header */}
-        <header className="px-8 py-8 border-b border-border/50 bg-card/85 backdrop-blur-xl sticky top-0 z-20">
-          <div className="flex items-start justify-between gap-8">
-            <div className="min-w-0 space-y-3">
-              <div className="flex items-center gap-3 flex-wrap">
+        <header className="px-6 py-5 border-b border-border/45 bg-card/85 backdrop-blur-xl sticky top-0 z-20 shadow-sm">
+          <div className="flex items-center justify-between gap-4">
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => navigate(-1)}
-                  className="xl:hidden h-10 w-10 bg-secondary rounded-full cursor-pointer"
+                  className="xl:hidden h-8 w-8 bg-secondary rounded-lg cursor-pointer"
                 >
-                  <ChevronLeft size={20} />
+                  <ChevronLeft size={16} />
                 </Button>
-                <span
-                  className="text-muted-foreground uppercase tracking-[0.2em] text-[10px] font-black"
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
+                <span className="px-2 py-0.5 bg-secondary text-secondary-foreground text-[8px] font-black uppercase tracking-widest rounded-md font-mono">
                   {room.category}
                 </span>
-                <span className="flex items-center gap-1.5 text-green-500 text-[10px] font-black uppercase tracking-widest">
-                  <Activity size={12} className="animate-pulse" />{" "}
+                <span className="flex items-center gap-1 text-green-500 text-[9px] font-black uppercase tracking-widest">
+                  <Activity size={10} className="animate-pulse" />{" "}
                   {room._count?.members || 0} Members
                 </span>
               </div>
-              <h1 className="text-3xl md:text-4xl text-foreground tracking-tight leading-tight line-clamp-3 font-serif font-black">
+              <h1 className="text-xl md:text-2xl text-foreground font-bold tracking-tight leading-tight truncate">
                 {mainTitle}
               </h1>
-              <p className="text-muted-foreground text-sm max-w-2xl font-medium leading-relaxed">
+              <p className="text-muted-foreground text-xs font-medium max-w-xl line-clamp-1">
                 {room.description}
               </p>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <DropdownMenu>
-                <DropdownMenuTrigger>
-                  <Button
-                    variant={isJoined ? "default" : "outline"}
-                    className={cn(
-                      "border-none"
+            
+            {/* Header Action Buttons */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Mobile Info Button */}
+              <button
+                onClick={() => setMobileInfoOpen(true)}
+                className="xl:hidden flex items-center justify-center h-9 w-9 bg-secondary hover:bg-secondary/80 text-foreground rounded-full transition-colors cursor-pointer"
+                title="Room details"
+              >
+                <Info size={16} />
+              </button>
+
+              {/* Join / Joined Button */}
+              {isJoined ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full font-bold text-xs h-9 px-4 border-green-200 text-green-600 bg-green-500/5 dark:border-green-900/30 dark:text-green-400 cursor-default"
+                  disabled
+                >
+                  <Check size={12} className="mr-1.5" /> Joined
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleJoinLeaveRoom}
+                  className="rounded-full font-bold text-xs h-9 px-4 cursor-pointer"
+                >
+                  Join Room
+                </Button>
+              )}
+
+              {/* Vertical Dropdown Options */}
+              {(isJoined || isCreator) && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full h-9 w-9 hover:bg-secondary cursor-pointer"
+                    >
+                      <MoreVertical size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-lg rounded-xl">
+                    {isJoined && (
+                      <DropdownMenuItem
+                        onClick={handleJoinLeaveRoom}
+                        className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-medium"
+                      >
+                        <LogOut size={12} /> Leave Room
+                      </DropdownMenuItem>
                     )}
-                  >
-                    <MoreVertical size={14} className="ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-md rounded-xl">
-                  {isJoined ? (
-                    <DropdownMenuItem
-                      onClick={handleJoinLeaveRoom}
-                      className="flex items-center gap-2 text-sm text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer"
-                    >
-                      <LogOut size={14} /> Leave Room
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem
-                      onClick={handleJoinLeaveRoom}
-                      className="flex items-center gap-2 text-sm text-green-600 focus:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-lg cursor-pointer"
-                    >
-                      <Check size={14} /> Join Room
-                    </DropdownMenuItem>
-                  )}
 
-                  {isCreator && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={handleTogglePrivacy}
-                        className="flex items-center gap-2 text-sm rounded-lg cursor-pointer"
-                      >
-                        {room.isPrivate ? (
-                          <>
-                            <Unlock size={14} /> Make Public
-                          </>
-                        ) : (
-                          <>
-                            <Lock size={14} /> Make Private
-                          </>
-                        )}
-                      </DropdownMenuItem>
+                    {isCreator && (
+                      <>
+                        <DropdownMenuItem
+                          onClick={handleTogglePrivacy}
+                          className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
+                        >
+                          {room.isPrivate ? (
+                            <>
+                              <Unlock size={12} /> Make Public
+                            </>
+                          ) : (
+                            <>
+                              <Lock size={12} /> Make Private
+                            </>
+                          )}
+                        </DropdownMenuItem>
 
-                      <DropdownMenuItem
-                        onClick={handleArchiveRoom}
-                        className="flex items-center gap-2 text-sm rounded-lg cursor-pointer"
-                      >
-                        <Archive size={14} /> {room.archived ? "Unarchive Room" : "Archive Room"}
-                      </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={handleArchiveRoom}
+                          className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
+                        >
+                          <Archive size={12} /> {room.archived ? "Unarchive Room" : "Archive Room"}
+                        </DropdownMenuItem>
 
-                      <DropdownMenuItem
-                        onClick={handleDeleteRoom}
-                        className="flex items-center gap-2 text-sm text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-bold"
-                      >
-                        <Trash2 size={14} /> Delete Room
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                        <DropdownMenuItem
+                          onClick={handleDeleteRoom}
+                          className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-bold"
+                        >
+                          <Trash2 size={12} /> Delete Room
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
 
               <Button
                 variant="secondary"
@@ -521,9 +755,10 @@ export function DiscussionRoom() {
                   navigator.clipboard?.writeText(window.location.href);
                   toast.success("Room link copied to clipboard!");
                 }}
-                className="rounded-full h-12 w-12 cursor-pointer"
+                className="rounded-full h-9 w-9 cursor-pointer hover:bg-secondary/80 transition-colors"
+                title="Share Room link"
               >
-                <Share2 size={18} />
+                <Share2 size={15} />
               </Button>
             </div>
           </div>
@@ -532,14 +767,16 @@ export function DiscussionRoom() {
         {/* Message Feed */}
         <div
           ref={feedRef}
-          className="flex-grow overflow-y-auto px-8 py-10 flex flex-col gap-8 bg-background"
+          className="flex-grow overflow-y-auto px-6 py-8 flex flex-col gap-6 bg-zinc-50/50 dark:bg-background"
         >
-          <div className="space-y-8 max-w-5xl mx-auto w-full">
+          <div className="space-y-6 max-w-4xl mx-auto w-full">
             {isCreator && room.isPrivate && (
-              <div className="xl:hidden block mb-6 p-4 bg-amber-50/20 border border-amber-200/50 rounded-2xl">
-                <div className="flex items-center gap-2 mb-3">
-                  <Lock size={14} className="text-amber-600" />
-                  <h4 className="text-xs font-black uppercase tracking-wider text-amber-700">Admit Requests</h4>
+              <div className="xl:hidden block mb-4 p-4 bg-amber-50/20 border border-amber-200/40 rounded-2xl">
+                <div className="flex items-center gap-1.5 mb-2.5">
+                  <Lock size={12} className="text-amber-600 animate-pulse" />
+                  <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-700 font-mono">
+                    Admit Queue
+                  </h4>
                 </div>
                 <PendingRequestsList roomId={room.id} />
               </div>
@@ -548,28 +785,29 @@ export function DiscussionRoom() {
             {messagesLoading ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <Activity
-                  className="animate-spin text-primary mb-4"
-                  size={28}
+                  className="animate-spin text-primary mb-3"
+                  size={24}
                 />
-                <span className="text-xs font-black uppercase tracking-widest animate-pulse">
+                <span className="text-[10px] font-black uppercase tracking-widest animate-pulse font-mono">
                   Retrieving Takes...
                 </span>
               </div>
-            ) : messages.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground text-center">
-                <p className="text-sm font-semibold">No takes shared yet.</p>
-                <p className="text-xs mt-1">
-                  Be the first to share your stance below!
+            ) : messageTree.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground text-center space-y-2">
+                <Users size={32} className="opacity-30" />
+                <p className="text-sm font-bold text-foreground/80">No takes shared yet.</p>
+                <p className="text-xs text-muted-foreground max-w-xs">
+                  Be the first to share your stance and kick off the discussion!
                 </p>
               </div>
             ) : (
-              messages.map((msg) => (
+              messageTree.map((msg) => (
                 <div key={msg.id} className="animate-in fade-in duration-300">
                   <MessageCard
                     message={msg}
                     onReply={handleReply}
                     currentUserId={currentUser?.id || ""}
-                    className="bg-card border border-border/50 shadow-sm rounded-[24px] p-5"
+                    depth={0}
                   />
                 </div>
               ))
@@ -578,27 +816,26 @@ export function DiscussionRoom() {
         </div>
 
         {/* Composition Area */}
-        <div className="p-5 bg-card border-t border-border/50">
-          <div className="max-w-4xl mx-auto space-y-4">
+        <div className="p-4 bg-card border-t border-border/45">
+          <div className="max-w-4xl mx-auto space-y-3">
             {replyingTo && (
-              <div className="flex items-center justify-between px-6 py-3 bg-primary/5 rounded-2xl border border-primary/10 overflow-hidden animate-in slide-in-from-bottom-2">
-                <span className="text-xs font-black text-primary uppercase tracking-widest flex items-center gap-2">
-                  <Award size={14} /> Replying to @{replyingTo.name}
+              <div className="flex items-center justify-between px-4 py-2 bg-primary/5 rounded-xl border border-primary/10 overflow-hidden animate-in slide-in-from-bottom-2">
+                <span className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5 font-mono">
+                  <Award size={12} /> Replying to @{replyingTo.name}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 hover:bg-primary/10 rounded-full cursor-pointer"
+                <button
+                  className="h-5 w-5 hover:bg-primary/10 rounded-full flex items-center justify-center cursor-pointer transition-colors"
                   onClick={() => setReplyingTo(null)}
+                  title="Cancel reply"
                 >
-                  <X size={14} className="text-primary" />
-                </Button>
+                  <X size={12} className="text-primary" />
+                </button>
               </div>
             )}
 
             {/* Typing Indicator */}
             {typingUsers.length > 0 && (
-              <div className="text-[10px] text-muted-foreground font-black uppercase tracking-wider pl-4 flex items-center gap-1.5">
+              <div className="text-[9px] text-muted-foreground/80 font-black uppercase tracking-wider pl-3 flex items-center gap-1.5 font-mono">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary" />
@@ -608,166 +845,124 @@ export function DiscussionRoom() {
               </div>
             )}
 
-            <div className="flex items-center gap-2 p-1.5 bg-muted rounded-full border border-border/50 shadow-sm focus-within:border-primary/20 focus-within:shadow-md focus-within:bg-card transition-all">
-              <div className="flex items-center gap-1 pl-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full h-10 w-10 text-muted-foreground hover:bg-secondary cursor-pointer"
-                >
-                  <Smile size={20} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full h-10 w-10 text-muted-foreground hover:bg-secondary cursor-pointer"
-                >
-                  <Paperclip size={20} />
-                </Button>
+            {/* Premium Composer Box */}
+            <div className="bg-secondary/40 border border-border/60 rounded-2xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
+              {/* Textarea Input area */}
+              <div className="flex items-start gap-3 p-3">
+                <div className="hidden sm:block shrink-0 mt-0.5">
+                  <Avatar
+                    src={currentUser?.avatar}
+                    name={currentUser?.username || "You"}
+                    size="sm"
+                  />
+                </div>
+                <textarea
+                  ref={inputRef}
+                  value={messageText}
+                  onChange={(e) => {
+                    setMessageText(e.target.value);
+                    handleTyping();
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder={replyingTo ? `Write your reply... (Shift + Enter for new lines)` : "Share your stance... (Shift + Enter for new lines)"}
+                  rows={2}
+                  maxLength={5000}
+                  className="flex-grow bg-transparent border-none focus:outline-none resize-none py-1.5 text-sm font-medium placeholder:text-muted-foreground/45 text-foreground leading-relaxed min-h-[40px] max-h-[180px]"
+                />
               </div>
 
-              <input
-                ref={inputRef}
-                type="text"
-                value={messageText}
-                onChange={(e) => {
-                  setMessageText(e.target.value);
-                  handleTyping();
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="What is your stance?"
-                className="flex-grow bg-transparent border-none focus:outline-none px-4 py-3 text-base font-medium placeholder:text-muted-foreground/40 text-foreground"
-              />
+              {/* Utility Formatting Bar & Characters counter */}
+              <div className="flex items-center justify-between px-3 py-2 bg-secondary/20 border-t border-border/30">
+                {/* Editor syntax formatting helpers */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => insertMarkdown("bold")}
+                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+                    title="Insert Bold"
+                  >
+                    <Bold size={13} />
+                  </button>
+                  <button
+                    onClick={() => insertMarkdown("italic")}
+                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+                    title="Insert Italic"
+                  >
+                    <Italic size={13} />
+                  </button>
+                  <button
+                    onClick={() => insertMarkdown("code")}
+                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+                    title="Insert Code block"
+                  >
+                    <Code size={13} />
+                  </button>
+                  <button
+                    onClick={() => insertMarkdown("quote")}
+                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+                    title="Insert Blockquote"
+                  >
+                    <Quote size={13} />
+                  </button>
+                  <button
+                    onClick={() => insertMarkdown("link")}
+                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
+                    title="Insert Hyperlink"
+                  >
+                    <Link2 size={13} />
+                  </button>
+                </div>
 
-              <Button
-                onClick={handleSend}
-                disabled={!messageText.trim()}
-                className="rounded-full px-8 h-11 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 ml-2 cursor-pointer"
-              >
-                Send <Send size={14} className="ml-2" />
-              </Button>
+                {/* Right controls: Counter and send button */}
+                <div className="flex items-center gap-3">
+                  <span className={cn(
+                    "text-[10px] font-black font-mono tracking-wider",
+                    messageText.length > 4500 ? "text-red-500 animate-pulse" : "text-muted-foreground/50"
+                  )}>
+                    {messageText.length}/5000
+                  </span>
+                  
+                  <Button
+                    onClick={handleSend}
+                    disabled={!messageText.trim()}
+                    size="sm"
+                    className="rounded-xl h-8 px-4 font-black uppercase text-[9px] tracking-widest cursor-pointer shadow-sm hover:shadow transition-all"
+                  >
+                    Send <Send size={10} className="ml-1.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Contextual Intelligence (Right Sidebar) */}
-      <aside className="hidden xl:flex flex-col w-76 shrink-0 border-l border-border/50 bg-card p-8 space-y-10 overflow-y-auto">
-        {isModeratorOrOwner && (
-          <div className="p-2.5 bg-slate-900 text-white rounded-[24px] border border-border/20 space-y-3 relative overflow-hidden dark:bg-[#1a1a1a]">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
-            <div className="flex items-center gap-1">
-              <Pin size={16} className="text-primary" />
-              <h4 className="text-[10px] font-black text-primary uppercase tracking-widest">
-                Moderator Directive
-              </h4>
-            </div>
-            <p className="text-[11px] font-serif italic leading-relaxed relative z-10 text-white/90">
-              "Focus on policy implications rather than partisan rhetoric. This
-              room is being actively moderated for constructive debate."
-            </p>
-          </div>
-        )}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3
-              className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              Active Voices
-            </h3>
-            <span className="text-[10px] font-black text-primary uppercase tracking-widest px-2 py-1 bg-primary/5 rounded-md">
-              {activeVoices.length} Here
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {activeVoices.slice(0, 16).map((u) => (
-              <div key={u.id} className="group relative">
-                <Avatar
-                  src={u.avatar}
-                  name={u.username}
-                  size="sm"
-                  status="online"
-                  showStatus
-                  className="ring-2 ring-transparent group-hover:ring-primary/10 transition-all cursor-pointer rounded-xl"
-                />
-
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3 py-2 bg-popover text-popover-foreground text-[10px] font-black rounded-xl opacity-0 group-hover:opacity-100 transition-all whitespace-nowrap pointer-events-none shadow-2xl z-50 uppercase tracking-widest border border-border">
-                  @{u.username}
-                </div>
-              </div>
-            ))}
-            {activeVoices.length === 0 && (
-              <p className="text-xs text-muted-foreground italic font-medium">
-                No active voices.
-              </p>
-            )}
-          </div>
-        </div>
-
-        <div className="p-8 bg-muted rounded-[40px] border border-border/50 space-y-6">
-          <div className="flex items-center gap-2">
-            <Info size={16} className="text-foreground" />
-            <h3 className="text-sm font-black text-foreground uppercase tracking-wider font-sans">
-              Discussion Pulse
-            </h3>
-          </div>
-          <div className="space-y-6 font-sans">
-            <div className="space-y-2">
-              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                <span>Conversation Heat</span>
-                <span className="text-primary">Very High</span>
-              </div>
-              <div className="h-1.5 bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-[85%] rounded-full" />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                  Takes
-                </span>
-                <p className="text-2xl font-black text-foreground font-serif">
-                  {messages.length}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                  Impact
-                </span>
-                <p className="text-2xl font-black text-foreground font-serif">
-                  {messages.length * 3}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {roomTags.length > 0 && (
-          <div className="p-8 bg-card border border-border/50 rounded-[40px] space-y-5 shadow-sm">
-            <h3
-              className="text-[10px] font-black text-foreground uppercase tracking-[0.2em]"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              Hashtags
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {roomTags.map((tag, idx) => (
-                <button
-                  key={idx}
-                  onClick={() =>
-                    navigate(`/discover?q=${encodeURIComponent(tag)}`)
-                  }
-                  className="px-3 py-1.5 bg-secondary text-secondary-foreground text-xs font-bold rounded-xl border border-border shadow-sm hover:bg-foreground hover:text-background transition-all cursor-pointer"
-                >
-                  #{tag.replace(/^#/, "")}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Contextual Intelligence (Right Sidebar) - Desktop Only */}
+      <aside className="hidden xl:flex flex-col w-64 shrink-0 border-l border-border/90 bg-card p-6 space-y-8 overflow-y-auto">
+        {sidebarWidgetsContent}
       </aside>
+
+      {/* Mobile Drawer/Modal for Room Details & Widgets */}
+      <Dialog open={mobileInfoOpen} onOpenChange={setMobileInfoOpen}>
+        <DialogContent className="rounded-[24px] max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-lg">Discussion Room Details</DialogTitle>
+            <DialogDescription className="text-xs">
+              View active users, tags, metrics, and room descriptions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="space-y-1">
+              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest font-mono">About Room</span>
+              <p className="text-xs font-semibold text-foreground/80 leading-relaxed bg-secondary/30 p-3 rounded-xl border border-border/30">
+                {room.description}
+              </p>
+            </div>
+            {sidebarWidgetsContent}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
 export default DiscussionRoom;

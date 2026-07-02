@@ -20,6 +20,7 @@ export class RoomRepository extends BaseRepository {
           },
       select: {
         userId: true,
+        status: true,
         user: {
           select: {
             status: true,

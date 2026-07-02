@@ -148,7 +148,41 @@ export const useJoinRoomMutation = () => {
       const res = await apiClient.post(`/rooms/${roomId}/join`);
       return res.data.data;
     },
-    onSuccess: (_, roomId) => {
+    onSuccess: (data, roomId) => {
+      // Direct cache updates for instant synchronization
+      queryClient.setQueriesData({ queryKey: ["rooms"] }, (old) => {
+        if (!old) return old;
+        
+        // Single room query match
+        if (old.id === roomId) {
+          return { ...old, isJoined: data.isJoined, isPending: data.isPending };
+        }
+        
+        // Array of rooms query match
+        if (Array.isArray(old)) {
+          return old.map((room) =>
+            room.id === roomId
+              ? { ...room, isJoined: data.isJoined, isPending: data.isPending }
+              : room
+          );
+        }
+        
+        // Paginated items query match
+        if (old.items && Array.isArray(old.items)) {
+          return {
+            ...old,
+            items: old.items.map((room) =>
+              room.id === roomId
+                ? { ...room, isJoined: data.isJoined, isPending: data.isPending }
+                : room
+            ),
+          };
+        }
+        
+        return old;
+      });
+
+      // Background refetch for synchronization assurance
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       queryClient.invalidateQueries({ queryKey: ["rooms", roomId] });
     },
@@ -162,7 +196,41 @@ export const useLeaveRoomMutation = () => {
       const res = await apiClient.post(`/rooms/${roomId}/leave`);
       return res.data.data;
     },
-    onSuccess: (_, roomId) => {
+    onSuccess: (data, roomId) => {
+      // Direct cache updates for instant synchronization
+      queryClient.setQueriesData({ queryKey: ["rooms"] }, (old) => {
+        if (!old) return old;
+        
+        // Single room query match
+        if (old.id === roomId) {
+          return { ...old, isJoined: false, isPending: false };
+        }
+        
+        // Array of rooms query match
+        if (Array.isArray(old)) {
+          return old.map((room) =>
+            room.id === roomId
+              ? { ...room, isJoined: false, isPending: false }
+              : room
+          );
+        }
+        
+        // Paginated items query match
+        if (old.items && Array.isArray(old.items)) {
+          return {
+            ...old,
+            items: old.items.map((room) =>
+              room.id === roomId
+                ? { ...room, isJoined: false, isPending: false }
+                : room
+            ),
+          };
+        }
+        
+        return old;
+      });
+
+      // Background refetch for synchronization assurance
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
       queryClient.invalidateQueries({ queryKey: ["rooms", roomId] });
     },

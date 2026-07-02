@@ -33,6 +33,7 @@ import "./features/analytics/infrastructure/events/AnalyticsEventSubscribers.js"
 // Load dynamic Socket.IO listeners
 import "./features/message/presentation/socket/RoomJoinHandler.js";
 import "./features/message/presentation/socket/TypingHandler.js";
+import "./features/message/presentation/socket/ReactionHandler.js";
 
 const app = express();
 

@@ -122,13 +122,13 @@ export function LandingPage() {
 
             <div className="flex items-center gap-5">
               <Link
-                to={user ? "/home" : "/auth?mode=register"}
+                to={user ? "/discussions" : "/auth?mode=register"}
                 className="bg-[#d42b2b] hover:bg-[#b82020] text-[#f0ede6] px-6 py-3.5 text-sm font-black uppercase tracking-widest transition-all rounded-sm"
               >
                 Join the conversation →
               </Link>
               <Link
-                to="/discover"
+                to={user ? "/discover": "/discover"}
                 className="text-[#888880] hover:text-[#f0ede6] text-sm font-black uppercase tracking-widest flex items-center gap-2 transition-colors"
               >
                 <span className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-xs">

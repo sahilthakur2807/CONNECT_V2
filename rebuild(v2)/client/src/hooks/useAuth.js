@@ -71,7 +71,7 @@ export function useAuth() {
       dispatch(logoutAction());
       disconnectSocket();
       dispatch(setLoading(false));
-      navigate("/auth");
+      navigate("/");
     }
   };
 
