@@ -1,23 +1,26 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 
-export function useNotifications() {
+// --- Standalone Queries ---
+
+export const useNotificationsQuery = (limit = 20, cursor) =>
+  useQuery({
+    queryKey: ["notifications", { limit, cursor }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append("limit", limit.toString());
+      if (cursor) params.append("cursor", cursor);
+      const res = await apiClient.get(`/notifications?${params.toString()}`);
+      return res.data.data;
+    },
+    refetchInterval: 10000,
+  });
+
+// --- Standalone Mutations ---
+
+export const useMarkReadMutation = () => {
   const queryClient = useQueryClient();
-
-  const useNotificationsQuery = (limit = 20, cursor) =>
-    useQuery({
-      queryKey: ["notifications", { limit, cursor }],
-      queryFn: async () => {
-        const params = new URLSearchParams();
-        params.append("limit", limit.toString());
-        if (cursor) params.append("cursor", cursor);
-        const res = await apiClient.get(`/notifications?${params.toString()}`);
-        return res.data.data;
-      },
-      refetchInterval: 10000,
-    });
-
-  const markReadMutation = useMutation({
+  return useMutation({
     mutationFn: async (id) => {
       const res = await apiClient.patch(`/notifications/${id}/read`);
       return res.data.data;
@@ -26,8 +29,11 @@ export function useNotifications() {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
+};
 
-  const markAllReadMutation = useMutation({
+export const useMarkAllReadMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
     mutationFn: async () => {
       await apiClient.post("/notifications/read-all");
     },
@@ -35,10 +41,14 @@ export function useNotifications() {
       queryClient.invalidateQueries({ queryKey: ["notifications"] });
     },
   });
+};
 
+// --- Backward Compatible Wrapper Hook ---
+
+export function useNotifications() {
   return {
     useNotificationsQuery,
-    markReadMutation,
-    markAllReadMutation,
+    markReadMutation: useMarkReadMutation(),
+    markAllReadMutation: useMarkAllReadMutation(),
   };
 }

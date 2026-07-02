@@ -32,12 +32,15 @@ export class RoomRepository extends BaseRepository {
   mapRoom(room, userId) {
     if (!room) return null;
     const members = Array.isArray(room.members) ? room.members : [];
-    const isJoined = userId ? members.some((m) => m.userId === userId) : false;
+    const membership = userId ? members.find((m) => m.userId === userId) : null;
+    const isJoined = membership ? membership.status === "joined" : false;
+    const isPending = membership ? membership.status === "pending" : false;
     const activeNow = members.filter((m) => m.user?.status === "online").length;
 
     return {
       ...room,
       isJoined,
+      isPending,
       activeNow,
     };
   }
@@ -56,7 +59,13 @@ export class RoomRepository extends BaseRepository {
     const delegate = this.getDelegate(tx);
     const skip = (page - 1) * limit;
 
-    const where = { deleted: false };
+    const where = {
+      deleted: false,
+      OR: [
+        { archived: false },
+        ...(userId ? [{ createdById: userId }] : []),
+      ],
+    };
     if (communityId) where.communityId = communityId;
     if (category) where.category = { equals: category, mode: "insensitive" };
 
@@ -89,7 +98,10 @@ export class RoomRepository extends BaseRepository {
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
-        archived: false,
+        OR: [
+          { archived: false },
+          ...(userId ? [{ createdById: userId }] : []),
+        ],
       },
       include: {
         members: this.getMembersInclude(userId),
@@ -116,7 +128,10 @@ export class RoomRepository extends BaseRepository {
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
-        archived: false,
+        OR: [
+          { archived: false },
+          ...(userId ? [{ createdById: userId }] : []),
+        ],
       },
       include: {
         members: this.getMembersInclude(userId),
@@ -142,7 +157,10 @@ export class RoomRepository extends BaseRepository {
     const rooms = await this.getDelegate(tx).findMany({
       where: {
         deleted: false,
-        archived: false,
+        OR: [
+          { archived: false },
+          ...(userId ? [{ createdById: userId }] : []),
+        ],
       },
       include: {
         members: this.getMembersInclude(userId),

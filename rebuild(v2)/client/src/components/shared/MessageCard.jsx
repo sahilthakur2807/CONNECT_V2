@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { Badge } from "./Badge";
-import { useMessages } from "@/hooks/useMessages";
+import { useEditMessageMutation, useDeleteMessageMutation } from "@/hooks/useMessages";
 import { useModeration } from "@/hooks/useModeration";
 import { cn } from "@/utils/cn";
 import { Button } from "@/components/ui/button";
@@ -44,9 +44,8 @@ export function MessageCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
 
-  const { editMessageMutation, deleteMessageMutation } = useMessages(
-    message.roomId,
-  );
+  const editMessageMutation = useEditMessageMutation();
+  const deleteMessageMutation = useDeleteMessageMutation(message.roomId);
   const { submitReportMutation } = useModeration();
 
   // Report Modal States

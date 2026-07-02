@@ -32,7 +32,7 @@ export class CreateRoomCommand {
 }
 
 export class UpdateRoomCommand {
-  constructor(userId, roomId, title, description, category, tags, imageUrl) {
+  constructor(userId, roomId, title, description, category, tags, imageUrl, isPrivate) {
     this.userId = userId;
     this.roomId = roomId;
     this.title = title;
@@ -40,6 +40,7 @@ export class UpdateRoomCommand {
     this.category = category;
     this.tags = tags;
     this.imageUrl = imageUrl;
+    this.isPrivate = isPrivate;
   }
 }
 
@@ -201,6 +202,7 @@ export class UpdateRoomHandler {
     if (command.category !== undefined) data.category = command.category;
     if (command.tags !== undefined) data.tags = command.tags;
     if (command.imageUrl !== undefined) data.imageUrl = command.imageUrl;
+    if (command.isPrivate !== undefined) data.isPrivate = command.isPrivate;
 
     return this.roomRepo.update(command.roomId, data);
   }
@@ -245,7 +247,7 @@ export class ArchiveRoomHandler {
       );
 
     const updated = await this.roomRepo.update(command.roomId, {
-      archived: true,
+      archived: !room.archived,
     });
     await EventBus.publish(new RoomArchivedEvent(command.roomId));
     return updated;
