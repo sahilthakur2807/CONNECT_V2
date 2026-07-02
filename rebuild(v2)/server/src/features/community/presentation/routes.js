@@ -162,8 +162,8 @@ export function createCommunitiesRouter() {
   router.delete("/:id", authenticateJWT, async (req, res, next) => {
     try {
       const command = new DeleteCommunityCommand(
-        req.params.id,
         req.user.id,
+        req.params.id,
         req.user.role,
       );
       await deleteCommunityHandler.execute(command);

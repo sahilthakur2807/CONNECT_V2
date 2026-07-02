@@ -4,8 +4,6 @@ import {
   Send,
   ChevronLeft,
   Pin,
-  Smile,
-  Paperclip,
   X,
   Share2,
   Activity,
@@ -223,7 +221,16 @@ export function DiscussionRoom() {
     if (!roomId) return;
 
     const socket = getSocket();
-    socket.emit("chat.room.joined", { roomId });
+    
+    const joinRoom = () => {
+      socket.emit("chat.room.joined", { roomId });
+    };
+
+    // Join initially
+    joinRoom();
+
+    // Rejoin on connection recovery / reconnection
+    socket.on("connect", joinRoom);
 
     // Custom stats/active users updates
     const handleActiveUsersUpdate = (data) => {
@@ -235,6 +242,7 @@ export function DiscussionRoom() {
 
     return () => {
       socket.emit("chat.room.left", { roomId });
+      socket.off("connect", joinRoom);
       socket.off("room_active_users_update", handleActiveUsersUpdate);
     };
   }, [roomId]);
@@ -937,7 +945,7 @@ export function DiscussionRoom() {
       </div>
 
       {/* Contextual Intelligence (Right Sidebar) - Desktop Only */}
-      <aside className="hidden xl:flex flex-col w-64 shrink-0 border-l border-border/90 bg-card p-6 space-y-8 overflow-y-auto">
+      <aside className="hidden xl:flex flex-col w-78 shrink-0 border-l border-border/90 bg-card p-6 space-y-8 overflow-y-auto">
         {sidebarWidgetsContent}
       </aside>
 

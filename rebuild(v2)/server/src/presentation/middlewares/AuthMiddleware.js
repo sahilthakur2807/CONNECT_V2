@@ -13,7 +13,7 @@ export const authenticateJWT = (req, res, next) => {
     jwt.verify(token, config.JWT_SECRET, (err, decoded) => {
       if (err) {
         return next(
-          new ForbiddenError("Access token is invalid or has expired"),
+          new UnauthorizedError("Access token is invalid or has expired"),
         );
       }
       req.user = decoded;

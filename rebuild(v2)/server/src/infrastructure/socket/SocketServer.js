@@ -124,21 +124,6 @@ export function initializeSocketServer(app) {
       }
     }
 
-    // Track rooms user joins
-    socket.on("join_room", (roomId) => {
-      socket.join(roomId);
-      Logger.debug(
-        `Socket ${socket.id} (User: ${user?.id}) joined room: ${roomId}`,
-      );
-    });
-
-    socket.on("leave_room", (roomId) => {
-      socket.leave(roomId);
-      Logger.debug(
-        `Socket ${socket.id} (User: ${user?.id}) left room: ${roomId}`,
-      );
-    });
-
     // Dynamic registry dispatch
     const handlers = SocketEventRegistry.getHandlers();
     for (const handler of handlers) {
@@ -156,7 +141,13 @@ export function initializeSocketServer(app) {
 
     socket.on("disconnecting", () => {
       for (const roomId of socket.rooms) {
-        if (roomId === user?.id) continue;
+        if (
+          roomId === user?.id ||
+          roomId === socket.id ||
+          roomId === "moderators"
+        ) {
+          continue;
+        }
         broadcastRoomActiveUsers(roomId, socket.id);
       }
     });

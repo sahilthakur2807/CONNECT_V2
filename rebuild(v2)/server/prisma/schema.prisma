@@ -130,6 +130,7 @@ model Room {
   reports     Report[]
   activities  Activity[]
   activitiesFeed ActivityFeedItem[] @relation("RoomActivities")
+  hashtags    Hashtag[] @relation("RoomHashtags")
 
   @@index([communityId])
   @@index([articleId])
@@ -428,5 +429,14 @@ model ReputationLog {
 
   @@index([userId])
   @@map("reputation_logs")
+}
+
+model Hashtag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  rooms     Room[]   @relation("RoomHashtags")
+
+  @@map("hashtags")
 }
 

@@ -2,14 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSocket } from "@/services/socketService";
 import {
-  CornerUpLeft,
   Flag,
   MoreHorizontal,
   Pencil,
   Trash2,
   ChevronDown,
   ChevronRight,
-  Smile,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { useEditMessageMutation, useDeleteMessageMutation } from "@/hooks/useMessages";

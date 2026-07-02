@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAppDispatch } from "@/store";
 import {
@@ -11,6 +11,12 @@ import { toast } from "sonner";
 export function useSocketEvents(roomId, callbacks) {
   const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
+  const callbacksRef = useRef(callbacks);
+
+  // Keep callbacks ref updated with latest closures on every render
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  });
 
   useEffect(() => {
     const socket = getSocket();
@@ -63,8 +69,8 @@ export function useSocketEvents(roomId, callbacks) {
         // Invalidate rooms to refresh message counts (Conversation count)
         queryClient.invalidateQueries({ queryKey: ["rooms"] });
         // Notify UI of new message creation
-        if (callbacks?.onMessageCreated) {
-          callbacks.onMessageCreated();
+        if (callbacksRef.current?.onMessageCreated) {
+          callbacksRef.current.onMessageCreated();
         }
       }
     };
@@ -139,22 +145,22 @@ export function useSocketEvents(roomId, callbacks) {
     };
 
     const handleTypingStarted = (data) => {
-      if (data.roomId === roomId && callbacks?.onTypingStarted) {
-        callbacks.onTypingStarted(data);
+      if (data.roomId === roomId && callbacksRef.current?.onTypingStarted) {
+        callbacksRef.current.onTypingStarted(data);
       }
     };
 
     const handleTypingStopped = (data) => {
-      if (data.roomId === roomId && callbacks?.onTypingStopped) {
-        callbacks.onTypingStopped(data);
+      if (data.roomId === roomId && callbacksRef.current?.onTypingStopped) {
+        callbacksRef.current.onTypingStopped(data);
       }
     };
 
     const handleRoomActiveUsersUpdate = (data) => {
       // Invalidate rooms to refresh citizens joined in voice count
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
-      if (callbacks?.onRoomActiveUsersUpdate) {
-        callbacks.onRoomActiveUsersUpdate(data);
+      if (callbacksRef.current?.onRoomActiveUsersUpdate) {
+        callbacksRef.current.onRoomActiveUsersUpdate(data);
       }
     };
 
@@ -194,5 +200,5 @@ export function useSocketEvents(roomId, callbacks) {
       socket.off("chat.typing.stopped", handleTypingStopped);
       socket.off("room_active_users_update", handleRoomActiveUsersUpdate);
     };
-  }, [roomId, queryClient, dispatch, callbacks]);
+  }, [roomId, queryClient, dispatch]);
 }

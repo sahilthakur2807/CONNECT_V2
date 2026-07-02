@@ -219,8 +219,8 @@ export function createRoomsRouter() {
   router.delete("/:id", authenticateJWT, async (req, res, next) => {
     try {
       const command = new DeleteRoomCommand(
-        req.params.id,
         req.user.id,
+        req.params.id,
         req.user.role,
       );
       await deleteRoomHandler.execute(command);

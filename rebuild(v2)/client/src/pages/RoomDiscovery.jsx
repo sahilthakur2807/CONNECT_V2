@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Compass, Search, Filter, Activity } from "lucide-react";
+import { Search, Filter, Activity } from "lucide-react";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
