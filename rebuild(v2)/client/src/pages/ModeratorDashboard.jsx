@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectTrigger, SelectContent, SelectItem } from "@/components/ui/select";
 import { cn } from "@/utils/cn";
 import { useModeration } from "@/hooks/useModeration";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
@@ -394,17 +395,18 @@ export function ModeratorDashboard() {
                 >
                   Action Type
                 </label>
-                <select
-                  id="enforce-type"
+                <Select
                   value={enforceType}
-                  onChange={(e) => setEnforceType(e.target.value)}
-                  className="w-full h-10 px-3 bg-secondary/50 rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/15"
+                  onValueChange={setEnforceType}
                 >
-                  <option value="warn">Issue Warning</option>
-                  <option value="mute">Mute User (Read-Only)</option>
-                  <option value="suspend">Suspend Account</option>
-                  <option value="ban">Permanent Ban</option>
-                </select>
+                  <SelectTrigger id="enforce-type" />
+                  <SelectContent>
+                    <SelectItem value="warn">Issue Warning</SelectItem>
+                    <SelectItem value="mute">Mute User (Read-Only)</SelectItem>
+                    <SelectItem value="suspend">Suspend Account</SelectItem>
+                    <SelectItem value="ban">Permanent Ban</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {enforceType !== "warn" && (

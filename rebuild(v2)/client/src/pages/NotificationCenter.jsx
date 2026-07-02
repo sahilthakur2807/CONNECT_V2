@@ -321,7 +321,6 @@ export function NotificationCenter() {
       <DashboardHeader
         title="Notifications"
         description="Stay updated with replies, mentions, and friend activities."
-        icon={<Bell size={24} />}
         actions={
           unreadNotifications.length > 0 && (
             <Button

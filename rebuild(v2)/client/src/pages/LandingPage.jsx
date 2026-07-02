@@ -101,11 +101,6 @@ export function LandingPage() {
 
       {/* ── Hero ── */}
       <section className="relative min-h-[90vh] flex flex-col justify-center items-center px-6 pt-32 pb-20">
-        <div className="absolute top-40 left-10 flex items-center gap-2 text-[10px] text-[#888880] tracking-[0.2em] font-mono">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#d42b2b] animate-pulse" />
-          NETWORK SPHERES LIVE NOW
-        </div>
-
         <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-8 animate-in fade-in duration-1000">
             <h1

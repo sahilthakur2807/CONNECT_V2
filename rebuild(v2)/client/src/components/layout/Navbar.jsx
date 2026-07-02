@@ -309,7 +309,6 @@ export function Navbar() {
                 <DropdownMenuItem
                   onClick={() => {
                     logout();
-                    navigate("/auth");
                   }}
                   className="text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-950/30"
                 >
@@ -418,7 +417,6 @@ export function Navbar() {
                 onClick={() => {
                   setMobileMenuOpen(false);
                   logout();
-                  navigate("/auth");
                 }}
               >
                 <LogOut size={18} /> Sign Out

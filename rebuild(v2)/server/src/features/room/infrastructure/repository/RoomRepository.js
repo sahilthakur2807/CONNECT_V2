@@ -179,5 +179,23 @@ export class RoomRepository extends BaseRepository {
 
     return this.mapRoom(room, userId);
   }
+
+  /**
+   * Links a room with hashtags in the database.
+   */
+  async associateHashtags(roomId, hashtagNames, tx) {
+    const delegate = this.getDelegate(tx);
+    return delegate.update({
+      where: { id: roomId },
+      data: {
+        hashtags: {
+          connectOrCreate: hashtagNames.map((name) => ({
+            where: { name },
+            create: { name },
+          })),
+        },
+      },
+    });
+  }
 }
 export const roomRepository = new RoomRepository();

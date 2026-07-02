@@ -1,4 +1,5 @@
 import { RoomPolicy } from "../RoomPolicy.js";
+import { extractHashtags } from "../../../../shared/utils/Sanitizer.js";
 import {
   BadRequestError,
   ForbiddenError,
@@ -123,6 +124,10 @@ export class CreateRoomHandler {
         "You do not have permission to create rooms in this community",
       );
 
+    const normalizedTags = (command.tags || [])
+      .map((t) => t.trim().replace(/^#/, "").toLowerCase())
+      .filter(Boolean);
+
     const room = await this.roomRepo.create({
       title: command.title,
       description: command.description,
@@ -133,6 +138,16 @@ export class CreateRoomHandler {
       createdBy: { connect: { id: command.userId } },
       ...(command.communityId
         ? { community: { connect: { id: command.communityId } } }
+        : {}),
+      ...(normalizedTags.length > 0
+        ? {
+            hashtags: {
+              connectOrCreate: normalizedTags.map((name) => ({
+                where: { name },
+                create: { name },
+              })),
+            },
+          }
         : {}),
     });
 

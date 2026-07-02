@@ -90,6 +90,16 @@ export function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
 
+      {/* Standalone Protected Onboarding Flow */}
+      <Route
+        path="/onboarding"
+        element={
+          <ProtectedRoute>
+            <OnboardingPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Protected Pages wrapped in AppLayout */}
       <Route
         element={
@@ -99,7 +109,6 @@ export function App() {
         }
       >
         <Route path="/home" element={<HomeDashboard />} />
-        <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/discover" element={<RoomDiscovery />} />
         <Route path="/discussions" element={<DiscussionsDashboard />} />
         <Route path="/room/:roomId" element={<DiscussionRoom />} />

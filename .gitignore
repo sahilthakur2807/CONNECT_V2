@@ -10,3 +10,5 @@ AGENT.md
 rebuild_plan.md
 walkthrough.md
 task.md
+./prisma/migrations/
+.agents/

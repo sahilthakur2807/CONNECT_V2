@@ -65,7 +65,7 @@ app.use(sanitizeRequestMiddleware);
 
 // API Rate Limiting configuration
 const globalRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes window
+  windowMs: 60 * 60 * 1000, // 60 minutes window
   max: config.NODE_ENV === "development" ? 99999 : 300, // Highly relaxed limit in development
   standardHeaders: true,
   legacyHeaders: false,
