@@ -48,7 +48,7 @@ export function RoomCard({
                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500" />
                 </span>
                 <span className="text-green-600 dark:text-green-400 font-semibold">
-                  {activeNow} in room now
+                  {activeNow} active now
                 </span>
               </>
             ) : (
@@ -129,7 +129,7 @@ export function RoomCard({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
               </span>
-              {activeNow.toLocaleString()} in room now
+              {activeNow.toLocaleString() || 1} {activeNow === 1 ? "user" : "users"} active.
             </>
           ) : (
             <>

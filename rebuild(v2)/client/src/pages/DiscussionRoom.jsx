@@ -17,11 +17,6 @@ import {
   Trash2,
   Archive,
   Users,
-  Bold,
-  Italic,
-  Code,
-  Quote,
-  Link2,
 } from "lucide-react";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -95,6 +90,17 @@ function PendingRequestsList({ roomId }) {
   );
 }
 
+// Helper to check for actual visible text content (ignores zero-width/invisible Unicode spaces and Braille blank spaces)
+const hasVisibleContent = (text) => {
+  if (!text) return false;
+  // Remove normal whitespaces, zero-width chars, formatting symbols, and Braille blanks
+  const cleaned = text
+    .replace(/[\s\u200B-\u200D\uFEFF\u2000-\u200F\u2028\u2029\u202F\u205F\u3000\u2800]/g, "")
+    .replace(/\p{Z}/gu, "")
+    .replace(/\p{C}/gu, "");
+  return cleaned.length > 0;
+};
+
 // Client-side tree builder to organize flat chronological messages into threads
 const buildMessageTree = (flatMessages) => {
   if (!flatMessages || flatMessages.length === 0) return [];
@@ -126,12 +132,10 @@ export function DiscussionRoom() {
 
   const {
     useRoomQuery,
-    useTrendingRoomsQuery,
     joinRoomMutation,
     leaveRoomMutation,
   } = useRooms();
   const { data: room, isLoading: roomLoading } = useRoomQuery(roomId);
-  const { data: trendingRooms = [] } = useTrendingRoomsQuery(5);
 
   const isModeratorOrOwner =
     currentUser?.role === "moderator" ||
@@ -145,6 +149,21 @@ export function DiscussionRoom() {
 
   // Construct message tree for rendering (unconditionally at hook level)
   const messageTree = useMemo(() => buildMessageTree(messages), [messages]);
+
+  // Construct roomTags from room.tags (unconditionally at hook level)
+  const roomTags = useMemo(() => {
+    const rawTags = room?.tags || [];
+    const splitTags = [];
+    rawTags.forEach((tag) => {
+      const parts = tag
+        .replace(/#/g, " ")
+        .split(/[\s,]+/)
+        .map((p) => p.trim())
+        .filter(Boolean);
+      splitTags.push(...parts);
+    });
+    return Array.from(new Set(splitTags));
+  }, [room?.tags]);
 
   const deleteRoomMutation = useDeleteRoomMutation();
   const archiveRoomMutation = useArchiveRoomMutation();
@@ -279,8 +298,8 @@ export function DiscussionRoom() {
   }, [room]);
 
   const handleSend = async () => {
+    if (!hasVisibleContent(messageText) || !currentUser || !roomId) return;
     const text = messageText.trim();
-    if (!text || !currentUser || !roomId) return;
 
     setMessageText("");
     const replyTargetId = replyingTo?.id;
@@ -312,7 +331,9 @@ export function DiscussionRoom() {
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      if (hasVisibleContent(messageText)) {
+        handleSend();
+      }
     }
   };
 
@@ -429,7 +450,10 @@ export function DiscussionRoom() {
     );
   }
 
-  const isCreator = room.createdBy?.id === currentUser?.id;
+  const isCreator =
+    room?.createdBy?.id === currentUser?.id ||
+    currentUser?.role === "superadmin" ||
+    currentUser?.role === "admin";
   const showPrivateBarrier = room.isPrivate && !isJoined && !isCreator;
 
   if (showPrivateBarrier) {
@@ -473,16 +497,13 @@ export function DiscussionRoom() {
     );
   }
 
-  const otherTrending = trendingRooms
-    .filter((r) => r.id !== room.id)
-    .slice(0, 4);
 
   const titleParts = room.title
     .split(/::|\||—/)
     .map((s) => s.trim())
     .filter(Boolean);
   const mainTitle = titleParts[0] || room.title;
-  const roomTags = room.tags || [];
+
 
   // Right sidebar widgets markup (reused on desktop sidebar & mobile popup dialog)
   const sidebarWidgetsContent = (
@@ -580,7 +601,7 @@ export function DiscussionRoom() {
       {roomTags.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] font-mono">
-            Keywords
+            HASHTAGS
           </h3>
           <div className="flex flex-wrap gap-1.5">
             {roomTags.map((tag, idx) => (
@@ -601,7 +622,7 @@ export function DiscussionRoom() {
   return (
     <div className="flex-grow flex overflow-hidden bg-background h-full font-sans">
       {/* Left Navigation */}
-      <aside className="hidden xl:flex flex-col w-42 shrink-0 border-r border-border bg-card">
+      <aside className="hidden xl:flex flex-col w-50 shrink-0 border-r border-border bg-card">
         <div className="p-5 border-b border-border/90">
           <Button
             variant="ghost"
@@ -629,19 +650,11 @@ export function DiscussionRoom() {
             <div className="flex items-center gap-1.5 px-2">
               <Activity size={12} className="text-primary" />
               <h3 className="text-muted-foreground uppercase tracking-[0.2em] text-[9px] font-black font-mono">
-                Trending Discussions
+                Recommended Discussions
               </h3>
             </div>
-            <div className="flex flex-col gap-2">
-              {otherTrending.map((r) => (
-                <RoomCard
-                  key={r.id}
-                  room={r}
-                  compact
-                  onClick={(id) => navigate(`/room/${id}`)}
-                  className="bg-transparent hover:bg-secondary/40 rounded-xl p-1.5 transition-colors border border-transparent"
-                />
-              ))}
+            <div className="text-[11px] text-muted-foreground/80 italic px-2 font-semibold">
+              This option will be available soon
             </div>
           </div>
         </div>
@@ -787,9 +800,9 @@ export function DiscussionRoom() {
         {/* Message Feed */}
         <div
           ref={feedRef}
-          className="flex-grow overflow-y-auto px-6 py-8 flex flex-col gap-6 bg-zinc-50/50 dark:bg-background"
+          className="flex-grow overflow-y-auto px-6 py-8 flex flex-col gap-1 bg-zinc-50/50 dark:bg-background [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
-          <div className="space-y-6 max-w-4xl mx-auto w-full">
+          <div className="max-w-4xl mx-auto w-full">
             {isCreator && room.isPrivate && (
               <div className="xl:hidden block mb-4 p-4 bg-amber-50/20 border border-amber-200/40 rounded-2xl">
                 <div className="flex items-center gap-1.5 mb-2.5">
@@ -813,24 +826,38 @@ export function DiscussionRoom() {
                 </span>
               </div>
             ) : messageTree.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground text-center space-y-2">
-                <Users size={32} className="opacity-30" />
+              <div className="flex flex-col items-center justify-center py-2 text-muted-foreground text-center space-y-2">
+                <Users size={32} className="opacity-50" />
                 <p className="text-sm font-bold text-foreground/80">No takes shared yet.</p>
                 <p className="text-xs text-muted-foreground max-w-xs">
                   Be the first to share your stance and kick off the discussion!
                 </p>
               </div>
             ) : (
-              messageTree.map((msg) => (
-                <div key={msg.id} className="animate-in fade-in duration-300">
-                  <MessageCard
-                    message={msg}
-                    onReply={handleReply}
-                    currentUserId={currentUser?.id || ""}
-                    depth={0}
-                  />
-                </div>
-              ))
+              messageTree.map((msg, idx) => {
+                const prevMsg = idx > 0 ? messageTree[idx - 1] : null;
+                const isConsecutive = prevMsg && prevMsg.userId === msg.userId;
+                const isLastInGroup = idx === messageTree.length - 1 || messageTree[idx + 1].userId !== msg.userId;
+                return (
+                  <div
+                    key={msg.id}
+                    className={cn(
+                      "animate-in fade-in duration-300 flex flex-col gap-1.5",
+                      idx > 0 && (isConsecutive ? "mt-0.5" : "mt-4")
+                    )}
+                  >
+                    {idx > 0 && !isConsecutive && <div className="border-t border-border/80 w-full mb-1.5" />}
+                    <MessageCard
+                      message={msg}
+                      onReply={handleReply}
+                      currentUserId={currentUser?.id || ""}
+                      depth={0}
+                      isConsecutive={isConsecutive}
+                      isLastInGroup={isLastInGroup}
+                    />
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -866,10 +893,10 @@ export function DiscussionRoom() {
             )}
 
             {/* Premium Composer Box */}
-            <div className="bg-secondary/40 border border-border/60 rounded-2xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
               {/* Textarea Input area */}
-              <div className="flex items-start gap-3 p-3">
-                <div className="hidden sm:block shrink-0 mt-0.5">
+              <div className="flex items-end gap-3 px-3.5 py-2">
+                <div className="hidden sm:block shrink-0 mb-1">
                   <Avatar
                     src={currentUser?.avatar}
                     name={currentUser?.username || "You"}
@@ -885,69 +912,30 @@ export function DiscussionRoom() {
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={replyingTo ? `Write your reply... (Shift + Enter for new lines)` : "Share your stance... (Shift + Enter for new lines)"}
-                  rows={2}
-                  maxLength={5000}
-                  className="flex-grow bg-transparent border-none focus:outline-none resize-none py-1.5 text-sm font-medium placeholder:text-muted-foreground/45 text-foreground leading-relaxed min-h-[40px] max-h-[180px]"
+                  rows={1}
+                  maxLength={200}
+                  className="flex-grow bg-transparent border-none focus:outline-none resize-none py-1.5 text-sm font-medium placeholder:text-muted-foreground/45 text-foreground leading-relaxed min-h-[24px] max-h-[140px]"
                 />
-              </div>
 
-              {/* Utility Formatting Bar & Characters counter */}
-              <div className="flex items-center justify-between px-3 py-2 bg-secondary/20 border-t border-border/30">
-                {/* Editor syntax formatting helpers */}
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => insertMarkdown("bold")}
-                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-                    title="Insert Bold"
-                  >
-                    <Bold size={13} />
-                  </button>
-                  <button
-                    onClick={() => insertMarkdown("italic")}
-                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-                    title="Insert Italic"
-                  >
-                    <Italic size={13} />
-                  </button>
-                  <button
-                    onClick={() => insertMarkdown("code")}
-                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-                    title="Insert Code block"
-                  >
-                    <Code size={13} />
-                  </button>
-                  <button
-                    onClick={() => insertMarkdown("quote")}
-                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-                    title="Insert Blockquote"
-                  >
-                    <Quote size={13} />
-                  </button>
-                  <button
-                    onClick={() => insertMarkdown("link")}
-                    className="p-1.5 hover:bg-secondary/70 rounded-lg text-muted-foreground/60 hover:text-foreground cursor-pointer transition-colors"
-                    title="Insert Hyperlink"
-                  >
-                    <Link2 size={13} />
-                  </button>
-                </div>
+                {/* Send Button & Counter */}
+                <div className="flex items-center gap-2 shrink-0 mb-0.5">
+                  {messageText.length > 0 && (
+                    <span className={cn(
+                      "text-[9px] font-black font-mono tracking-wider",
+                      messageText.length > 180 ? "text-red-500 animate-pulse" : "text-muted-foreground/40"
+                    )}>
+                      {messageText.length}/200
+                    </span>
+                  )}
 
-                {/* Right controls: Counter and send button */}
-                <div className="flex items-center gap-3">
-                  <span className={cn(
-                    "text-[10px] font-black font-mono tracking-wider",
-                    messageText.length > 4500 ? "text-red-500 animate-pulse" : "text-muted-foreground/50"
-                  )}>
-                    {messageText.length}/5000
-                  </span>
-                  
                   <Button
                     onClick={handleSend}
-                    disabled={!messageText.trim()}
-                    size="sm"
-                    className="rounded-xl h-8 px-4 font-black uppercase text-[9px] tracking-widest cursor-pointer shadow-sm hover:shadow transition-all"
+                    disabled={!hasVisibleContent(messageText)}
+                    size="icon"
+                    className="rounded-xl h-8 w-8 cursor-pointer shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0"
+                    title="Send Take"
                   >
-                    Send <Send size={10} className="ml-1.5" />
+                    <Send size={12} />
                   </Button>
                 </div>
               </div>

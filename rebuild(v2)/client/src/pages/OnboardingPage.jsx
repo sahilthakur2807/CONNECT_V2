@@ -40,8 +40,14 @@ export function OnboardingPage() {
   };
 
   const nextStep = () => {
-    if (step < 2) setStep(step + 1);
-    else navigate("/home");
+    if (step === 1) {
+      if (selectedInterests.length >= 4) {
+        localStorage.setItem("selectedInterests", JSON.stringify(selectedInterests));
+        setStep(2);
+      }
+    } else {
+      navigate("/home");
+    }
   };
 
   return (
@@ -78,8 +84,9 @@ export function OnboardingPage() {
                   className="text-[#888880] text-sm md:text-base max-w-md mx-auto"
                   style={{ fontFamily: "'Inter', sans-serif" }}
                 >
-                  Select your interests to personalize your conversation feed and
-                  discover your first communities.
+                  {selectedInterests.length < 4
+                    ? `Please select at least ${4 - selectedInterests.length} more topic${selectedInterests.length === 3 ? "" : "s"} to personalize your feed.`
+                    : "Excellent choice. You can now click continue."}
                 </p>
               </div>
 
@@ -193,7 +200,7 @@ export function OnboardingPage() {
           </Button>
           <Button
             onClick={nextStep}
-            disabled={step === 1 && selectedInterests.length === 0}
+            disabled={step === 1 && selectedInterests.length < 4}
             className="rounded-full px-8 h-14 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 cursor-pointer animate-pulse"
           >
             {step === 1 ? "Continue" : "Enter Network"}{" "}

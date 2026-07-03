@@ -55,18 +55,7 @@ function LeftSidebar() {
     (state) => state.ui.unreadNotificationsCount,
   );
   const currentUser = useAppSelector((state) => state.auth.user);
-  const { useTrendingRoomsQuery } = useRooms();
-  const { data: trendingRooms = [], isLoading } = useTrendingRoomsQuery(5);
-
   const profilePath = currentUser ? `/profile/${currentUser.id}` : "/profile";
-
-  if (isLoading) {
-    return (
-      <aside className="hidden lg:flex flex-col w-56 shrink-0 py-5 justify-center items-center border-r border-border/50 pr-6 h-full">
-        <Activity className="animate-spin text-primary" size={24} />
-      </aside>
-    );
-  }
 
   return (
     <aside
@@ -138,20 +127,12 @@ function LeftSidebar() {
               className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
-              Trending
+              Recommended
             </span>
           </div>
-          <ul className="space-y-0.5">
-            {trendingRooms.map((room) => (
-              <li key={room.id}>
-                <RoomCard
-                  room={room}
-                  compact
-                  onClick={() => navigate(`/room/${room.id}`)}
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="text-[11px] text-muted-foreground/80 italic px-3 font-semibold">
+            This option will be available soon
+          </div>
         </div>
       </div>
     </aside>
@@ -182,7 +163,7 @@ export function AppLayout() {
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Navbar />
 
-      <div className="flex-1 w-full px-4 sm:px-6 overflow-hidden">
+      <div className={cn("flex-1 w-full overflow-hidden", showSidebar ? "px-4 sm:px-6" : "px-0")}>
         <div className="flex h-full">
           {showSidebar && <LeftSidebar />}
 

@@ -142,8 +142,9 @@ export function HomeDashboard() {
     if (!roomForm.title || !roomForm.category) return;
     try {
       const tagsArray = roomForm.tags
-        .split(",")
-        .map((t) => t.trim())
+        .replace(/#/g, " ")
+        .split(/[\s,]+/)
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
       const newRoom = await createRoomMutation.mutateAsync({
         title: roomForm.title,
@@ -746,7 +747,7 @@ export function HomeDashboard() {
                     htmlFor="room-tags"
                     className="text-xs font-black uppercase tracking-widest text-muted-foreground"
                   >
-                    Tags (Comma separated)
+                    HASHTAGS (Comma or Space separated)
                   </label>
                   <Input
                     id="room-tags"
@@ -754,7 +755,7 @@ export function HomeDashboard() {
                     onChange={(e) =>
                       setRoomForm({ ...roomForm, tags: e.target.value })
                     }
-                    placeholder="e.g. AI, ethics, policy"
+                    placeholder="e.g. #war #fire #world"
                   />
                 </div>
               </div>

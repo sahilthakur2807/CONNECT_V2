@@ -32,6 +32,17 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+// Helper to check for actual visible text content (ignores zero-width/invisible Unicode spaces and Braille blank spaces)
+const hasVisibleContent = (text) => {
+  if (!text) return false;
+  // Remove normal whitespaces, zero-width chars, formatting symbols, and Braille blanks
+  const cleaned = text
+    .replace(/[\s\u200B-\u200D\uFEFF\u2000-\u200F\u2028\u2029\u202F\u205F\u3000\u2800]/g, "")
+    .replace(/\p{Z}/gu, "")
+    .replace(/\p{C}/gu, "");
+  return cleaned.length > 0;
+};
+
 export function MessageCard({
   message,
   onReply,
@@ -40,6 +51,8 @@ export function MessageCard({
   className,
   depth = 0,
   parentname,
+  isConsecutive = false,
+  isLastInGroup = true,
 }) {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -84,7 +97,7 @@ export function MessageCard({
   const isOwn = currentUserId === message.userId;
 
   const handleSaveEdit = async () => {
-    if (!editContent.trim()) return;
+    if (!hasVisibleContent(editContent)) return;
     try {
       await editMessageMutation.mutateAsync({
         messageId: message.id,
@@ -174,61 +187,70 @@ export function MessageCard({
   return (
     <article
       className={cn(
-        "group/card relative w-full flex gap-3 pt-2 px-2 transition-all duration-150 hover:bg-neutral-50 dark:hover:bg-neutral-900/10 rounded-xl",
-        message.replies && message.replies.length > 0 && !isCollapsed ? "pb-0" : "pb-2",
-        isReply && "pl-4 ml-1",
+        "group/card relative w-full flex gap-2.5 px-1.5 transition-all duration-150 hover:bg-neutral-50 dark:hover:bg-neutral-900/10 rounded-lg",
+        isConsecutive ? "pt-0 pb-0.5" : "pt-1.5 pb-1.5",
+        message.replies && message.replies.length > 0 && !isCollapsed && "pb-0",
+        isReply && "pl-3 ml-0.5",
         className
       )}
       aria-label={`Message from ${user.username}`}
     >
       {/* Squircle Avatar Section */}
-      <div
-        className="relative cursor-pointer shrink-0 transition-transform active:scale-95 self-start mt-0.5"
-        onClick={() => navigate(`/profile/${user.id}`)}
-      >
-        <Avatar
-          src={user.avatar}
-          name={user.username}
-          size={isReply && depth > 1 ? "xs" : "sm"}
-          className="!rounded-xl"
-        />
-      </div>
+      {isConsecutive ? (
+        <div className={cn("shrink-0 flex items-start justify-end text-[8px] font-medium text-muted-foreground/35 font-mono opacity-0 group-hover/card:opacity-100 transition-opacity select-none pt-0.5 pr-0.5", depth > 0 ? "w-6" : "w-8")}>
+          {new Date(message.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
+        </div>
+      ) : (
+        <div
+          className="relative cursor-pointer shrink-0 transition-transform active:scale-95 self-start mt-0.5"
+          onClick={() => navigate(`/profile/${user.id}`)}
+        >
+          <Avatar
+            src={user.avatar}
+            name={user.username}
+            size={depth > 0 ? "xs" : "sm"}
+            className="!rounded-lg"
+          />
+        </div>
+      )}
 
       {/* Content Section */}
       <div className="flex-1 min-w-0">
         {/* Header Row */}
-        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-          <span
-            className="font-bold text-sm text-foreground tracking-tight cursor-pointer hover:underline"
-            onClick={() => navigate(`/profile/${user.id}`)}
-          >
-            {user.name || user.username}
-          </span>
-
-          {parentname && depth >= 2 && (
-            <span className="text-[11px] text-muted-foreground/50 font-semibold font-sans">
-              replying to <span className="text-primary hover:underline cursor-pointer">@{parentname}</span>
+        {!isConsecutive && (
+          <div className="flex items-center gap-2 flex-wrap mb-0.5">
+            <span
+              className="font-bold text-sm text-foreground tracking-tight cursor-pointer hover:underline"
+              onClick={() => navigate(`/profile/${user.id}`)}
+            >
+              {user.name || user.username}
             </span>
-          )}
 
-          {/* Role badge like Elena Rodriguez DESIGN */}
-          {user.role && user.role !== "user" && (
-            <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest font-mono">
-              {user.role}
-            </span>
-          )}
+            {parentname && depth >= 2 && (
+              <span className="text-[11px] text-muted-foreground/50 font-semibold font-sans">
+                replying to <span className="text-primary hover:underline cursor-pointer">@{parentname}</span>
+              </span>
+            )}
 
-          {/* Timestamp */}
-          <time className="text-[10px] font-medium text-muted-foreground/40 font-mono">
-            {formatTime(message.createdAt)}
-          </time>
+            {/* Role badge like Elena Rodriguez DESIGN */}
+            {user.role && user.role !== "user" && (
+              <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest font-mono">
+                {user.role}
+              </span>
+            )}
 
-          {message.edited && (
-            <span className="text-[9px] text-muted-foreground/30 font-semibold uppercase">
-              (edited)
-            </span>
-          )}
-        </div>
+            {/* Timestamp */}
+            <time className="text-[10px] font-medium text-muted-foreground/40 font-mono">
+              {formatTime(message.createdAt)}
+            </time>
+
+            {message.edited && (
+              <span className="text-[9px] text-muted-foreground/30 font-semibold uppercase">
+                (edited)
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Text Content / Editor */}
         {isEditing ? (
@@ -260,7 +282,7 @@ export function MessageCard({
             </div>
           </div>
         ) : (
-          <div className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+          <div className="text-sm text-foreground/90 leading-normal whitespace-pre-wrap">
             {message.deleted ? (
               <span className="text-muted-foreground/30 italic font-medium text-xs">
                 This take was deleted.
@@ -272,8 +294,8 @@ export function MessageCard({
         )}
 
         {/* Actions Row */}
-        {!message.deleted && (
-          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+        {!message.deleted && (isLastInGroup || Object.values(reactionCounts).some((c) => c > 0)) && (
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             {/* Active reaction pills (only displayed if count > 0) */}
             {Object.entries(reactionCounts).map(([type, count]) => {
               if (count === 0) return null;
@@ -296,62 +318,67 @@ export function MessageCard({
               );
             })}
 
-            {/* + React Button */}
-            <div className="relative">
-              <button
-                onClick={() => setShowEmojiPanel(!showEmojiPanel)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer border border-transparent"
-              >
-                + React
-              </button>
+            {/* + React & Reply option (only show for the last message in a consecutive group) */}
+            {isLastInGroup && (
+              <>
+                {/* + React Button */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowEmojiPanel(!showEmojiPanel)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer border border-transparent"
+                  >
+                    + React
+                  </button>
 
-              {showEmojiPanel && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setShowEmojiPanel(false)}
-                  />
-                  <div className="absolute bottom-full left-0 mb-1 z-50 flex items-center gap-1 p-1 bg-popover border border-border shadow-xl rounded-xl animate-in fade-in slide-in-from-bottom-1">
-                    <button
-                      onClick={() => {
-                        toggleReaction("like");
-                        setShowEmojiPanel(false);
-                      }}
-                      className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                    >
-                      👍
-                    </button>
-                    <button
-                      onClick={() => {
-                        toggleReaction("fire");
-                        setShowEmojiPanel(false);
-                      }}
-                      className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                    >
-                      🔥
-                    </button>
-                    <button
-                      onClick={() => {
-                        toggleReaction("heart");
-                        setShowEmojiPanel(false);
-                      }}
-                      className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                    >
-                      ❤️
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+                  {showEmojiPanel && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowEmojiPanel(false)}
+                      />
+                      <div className="absolute bottom-full left-0 mb-1 z-50 flex items-center gap-1 p-1 bg-popover border border-border shadow-xl rounded-xl animate-in fade-in slide-in-from-bottom-1">
+                        <button
+                          onClick={() => {
+                            toggleReaction("like");
+                            setShowEmojiPanel(false);
+                          }}
+                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                        >
+                          👍
+                        </button>
+                        <button
+                          onClick={() => {
+                            toggleReaction("fire");
+                            setShowEmojiPanel(false);
+                          }}
+                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                        >
+                          🔥
+                        </button>
+                        <button
+                          onClick={() => {
+                            toggleReaction("heart");
+                            setShowEmojiPanel(false);
+                          }}
+                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                        >
+                          ❤️
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-            {/* Reply Button */}
-            {onReply && depth < 2 && (
-              <button
-                onClick={() => onReply(message.id, user.username)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
-              >
-                Reply
-              </button>
+                {/* Reply Button */}
+                {onReply && depth < 2 && (
+                  <button
+                    onClick={() => onReply(message.id, user.username)}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
+                  >
+                    Reply
+                  </button>
+                )}
+              </>
             )}
 
             {/* Collapse/Expand Toggle (if has replies) */}
@@ -402,8 +429,8 @@ export function MessageCard({
         {message.replies && message.replies.length > 0 && !isCollapsed && (
           <div
             className={cn(
-              "mt-2.5 space-y-2.5 relative transition-all duration-300",
-              shouldIndent ? "pl-4 ml-0.5" : "pl-0 border-none"
+              "mt-1.5 space-y-1.5 relative transition-all duration-300",
+              shouldIndent ? "pl-3 ml-0.5" : "pl-0 border-none"
             )}
           >
             {/* Clickable Hover Connector Line */}
@@ -418,17 +445,24 @@ export function MessageCard({
               </button>
             )}
 
-            {message.replies.map((reply) => (
-              <MessageCard
-                key={reply.id}
-                message={reply}
-                onReply={onReply}
-                currentUserId={currentUserId}
-                isReply={true}
-                depth={depth + 1}
-                parentname={user.name}
-              />
-            ))}
+            {message.replies.map((reply, idx) => {
+              const prevReply = idx > 0 ? message.replies[idx - 1] : null;
+              const isReplyConsecutive = prevReply && prevReply.userId === reply.userId;
+              const isReplyLastInGroup = idx === message.replies.length - 1 || message.replies[idx + 1].userId !== reply.userId;
+              return (
+                <MessageCard
+                  key={reply.id}
+                  message={reply}
+                  onReply={onReply}
+                  currentUserId={currentUserId}
+                  isReply={true}
+                  depth={depth + 1}
+                  parentname={user.name}
+                  isConsecutive={isReplyConsecutive}
+                  isLastInGroup={isReplyLastInGroup}
+                />
+              );
+            })}
           </div>
         )}
       </div>
