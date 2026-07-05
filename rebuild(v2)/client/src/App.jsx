@@ -12,6 +12,8 @@ import UserProfile from "@/pages/UserProfile";
 import NotificationCenter from "@/pages/NotificationCenter";
 import ModeratorDashboard from "@/pages/ModeratorDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import CommunitiesPage from "@/pages/CommunitiesPage";
+import WorldChatPage from "@/pages/WorldChatPage";
 
 // Route protection wrapper for authenticated routes
 function ProtectedRoute({ children }) {
@@ -112,6 +114,8 @@ export function App() {
         <Route path="/home" element={<HomeDashboard />} />
         <Route path="/discover" element={<RoomDiscovery />} />
         <Route path="/discussions" element={<DiscussionsDashboard />} />
+        <Route path="/communities" element={<CommunitiesPage />} />
+        <Route path="/world-chat" element={<WorldChatPage />} />
         <Route path="/room/:roomId" element={<DiscussionRoom />} />
         <Route path="/profile" element={<UserProfile />} />
         <Route path="/profile/:id" element={<UserProfile />} />

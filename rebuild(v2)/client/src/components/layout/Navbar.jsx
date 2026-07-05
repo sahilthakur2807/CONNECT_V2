@@ -43,8 +43,8 @@ export function Navbar() {
 
   const navLinks = [
     { to: "/home", label: "Home" },
-    { to: "/discover", label: "Discover" },
-    { to: "/discussions", label: "Discussions" },
+    { to: "/communities", label: "Communities" },
+    { to: "/world-chat", label: "World chat" },
   ];
 
   if (isLoading) {

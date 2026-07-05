@@ -163,7 +163,10 @@ export function AppLayout() {
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Navbar />
 
-      <div className={cn("flex-1 w-full overflow-hidden", showSidebar ? "px-4 sm:px-6" : "px-0")}>
+      <div className={cn("flex-1 w-full overflow-hidden", 
+        location.pathname === "/world-chat" ? "pl-4 sm:pl-5 pr-0" : (showSidebar ? "px-4 sm:px-5" : "px-0"),
+        )}
+        >
         <div className="flex h-full">
           {showSidebar && <LeftSidebar />}
 
@@ -171,6 +174,7 @@ export function AppLayout() {
             className={cn(
               "flex-1 h-full min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
               showSidebar ? "overflow-y-auto py-5 pl-6" : "overflow-hidden flex flex-col",
+              location.pathname === "/world-chat" ? "overflow-y-auto py-0 pl-0" : "overflow-y-auto py-5 pl-6",
             )}
             id="main-content"
             tabIndex={-1}
