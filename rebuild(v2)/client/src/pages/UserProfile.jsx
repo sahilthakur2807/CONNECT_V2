@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import {
   MessageSquare,
   Award,
@@ -13,7 +13,6 @@ import {
   X,
   UserX,
   Edit2,
-  Trash2,
   Check,
   Palette
 } from "lucide-react";
@@ -24,7 +23,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useSocial } from "@/hooks/useSocial";
-import { useDiscovery } from "@/hooks/useDiscovery";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAppDispatch } from "@/store";
@@ -53,7 +51,6 @@ const BANNER_PRESETS = [
 export function UserProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const dispatch = useAppDispatch();
   const { user: currentUser } = useAuth();
   const { useUserStatsQuery, useUserFeedQuery } = useAnalytics();
@@ -97,22 +94,22 @@ export function UserProfile() {
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
 
   // 1. Fetch profile details (Friendship status, block status, etc.)
-  const fetchUserProfile = async () => {
-    setIsLoadingProfile(true);
-    setFetchError(null);
-    try {
-      const res = await apiClient.get(`/users/${targetId}`);
-      setResolvedUser(res.data.data);
-      setIsBlockedByUs(res.data.data.isBlocked);
-      setFriendshipStatus(res.data.data.friendshipStatus);
-    } catch (err) {
-      setFetchError(err.message || "Failed to load user profile");
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  };
-
   useEffect(() => {
+    const fetchUserProfile = async () => {
+      setIsLoadingProfile(true);
+      setFetchError(null);
+      try {
+        const res = await apiClient.get(`/users/${targetId}`);
+        setResolvedUser(res.data.data);
+        setIsBlockedByUs(res.data.data.isBlocked);
+        setFriendshipStatus(res.data.data.friendshipStatus);
+      } catch (err) {
+        setFetchError(err.message || "Failed to load user profile");
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
     if (targetId) {
       fetchUserProfile();
     }
@@ -217,7 +214,7 @@ export function UserProfile() {
 
   const handleUnblockUser = async (blockedId) => {
     try {
-      await apiClient.delete(`/blocks/${blockedId}`);
+      await unblockUserMutation.mutateAsync(blockedId);
       toast.success("User unblocked successfully");
       setBlockedUsers(prev => prev.filter(u => u.id !== blockedId));
     } catch (err) {

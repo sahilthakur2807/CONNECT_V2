@@ -106,7 +106,7 @@ export function HomeDashboard() {
   const { data: trendingRooms = [], isLoading: trendingLoading } =
     useTrendingRoomsQuery(10, { enabled: activeTab === "trending" });
   const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10, { enabled: activeTab === "hot" });
-  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10, { enabled: activeTab === "newest" });
+  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10, { enabled: activeTab === "new" });
 
   // Fetch Friends List (which returns status 'online' or 'offline')
   const { data: friendsList = [], isLoading: friendsLoading } =

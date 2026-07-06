@@ -105,9 +105,16 @@ export const useBlockUserMutation = () => {
 };
 
 export const useUnblockUserMutation = () => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (userId) => {
       await apiClient.delete(`/blocks/${userId}`);
+    },
+    onSuccess: (_, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
     },
   });
 };

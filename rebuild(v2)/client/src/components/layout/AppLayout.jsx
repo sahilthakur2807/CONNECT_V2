@@ -3,7 +3,6 @@ import {
   NavLink,
   Link,
   Outlet,
-  useNavigate,
   useLocation,
 } from "react-router-dom";
 import {
@@ -13,11 +12,8 @@ import {
   Bell,
   User as UserIcon,
   Hash,
-  Activity,
 } from "lucide-react";
 import { Navbar } from "./Navbar";
-import { RoomCard } from "@/components/shared/RoomCard";
-import { useRooms } from "@/hooks/useRooms";
 import { useAppSelector, useAppDispatch } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { setUnreadNotificationsCount } from "@/store/slices/uiSlice";
@@ -50,7 +46,6 @@ const sideNavLinks = [
 ];
 
 function LeftSidebar() {
-  const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const activeCategory = searchParams.get("category");

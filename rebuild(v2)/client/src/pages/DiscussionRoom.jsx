@@ -23,8 +23,8 @@ import {
 
 import { Avatar } from "@/components/shared/Avatar";
 import { MessageCard } from "@/components/shared/MessageCard";
-import { RoomCard } from "@/components/shared/RoomCard";
 import { Button } from "@/components/ui/button";
+import { buildMessageTree } from "@/utils/tree";
 import { cn } from "@/utils/cn";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -104,29 +104,6 @@ const hasVisibleContent = (text) => {
   return cleaned.length > 0;
 };
 
-// Client-side tree builder to organize flat chronological messages into threads
-const buildMessageTree = (flatMessages) => {
-  if (!flatMessages || flatMessages.length === 0) return [];
-  const messageMap = {};
-  
-  // Create deep copies to avoid mutating React Query cache data
-  flatMessages.forEach((msg) => {
-    messageMap[msg.id] = { ...msg, replies: [] };
-  });
-
-  const rootMessages = [];
-  
-  flatMessages.forEach((msg) => {
-    const mappedMsg = messageMap[msg.id];
-    if (msg.parentId && messageMap[msg.parentId]) {
-      messageMap[msg.parentId].replies.push(mappedMsg);
-    } else {
-      rootMessages.push(mappedMsg);
-    }
-  });
-
-  return rootMessages;
-};
 
 export function DiscussionRoom() {
   const { roomId } = useParams();
@@ -140,11 +117,6 @@ export function DiscussionRoom() {
   } = useRooms();
   const { data: room, isLoading: roomLoading } = useRoomQuery(roomId);
 
-  const isModeratorOrOwner =
-    currentUser?.role === "moderator" ||
-    currentUser?.role === "admin" ||
-    currentUser?.role === "superadmin" ||
-    (room?.createdBy?.id && room.createdBy.id === currentUser?.id);
 
   const isActualModeratorOrAdmin =
     currentUser?.role === "moderator" ||
@@ -449,50 +421,6 @@ export function DiscussionRoom() {
     }, 2000);
   };
 
-  const insertMarkdown = (syntax) => {
-    const textarea = inputRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = messageText;
-    
-    let replacement = "";
-    let cursorOffset = 0;
-
-    switch (syntax) {
-      case "bold":
-        replacement = `**${text.substring(start, end) || "bold text"}**`;
-        cursorOffset = text.substring(start, end) ? replacement.length : 11;
-        break;
-      case "italic":
-        replacement = `*${text.substring(start, end) || "italic text"}*`;
-        cursorOffset = text.substring(start, end) ? replacement.length : 13;
-        break;
-      case "code":
-        replacement = `\`${text.substring(start, end) || "code"}\``;
-        cursorOffset = text.substring(start, end) ? replacement.length : 5;
-        break;
-      case "quote":
-        replacement = `\n> ${text.substring(start, end) || "quote"}\n`;
-        cursorOffset = text.substring(start, end) ? replacement.length + 1 : 8;
-        break;
-      case "link":
-        replacement = `[${text.substring(start, end) || "link text"}](https://)`;
-        cursorOffset = text.substring(start, end) ? replacement.length : 21;
-        break;
-      default:
-        return;
-    }
-
-    const newText = text.substring(0, start) + replacement + text.substring(end);
-    setMessageText(newText);
-    
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + cursorOffset, start + cursorOffset);
-    }, 50);
-  };
 
   if (roomLoading) {
     return (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, TrendingUp, Flame, Sparkles, Hash, Loader2 } from "lucide-react";
+import { Search, TrendingUp, Flame, Sparkles, Loader2 } from "lucide-react";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

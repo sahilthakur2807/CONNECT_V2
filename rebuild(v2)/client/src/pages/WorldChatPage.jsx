@@ -2,13 +2,12 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Send,
-  Sparkles,
   Activity,
   Users,
   Lock,
   ChevronLeft,
-  MessageSquare,
 } from "lucide-react";
+import { buildMessageTree } from "@/utils/tree";
 import { Avatar } from "@/components/shared/Avatar";
 import { MessageCard } from "@/components/shared/MessageCard";
 import { Button } from "@/components/ui/button";
@@ -20,28 +19,6 @@ import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { getSocket } from "@/services/socketService";
 import { cn } from "@/utils/cn";
 
-// Client-side tree builder to organize flat chronological messages into threads
-const buildMessageTree = (flatMessages) => {
-  if (!flatMessages || flatMessages.length === 0) return [];
-  const messageMap = {};
-  
-  flatMessages.forEach((msg) => {
-    messageMap[msg.id] = { ...msg, replies: [] };
-  });
-
-  const rootMessages = [];
-  
-  flatMessages.forEach((msg) => {
-    const mappedMsg = messageMap[msg.id];
-    if (msg.parentId && messageMap[msg.parentId]) {
-      messageMap[msg.parentId].replies.push(mappedMsg);
-    } else {
-      rootMessages.push(mappedMsg);
-    }
-  });
-
-  return rootMessages;
-};
 
 export function WorldChatPage() {
   const navigate = useNavigate();
@@ -116,10 +93,13 @@ export function WorldChatPage() {
   useEffect(() => {
     if (!worldChatRoomId) return;
     const socket = getSocket();
-    socket.emit("chat.room.joined", { roomId: worldChatRoomId });
-    socket.on("connect", () => {
+    
+    const handleConnect = () => {
       socket.emit("chat.room.joined", { roomId: worldChatRoomId });
-    });
+    };
+
+    socket.emit("chat.room.joined", { roomId: worldChatRoomId });
+    socket.on("connect", handleConnect);
 
     const handleActiveUsersUpdate = (data) => {
       if (data && data.roomId === worldChatRoomId) {
@@ -130,6 +110,7 @@ export function WorldChatPage() {
 
     return () => {
       socket.emit("chat.room.left", { roomId: worldChatRoomId });
+      socket.off("connect", handleConnect);
       socket.off("room_active_users_update", handleActiveUsersUpdate);
     };
   }, [worldChatRoomId]);

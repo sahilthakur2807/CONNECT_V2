@@ -198,7 +198,7 @@ export function Navbar() {
                           await markAllReadMutation.mutateAsync();
                           toast.success("All notifications marked as read!");
                         } catch (err) {
-                          toast.error("Failed to mark all as read");
+                          toast.error(err.message || "Failed to mark all as read");
                         }
                       }}
                       className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider cursor-pointer"

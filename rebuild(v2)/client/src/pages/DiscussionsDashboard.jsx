@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
   MessageSquare,
@@ -11,7 +11,6 @@ import {
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/shared/Avatar";
-import { cn } from "@/utils/cn";
 import { useRooms } from "@/hooks/useRooms";
 import { useDiscovery } from "@/hooks/useDiscovery";
 
