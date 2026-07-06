@@ -24,6 +24,7 @@ import { useDiscovery } from "@/hooks/useDiscovery";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { apiClient } from "@/services/apiClient";
+import { ImageCropper } from "@/components/ui/ImageCropper";
 
 const CATEGORIES = [
   "All Topics",
@@ -89,6 +90,7 @@ export function HomeDashboard() {
   const [selectedBannerPreset, setSelectedBannerPreset] = useState("");
   const [customBannerFile, setCustomBannerFile] = useState(null);
   const [customBannerPreview, setCustomBannerPreview] = useState("");
+  const [pendingBannerFile, setPendingBannerFile] = useState(null);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [communityForm, setCommunityForm] = useState({
     name: "",
@@ -874,8 +876,7 @@ export function HomeDashboard() {
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
-                          setCustomBannerFile(file);
-                          setCustomBannerPreview(URL.createObjectURL(file));
+                          setPendingBannerFile(file);
                         }
                       }}
                     />
@@ -987,6 +988,27 @@ export function HomeDashboard() {
                 Establish Sphere
               </Button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Image Crop Overlay */}
+      {pendingBannerFile && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[60] p-4 animate-in fade-in">
+          <div className="bg-card text-card-foreground rounded-[28px] max-w-md w-full p-6 space-y-4 relative shadow-2xl border border-border/50">
+            <h3 className="text-lg font-bold font-serif text-foreground">Adjust Cover Image</h3>
+            <ImageCropper
+              file={pendingBannerFile}
+              aspectRatio={3}
+              onCropComplete={(croppedFile, croppedUrl) => {
+                setCustomBannerFile(croppedFile);
+                setCustomBannerPreview(croppedUrl);
+                setPendingBannerFile(null);
+              }}
+              onCancel={() => {
+                setPendingBannerFile(null);
+              }}
+            />
           </div>
         </div>
       )}
