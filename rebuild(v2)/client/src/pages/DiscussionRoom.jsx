@@ -17,6 +17,8 @@ import {
   Trash2,
   Archive,
   Users,
+  Image,
+  Upload,
 } from "lucide-react";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -36,6 +38,7 @@ import {
 import { useMessagesQuery, useSendMessageMutation } from "@/hooks/useMessages";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { getSocket } from "@/services/socketService";
+import { apiClient } from "@/services/apiClient";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -215,6 +218,61 @@ export function DiscussionRoom() {
       toast.error(err.message || `Failed to make room ${action}`);
     }
   };
+
+  const openBannerModal = () => {
+    if (room?.imageUrl) {
+      if (room.imageUrl.startsWith("gradient:")) {
+        setSelectedBannerPreset(room.imageUrl);
+        setCustomBannerPreview("");
+      } else {
+        setCustomBannerPreview(room.imageUrl);
+        setSelectedBannerPreset("");
+      }
+    } else {
+      setSelectedBannerPreset("");
+      setCustomBannerPreview("");
+    }
+    setCustomBannerFile(null);
+    setIsBannerModalOpen(true);
+  };
+
+  const handleUpdateBanner = async () => {
+    setIsUpdatingBanner(true);
+    const updateToast = toast.loading("Updating room banner...");
+    try {
+      let finalImageUrl = selectedBannerPreset;
+
+      if (customBannerFile) {
+        const formData = new FormData();
+        formData.append("avatar", customBannerFile);
+        const uploadRes = await apiClient.post("/users/avatar", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        finalImageUrl = uploadRes.data.data.url;
+      }
+
+      await updateRoomMutation.mutateAsync({
+        roomId: room.id,
+        data: { imageUrl: finalImageUrl },
+      });
+
+      setIsBannerModalOpen(false);
+      setCustomBannerFile(null);
+      setCustomBannerPreview("");
+      setSelectedBannerPreset("");
+      toast.success("Room banner updated successfully!", { id: updateToast });
+    } catch (err) {
+      toast.error(err.message || "Failed to update room banner", { id: updateToast });
+    } finally {
+      setIsUpdatingBanner(false);
+    }
+  };
+
+  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
+  const [selectedBannerPreset, setSelectedBannerPreset] = useState("");
+  const [customBannerFile, setCustomBannerFile] = useState(null);
+  const [customBannerPreview, setCustomBannerPreview] = useState("");
+  const [isUpdatingBanner, setIsUpdatingBanner] = useState(false);
 
   const [messageText, setMessageText] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
@@ -754,6 +812,12 @@ export function DiscussionRoom() {
                     {isCreator && (
                       <>
                         <DropdownMenuItem
+                          onClick={openBannerModal}
+                          className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
+                        >
+                          <Image size={12} /> Update Banner
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           onClick={handleTogglePrivacy}
                           className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
                         >
@@ -973,6 +1037,100 @@ export function DiscussionRoom() {
               </p>
             </div>
             {sidebarWidgetsContent}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Room Banner Modal */}
+      <Dialog open={isBannerModalOpen} onOpenChange={setIsBannerModalOpen}>
+        <DialogContent className="rounded-[24px] max-h-[85vh] overflow-y-auto max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-lg font-serif">Update Room Banner</DialogTitle>
+            <DialogDescription className="text-xs">
+              Select a preset gradient or upload a custom image for the room's cover banner.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-4">
+            {/* Live Preview */}
+            <div className="h-24 w-full rounded-2xl overflow-hidden border border-border/50 relative bg-muted shrink-0 mb-1">
+              {customBannerPreview ? (
+                <img src={customBannerPreview} alt="Preview" className="w-full h-full object-cover" />
+              ) : selectedBannerPreset ? (
+                <div className={cn(selectedBannerPreset.replace("gradient:", ""), "bg-gradient-to-r w-full h-full")} />
+              ) : (
+                <img src="/room_banner.png" alt="Default Preview" className="w-full h-full object-cover" />
+              )}
+              <div className="absolute top-2 left-2 bg-black/40 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded backdrop-blur-xs">
+                Live Preview
+              </div>
+            </div>
+
+            {/* Preset Options & Upload Row */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {[
+                { id: "", name: "Default Image", style: "border-border text-foreground hover:bg-secondary bg-secondary/50" },
+                { id: "gradient:from-red-600 via-red-500 to-red-800", name: "Red", style: "from-red-600 via-red-500 to-red-800 text-white bg-gradient-to-r" },
+                { id: "gradient:from-blue-600 via-indigo-600 to-purple-600", name: "Blue", style: "from-blue-600 via-indigo-600 to-purple-600 text-white bg-gradient-to-r" },
+                { id: "gradient:from-emerald-600 to-teal-800", name: "Teal", style: "from-emerald-600 to-teal-800 text-white bg-gradient-to-r" },
+                { id: "gradient:from-slate-700 via-slate-600 to-slate-800", name: "Slate", style: "from-slate-700 via-slate-600 to-slate-800 text-white bg-gradient-to-r" },
+              ].map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBannerPreset(preset.id);
+                    setCustomBannerFile(null);
+                    setCustomBannerPreview("");
+                  }}
+                  className={cn(
+                    "h-8 px-3 rounded-xl text-[10px] font-bold cursor-pointer transition-all border-2",
+                    preset.style,
+                    !customBannerPreview && selectedBannerPreset === preset.id
+                      ? "border-primary ring-2 ring-primary/20 scale-105"
+                      : "border-transparent"
+                  )}
+                >
+                  {preset.name}
+                </button>
+              ))}
+
+              {/* Upload Image Button */}
+              <label className="h-8 px-3 rounded-xl border border-border bg-secondary hover:bg-secondary/80 flex items-center justify-center gap-1.5 text-[10px] font-bold text-foreground cursor-pointer transition-colors">
+                <Upload size={12} />
+                <span>Upload custom banner</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setCustomBannerFile(file);
+                      setCustomBannerPreview(URL.createObjectURL(file));
+                    }
+                  }}
+                />
+              </label>
+            </div>
+            
+            <div className="flex gap-3 justify-end pt-4 border-t border-border/40">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsBannerModalOpen(false)}
+                className="rounded-xl font-bold text-xs h-9 cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateBanner}
+                disabled={isUpdatingBanner}
+                size="sm"
+                className="rounded-xl font-bold text-xs h-9 px-5 cursor-pointer animate-in fade-in"
+              >
+                {isUpdatingBanner ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

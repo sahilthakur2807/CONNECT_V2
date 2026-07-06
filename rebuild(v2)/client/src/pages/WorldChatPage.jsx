@@ -54,6 +54,7 @@ export function WorldChatPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [activeUsers, setActiveUsers] = useState([]);
 
   const feedRef = useRef(null);
   const inputRef = useRef(null);
@@ -111,7 +112,7 @@ export function WorldChatPage() {
     },
   });
 
-  // Socket channel joining
+  // Socket channel joining and active users tracking
   useEffect(() => {
     if (!worldChatRoomId) return;
     const socket = getSocket();
@@ -119,8 +120,17 @@ export function WorldChatPage() {
     socket.on("connect", () => {
       socket.emit("chat.room.joined", { roomId: worldChatRoomId });
     });
+
+    const handleActiveUsersUpdate = (data) => {
+      if (data && data.roomId === worldChatRoomId) {
+        setActiveUsers(data.activeUsers || []);
+      }
+    };
+    socket.on("room_active_users_update", handleActiveUsersUpdate);
+
     return () => {
       socket.emit("chat.room.left", { roomId: worldChatRoomId });
+      socket.off("room_active_users_update", handleActiveUsersUpdate);
     };
   }, [worldChatRoomId]);
 
@@ -295,8 +305,28 @@ export function WorldChatPage() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1 text-green-600 text-[10px] font-black uppercase tracking-widest font-mono">
-            <Activity size={10} className="animate-pulse" /> People Active
+          <div className="flex items-center gap-3">
+            {activeUsers.length > 0 && (
+              <div className="flex -space-x-1.5 overflow-hidden">
+                {activeUsers.slice(0, 4).map((u) => (
+                  <div key={u.id} className="group relative">
+                    <Avatar
+                      src={u.avatar}
+                      name={u.username}
+                      size="xs"
+                      className="ring-2 ring-card"
+                    />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-popover text-popover-foreground text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap pointer-events-none shadow-xl z-50 uppercase tracking-wider border border-border">
+                      @{u.username}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 text-green-600 text-[10px] font-black uppercase tracking-widest font-mono">
+              <Activity size={10} className="animate-pulse" />
+              <span>{activeUsers.length} active</span>
+            </div>
           </div>
         </div>  
 
