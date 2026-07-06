@@ -2,19 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { motion, useInView, AnimatePresence } from "motion/react";
 
 const SLOTS = [
-  { angle: -0.2 * Math.PI, r: 340 },
-  { angle: 0.1 * Math.PI, r: 420 },
-  { angle: 0.35 * Math.PI, r: 360 },
-  { angle: -0.45 * Math.PI, r: 390 },
+  { angle: -0.2 * Math.PI, r: 240 },
+  { angle: 0.1 * Math.PI, r: 200 },
+  { angle: 0.35 * Math.PI, r: 260 },
+  { angle: -0.45 * Math.PI, r: 190 },
 
-  { angle: 1.2 * Math.PI, r: 340 },
-  { angle: 0.9 * Math.PI, r: 420 },
-  { angle: 0.65 * Math.PI, r: 360 },
-  { angle: 1.45 * Math.PI, r: 390 },
+  { angle: 1.2 * Math.PI, r: 240 },
+  { angle: 0.9 * Math.PI, r: 200 },
+  { angle: 0.65 * Math.PI, r: 260 },
+  { angle: 1.45 * Math.PI, r: 190 },
 ];
 
 const CARD_WIDTH = 220;
-const CARD_HEIGHT = 90;
+const CARD_HEIGHT = 130;
 
 function isColliding(x, y, topics) {
   return topics.some((topic) => {
