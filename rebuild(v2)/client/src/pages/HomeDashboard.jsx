@@ -200,7 +200,12 @@ export function HomeDashboard() {
       toast.success("Room proposed and launched!");
       navigate(`/room/${newRoom.id}`);
     } catch (err) {
-      toast.error(err.message || "Failed to create room");
+      if (err.details && Array.isArray(err.details)) {
+        const errorMsg = err.details.map((d) => `${d.path}: ${d.message}`).join(", ");
+        toast.error(`Validation Error: ${errorMsg}`);
+      } else {
+        toast.error(err.message || "Failed to create room");
+      }
     } finally {
       setIsUploadingBanner(false);
     }
@@ -215,7 +220,12 @@ export function HomeDashboard() {
       setCommunityForm({ name: "", description: "", category: "Politics" });
       toast.success("Sphere established successfully!");
     } catch (err) {
-      toast.error(err.message || "Failed to create sphere");
+      if (err.details && Array.isArray(err.details)) {
+        const errorMsg = err.details.map((d) => `${d.path}: ${d.message}`).join(", ");
+        toast.error(`Validation Error: ${errorMsg}`);
+      } else {
+        toast.error(err.message || "Failed to create sphere");
+      }
     }
   };
 
