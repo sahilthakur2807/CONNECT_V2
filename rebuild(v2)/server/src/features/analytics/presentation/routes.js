@@ -31,6 +31,60 @@ const getPlatformMetricsHandler = new GetPlatformMetricsHandler();
 export function createAnalyticsRouter() {
   const router = Router();
 
+  // Public stats endpoint for landing page
+  router.get("/stats", async (req, res, next) => {
+    try {
+      const [totalUsers, totalRooms, totalMessages, totalCommunities, activeUsers] = await Promise.all([
+        prisma.user.count({ where: { role: { not: "banned" } } }),
+        prisma.room.count({ where: { deleted: false } }),
+        prisma.message.count({ where: { deleted: false } }),
+        prisma.community.count({ where: { deleted: false } }),
+        prisma.user.count({ where: { status: "online" } }),
+      ]);
+      res.json({
+        totalUsers,
+        totalRooms,
+        totalMessages,
+        totalCommunities,
+        activeUsers
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Public trending messages endpoint for landing page
+  router.get("/messages/trending", async (req, res, next) => {
+    try {
+      const messages = await prisma.message.findMany({
+        where: {
+          deleted: false,
+          room: { deleted: false, isPrivate: false },
+        },
+        include: {
+          reactions: true,
+          room: { select: { id: true, title: true } },
+          user: { select: { id: true, username: true, name: true, avatar: true } },
+          replies: {
+            where: { deleted: false },
+            take: 4,
+            include: {
+              user: { select: { id: true, username: true, name: true, avatar: true } }
+            }
+          }
+        },
+        orderBy: [
+          { reactions: { _count: "desc" } },
+          { createdAt: "desc" }
+        ],
+        take: 10
+      });
+      res.json(messages);
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 1. Get User Activity Feed
   router.get("/users/:id/feed", authenticateJWT, async (req, res, next) => {
     const schema = z.object({

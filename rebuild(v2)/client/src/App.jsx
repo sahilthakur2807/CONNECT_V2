@@ -19,7 +19,7 @@ import WorldChatPage from "@/pages/WorldChatPage";
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }
@@ -28,7 +28,7 @@ function ProtectedRoute({ children }) {
 function ModeratorRoute({ children }) {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   const isMod =
     user?.role === "moderator" ||
@@ -44,7 +44,7 @@ function ModeratorRoute({ children }) {
 function AdminRoute({ children }) {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   if (!isAdmin) {

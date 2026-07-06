@@ -1,5 +1,4 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { disconnectSocket } from "@/services/socketService";
 
 const getPersistedUser = () => {
   try {
@@ -50,7 +49,6 @@ const authSlice = createSlice({
       state.isLoading = false;
       state.error = null;
       localStorage.removeItem("newsconnect_user");
-      disconnectSocket();
     },
     clearError: (state) => {
       state.error = null;
