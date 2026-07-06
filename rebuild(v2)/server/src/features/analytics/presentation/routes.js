@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
+import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 
 // Handlers
 import {
@@ -42,8 +43,28 @@ export function createAnalyticsRouter() {
 
     try {
       const parsed = schema.parse(req.query);
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
       const query = new GetUserActivityFeedQuery(
-        req.params.id,
+        targetUserId,
         parsed.limit,
         parsed.cursor,
       );
@@ -85,7 +106,27 @@ export function createAnalyticsRouter() {
   // 3. Get User Statistics
   router.get("/users/:id/stats", authenticateJWT, async (req, res, next) => {
     try {
-      const query = new GetUserStatsQuery(req.params.id);
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
+      const query = new GetUserStatsQuery(targetUserId);
       const result = await getUserStatsHandler.execute(query);
       res.json({ success: true, data: result });
     } catch (err) {

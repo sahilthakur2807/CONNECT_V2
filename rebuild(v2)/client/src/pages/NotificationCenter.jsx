@@ -194,6 +194,7 @@ export function NotificationCenter() {
                         src={avatarUrl}
                         name={n.title || "System"}
                         size="md"
+                        userId={triggerUser?.id}
                       />
                       <div
                         className={cn(

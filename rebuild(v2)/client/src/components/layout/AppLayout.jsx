@@ -51,6 +51,10 @@ const sideNavLinks = [
 
 function LeftSidebar() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const activeCategory = searchParams.get("category");
+
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
   );
@@ -104,20 +108,30 @@ function LeftSidebar() {
             </span>
           </div>
           <ul className="space-y-0.5">
-            {CATEGORIES.slice(0, 8).map((cat) => (
-              <li key={cat}>
-                <Link
-                  to={`/discover?category=${encodeURIComponent(cat)}`}
-                  className="flex items-center gap-3 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                >
-                  <Hash
-                    size={14}
-                    className="text-muted-foreground/50 shrink-0"
-                  />
-                  {cat}
-                </Link>
-              </li>
-            ))}
+            {CATEGORIES.slice(0, 8).map((cat) => {
+              const isActiveCategory =
+                location.pathname === "/discover" &&
+                ((!activeCategory && cat === "All Topics") ||
+                  (activeCategory && activeCategory.toLowerCase() === cat.toLowerCase()));
+              return (
+                <li key={cat}>
+                  <Link
+                    to={`/discover?category=${encodeURIComponent(cat)}`}
+                    className={`flex items-center gap-3 px-3 py-2 text-sm font-bold rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+                      isActiveCategory
+                        ? "bg-primary/10 text-primary font-extrabold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <Hash
+                      size={14}
+                      className={isActiveCategory ? "text-primary shrink-0" : "text-muted-foreground/50 shrink-0"}
+                    />
+                    {cat}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -173,8 +187,9 @@ export function AppLayout() {
           <main
             className={cn(
               "flex-1 h-full min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-              showSidebar ? "overflow-y-auto py-5 pl-6" : "overflow-hidden flex flex-col",
-              location.pathname === "/world-chat" ? "overflow-y-auto py-0 pl-0" : "overflow-y-auto py-5 pl-6",
+              (isRoomPage || location.pathname === "/world-chat")
+                ? "overflow-hidden flex flex-col py-0 px-0 pl-0"
+                : "overflow-y-auto py-5 pl-6",
             )}
             id="main-content"
             tabIndex={-1}

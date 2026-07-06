@@ -256,6 +256,7 @@ export function DiscussionsDashboard() {
                       src={msg.user.avatar || undefined}
                       name={msg.user.username}
                       size="sm"
+                      userId={msg.user.id}
                     />
                     <div>
                       <p className="text-xs font-bold text-foreground">

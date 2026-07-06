@@ -31,5 +31,25 @@ export class BlockRepository extends BaseRepository {
     });
     return count > 0;
   }
+
+  /**
+   * Retrieves blocked users for a specific blocker.
+   */
+  async findBlockedUsers(userId, tx) {
+    return this.getDelegate(tx).findMany({
+      where: { userId },
+      include: {
+        blocked: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            avatar: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
 }
 export const blockRepository = new BlockRepository();

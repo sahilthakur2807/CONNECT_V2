@@ -3,7 +3,7 @@ import { apiClient } from "@/services/apiClient";
 
 // --- Standalone Queries ---
 
-export const useNotificationsQuery = (limit = 20, cursor) =>
+export const useNotificationsQuery = (limit = 20, cursor, options = {}) =>
   useQuery({
     queryKey: ["notifications", { limit, cursor }],
     queryFn: async () => {
@@ -13,7 +13,7 @@ export const useNotificationsQuery = (limit = 20, cursor) =>
       const res = await apiClient.get(`/notifications?${params.toString()}`);
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
 // --- Standalone Mutations ---

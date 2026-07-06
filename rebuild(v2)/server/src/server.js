@@ -26,6 +26,8 @@ import { socialRouter } from "./features/social/presentation/routes.js";
 import { moderationRouter } from "./features/moderation/presentation/routes.js";
 import { discoveryRouter } from "./features/discovery/presentation/routes.js";
 import { analyticsRouter } from "./features/analytics/presentation/routes.js";
+import path from "path";
+import { userRouter } from "./features/user/presentation/routes.js";
 
 // Load dynamic event-driven analytics subscribers
 import "./features/analytics/infrastructure/events/AnalyticsEventSubscribers.js";
@@ -64,6 +66,9 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(sanitizeRequestMiddleware);
 
+// Serve static uploads
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
 // API Rate Limiting configuration
 const globalRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 60 minutes window
@@ -101,6 +106,7 @@ app.use("/api", socialRouter);
 app.use("/api", moderationRouter);
 app.use("/api", discoveryRouter);
 app.use("/api", analyticsRouter);
+app.use("/api/users", userRouter);
 
 // Standard global exception mappings
 app.use(errorMiddleware);

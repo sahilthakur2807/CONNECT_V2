@@ -22,7 +22,7 @@ export const useCommunityQuery = (id) =>
     enabled: !!id,
   });
 
-export const useRoomsQuery = (filters) =>
+export const useRoomsQuery = (filters, options = {}) =>
   useQuery({
     queryKey: ["rooms", filters],
     queryFn: async () => {
@@ -33,10 +33,12 @@ export const useRoomsQuery = (filters) =>
         params.append("category", filters.category);
       if (filters?.page) params.append("page", filters.page.toString());
       if (filters?.limit) params.append("limit", filters.limit.toString());
+      if (filters?.includeWorldChat)
+        params.append("includeWorldChat", filters.includeWorldChat.toString());
       const res = await apiClient.get(`/rooms?${params.toString()}`);
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
 export const useRoomQuery = (id) =>
@@ -52,34 +54,34 @@ export const useRoomQuery = (id) =>
     refetchOnReconnect: false,
   });
 
-export const useTrendingRoomsQuery = (limit = 20) =>
+export const useTrendingRoomsQuery = (limit = 20, options = {}) =>
   useQuery({
     queryKey: ["rooms", "trending", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/trending?limit=${limit}`);
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
-export const useHotRoomsQuery = (limit = 20) =>
+export const useHotRoomsQuery = (limit = 20, options = {}) =>
   useQuery({
     queryKey: ["rooms", "hot", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/hot?limit=${limit}`);
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
-export const useNewRoomsQuery = (limit = 20) =>
+export const useNewRoomsQuery = (limit = 20, options = {}) =>
   useQuery({
     queryKey: ["rooms", "new", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/new?limit=${limit}`);
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
 // --- Standalone Mutations ---

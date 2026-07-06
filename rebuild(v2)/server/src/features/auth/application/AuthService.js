@@ -36,7 +36,7 @@ export class AuthService {
 
     const refreshToken = crypto.randomBytes(40).toString("hex");
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+    expiresAt.setDate(expiresAt.getDate() + 3); // Expires in 3 days
 
     await this.sessionRepo.create(
       {
@@ -67,12 +67,18 @@ export class AuthService {
     }
 
     // Security check: if the token is already revoked, trigger warning and invalidate all active sessions
-    if (session.revoked || session.expiresAt < new Date()) {
+    if (session.revoked) {
       Logger.warn(
         `⚠️ Potential token reuse/replay attack detected! Revoking all sessions for User: ${session.userId}`,
       );
       await this.sessionRepo.revokeAllForUser(session.userId, tx);
-      throw new UnauthorizedError("Session expired or already used");
+      throw new UnauthorizedError("Session compromised");
+    }
+
+    // Normal session expiration check
+    if (session.expiresAt < new Date()) {
+      await this.sessionRepo.revokeSession(session.id, tx);
+      throw new UnauthorizedError("Session expired");
     }
 
     // Revoke the old token

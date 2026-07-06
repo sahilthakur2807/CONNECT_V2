@@ -16,6 +16,7 @@ model User {
   name            String?
   avatar          String?
   bio             String?
+  banner          String?           @default("from-red-600 via-red-500 to-red-800")
   role            String            @default("user")
   status          String            @default("offline")
   verified                  Boolean           @default(false)

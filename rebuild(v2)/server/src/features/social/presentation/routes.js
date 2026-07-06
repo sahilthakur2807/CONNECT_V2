@@ -183,6 +183,16 @@ export function createSocialRouter() {
     }
   });
 
+  // 7.5. Get Blocked Users List
+  router.get("/blocks", authenticateJWT, async (req, res, next) => {
+    try {
+      const result = await blockRepo.findBlockedUsers(req.user.id);
+      res.json({ success: true, data: result.map((b) => b.blocked) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 8. Get Friends List
   router.get("/friends", authenticateJWT, async (req, res, next) => {
     try {

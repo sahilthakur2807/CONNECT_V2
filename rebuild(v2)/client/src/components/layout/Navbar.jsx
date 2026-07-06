@@ -29,6 +29,8 @@ import {
 import { cn } from "@/utils/cn";
 import { useTheme } from "@/context/ThemeContext";
 import { useAppSelector } from "@/store";
+import { useNotifications } from "@/hooks/useNotifications";
+import { toast } from "sonner";
 
 export function Navbar() {
   const [searchFocused, setSearchFocused] = useState(false);
@@ -40,6 +42,9 @@ export function Navbar() {
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
   );
+
+  const { useNotificationsQuery, markReadMutation, markAllReadMutation } = useNotifications();
+  const { data: notifications = [], isLoading: isLoadingNotifications } = useNotificationsQuery(40);
 
   const navLinks = [
     { to: "/home", label: "Home" },
@@ -164,22 +169,110 @@ export function Navbar() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Notifications */}
-            <Link
-              to="/notifications"
-              className="relative h-10 w-10 rounded-xl hover:bg-secondary transition-colors flex items-center justify-center"
-              aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
-            >
-              <Bell size={20} className="text-muted-foreground" />
-              {unreadCount > 0 && (
-                <span
-                  className="absolute top-2 right-2 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-card"
-                  aria-hidden="true"
+            {/* Notifications Dropdown Overlay */}
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <div
+                  className="relative h-10 w-10 rounded-xl hover:bg-secondary transition-colors flex items-center justify-center cursor-pointer"
+                  aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
                 >
-                  {unreadCount}
-                </span>
-              )}
-            </Link>
+                  <Bell size={20} className="text-muted-foreground" />
+                  {unreadCount > 0 && (
+                    <span
+                      className="absolute top-2 right-2 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-card"
+                      aria-hidden="true"
+                    >
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 sm:w-96 bg-card border border-border shadow-xl rounded-2xl p-4 z-50 text-left space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-wider font-serif">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await markAllReadMutation.mutateAsync();
+                          toast.success("All notifications marked as read!");
+                        } catch (err) {
+                          toast.error("Failed to mark all as read");
+                        }
+                      }}
+                      className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-[380px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-2 pr-1">
+                  {isLoadingNotifications ? (
+                    <div className="py-8 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
+                      Retrieving updates...
+                    </div>
+                  ) : notifications.length > 0 ? (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={async () => {
+                          try {
+                            if (!n.read) {
+                              await markReadMutation.mutateAsync(n.id);
+                            }
+                            if (n.roomId) {
+                              navigate(`/room/${n.roomId}`);
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className={cn(
+                          "flex gap-3 p-3 rounded-xl cursor-pointer hover:bg-muted/50 transition-all border border-transparent",
+                          !n.read && "bg-primary/[0.08] border-primary/20 hover:bg-primary/[0.12]"
+                        )}
+                      >
+                        <Avatar
+                          src={n.trigger?.avatar}
+                          name={n.title || "System"}
+                          size="sm"
+                          className="w-8 h-8 shrink-0"
+                          userId={n.trigger?.id}
+                        />
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <p className={cn("text-xs leading-snug text-foreground", !n.read ? "font-bold" : "font-medium")}>
+                            {n.body || n.title}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground font-mono uppercase">
+                            {(() => {
+                              if (!n.createdAt) return "";
+                              const d = new Date(n.createdAt);
+                              return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " - " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+                            })()}
+                          </p>
+                        </div>
+                        {!n.read && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 self-center" />
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-xs text-muted-foreground italic font-medium">
+                      No notifications yet.
+                    </div>
+                  )}
+                </div>
+                <div className="pt-2 border-t border-border/40">
+                  <Button
+                    onClick={() => navigate("/notifications")}
+                    className="w-full rounded-xl font-bold uppercase text-[10px] tracking-widest h-9 bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border/40"
+                  >
+                    View All Notifications
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Theme toggle */}
             <Button
@@ -240,6 +333,7 @@ export function Navbar() {
                       src={user.avatar || undefined}
                       name={user.username}
                       size="md"
+                      userId={user.id}
                     />
                     <div className="min-w-0">
                       <p className="font-bold text-sm text-foreground truncate">
@@ -401,6 +495,7 @@ export function Navbar() {
                   src={user.avatar || undefined}
                   name={user.username}
                   size="lg"
+                  userId={user.id}
                 />
                 <div>
                   <p className="font-bold text-lg text-foreground truncate max-w-[150px]">

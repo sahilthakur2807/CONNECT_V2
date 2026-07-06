@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  Upload,
 } from "lucide-react";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
@@ -22,6 +23,7 @@ import { useSocial } from "@/hooks/useSocial";
 import { useDiscovery } from "@/hooks/useDiscovery";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { apiClient } from "@/services/apiClient";
 
 const CATEGORIES = [
   "All Topics",
@@ -60,9 +62,19 @@ export function HomeDashboard() {
 
   const [activeTab, setActiveTab] = useState("trending");
   // Friend search states
+  const [friendSearchInput, setFriendSearchInput] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [addingFriendId, setAddingFriendId] = useState("");
+
+  // Debounce friend search input to query
+  useEffect(() => {
+    if (friendSearchInput.length < 2) return;
+    const timer = setTimeout(() => {
+      setFriendSearchQuery(friendSearchInput);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [friendSearchInput]);
 
   // Dialog states
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -74,6 +86,10 @@ export function HomeDashboard() {
     tags: "",
     sourceUrl: "",
   });
+  const [selectedBannerPreset, setSelectedBannerPreset] = useState("");
+  const [customBannerFile, setCustomBannerFile] = useState(null);
+  const [customBannerPreview, setCustomBannerPreview] = useState("");
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [communityForm, setCommunityForm] = useState({
     name: "",
     description: "",
@@ -88,9 +104,9 @@ export function HomeDashboard() {
 
   // Fetch Room Feeds
   const { data: trendingRooms = [], isLoading: trendingLoading } =
-    useTrendingRoomsQuery(10);
-  const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10);
-  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10);
+    useTrendingRoomsQuery(10, { enabled: activeTab === "trending" });
+  const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10, { enabled: activeTab === "hot" });
+  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10, { enabled: activeTab === "newest" });
 
   // Fetch Friends List (which returns status 'online' or 'offline')
   const { data: friendsList = [], isLoading: friendsLoading } =
@@ -140,7 +156,19 @@ export function HomeDashboard() {
   const handleCreateRoom = async (e) => {
     e.preventDefault();
     if (!roomForm.title || !roomForm.category) return;
+    setIsUploadingBanner(true);
     try {
+      let finalImageUrl = selectedBannerPreset;
+
+      if (customBannerFile) {
+        const formData = new FormData();
+        formData.append("avatar", customBannerFile);
+        const uploadRes = await apiClient.post("/users/avatar", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        finalImageUrl = uploadRes.data.data.url;
+      }
+
       const tagsArray = roomForm.tags
         .replace(/#/g, " ")
         .split(/[\s,]+/)
@@ -154,6 +182,7 @@ export function HomeDashboard() {
         category: roomForm.category,
         tags: tagsArray,
         sourceUrl: roomForm.sourceUrl || undefined,
+        imageUrl: finalImageUrl,
       });
       setShowCreateRoom(false);
       setRoomForm({
@@ -163,10 +192,15 @@ export function HomeDashboard() {
         tags: "",
         sourceUrl: "",
       });
+      setCustomBannerFile(null);
+      setCustomBannerPreview("");
+      setSelectedBannerPreset("");
       toast.success("Room proposed and launched!");
       navigate(`/room/${newRoom.id}`);
     } catch (err) {
       toast.error(err.message || "Failed to create room");
+    } finally {
+      setIsUploadingBanner(false);
     }
   };
 
@@ -184,10 +218,11 @@ export function HomeDashboard() {
   };
 
   const handleFriendSearchChange = (val) => {
-    setFriendSearchQuery(val);
+    setFriendSearchInput(val);
     const isOpen = val.length >= 2;
     setShowSearch(isOpen);
     if (!isOpen) {
+      setFriendSearchQuery("");
       setSentFriendRequestIds([]);
     }
   };
@@ -614,14 +649,16 @@ export function HomeDashboard() {
 
         {/* Spacious Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {activeRooms.map((room) => (
+          {activeRooms.map((room, idx) => (
             <RoomCard
               key={room.id}
               room={room}
+              index={idx}
+              activeTab={activeTab}
               onClick={(id) => navigate(`/room/${id}`)}
               onJoin={handleJoinRoom}
               onLeave={handleLeaveRoom}
-              className="bg-card border border-border/50 rounded-3xl p-6 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
+              className="bg-card border border-border/50 rounded-3xl hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
             />
           ))}
           {activeRooms.length === 0 && (
@@ -776,11 +813,82 @@ export function HomeDashboard() {
                   type="url"
                 />
               </div>
+
+              {/* Cover Banner Selection */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase tracking-widest text-muted-foreground block">
+                  Select Cover Banner (Optional)
+                </label>
+                
+                {/* Live Preview */}
+                <div className="h-20 w-full rounded-2xl overflow-hidden border border-border/50 relative bg-muted shrink-0 mb-3">
+                  {customBannerPreview ? (
+                    <img src={customBannerPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : selectedBannerPreset ? (
+                    <div className={cn(selectedBannerPreset.replace("gradient:", ""), "bg-gradient-to-r w-full h-full")} />
+                  ) : (
+                    <img src="/room_banner.png" alt="Default Preview" className="w-full h-full object-cover" />
+                  )}
+                  <div className="absolute top-2 left-2 bg-black/40 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded backdrop-blur-xs">
+                    Live Preview
+                  </div>
+                </div>
+
+                {/* Preset Options & Upload Button Row */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {[
+                    { id: "", name: "Default Image", style: "border-border text-foreground hover:bg-secondary bg-secondary/50" },
+                    { id: "gradient:from-red-600 via-red-500 to-red-800", name: "Red Gradient", style: "from-red-600 via-red-500 to-red-800 text-white bg-gradient-to-r" },
+                    { id: "gradient:from-blue-600 via-indigo-600 to-purple-600", name: "Blue Gradient", style: "from-blue-600 via-indigo-600 to-purple-600 text-white bg-gradient-to-r" },
+                    { id: "gradient:from-emerald-600 to-teal-800", name: "Teal Gradient", style: "from-emerald-600 to-teal-800 text-white bg-gradient-to-r" },
+                    { id: "gradient:from-slate-700 via-slate-600 to-slate-800", name: "Slate Gradient", style: "from-slate-700 via-slate-600 to-slate-800 text-white bg-gradient-to-r" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBannerPreset(preset.id);
+                        setCustomBannerFile(null);
+                        setCustomBannerPreview("");
+                      }}
+                      className={cn(
+                        "h-8 px-3 rounded-xl text-xs font-bold cursor-pointer transition-all border-2",
+                        preset.style,
+                        !customBannerPreview && selectedBannerPreset === preset.id
+                          ? "border-primary ring-2 ring-primary/20 scale-105"
+                          : "border-transparent"
+                      )}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+
+                  {/* Upload Image Button */}
+                  <label className="h-8 px-3 rounded-xl border border-border bg-secondary hover:bg-secondary/80 flex items-center justify-center gap-1.5 text-xs font-bold text-foreground cursor-pointer transition-colors">
+                    <Upload size={12} />
+                    <span>Upload custom banner</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setCustomBannerFile(file);
+                          setCustomBannerPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <Button
                 type="submit"
+                disabled={isUploadingBanner}
                 className="w-full rounded-2xl h-12 font-black uppercase text-xs tracking-widest mt-2 cursor-pointer"
               >
-                Launch Room
+                {isUploadingBanner ? "Launching..." : "Launch Room"}
               </Button>
             </form>
           </div>

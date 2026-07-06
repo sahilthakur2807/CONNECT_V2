@@ -3,24 +3,24 @@ import { apiClient } from "@/services/apiClient";
 
 // --- Standalone Queries ---
 
-export const useFriendsQuery = () =>
+export const useFriendsQuery = (options = {}) =>
   useQuery({
     queryKey: ["friends"],
     queryFn: async () => {
       const res = await apiClient.get("/friends");
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
-export const usePendingRequestsQuery = () =>
+export const usePendingRequestsQuery = (options = {}) =>
   useQuery({
     queryKey: ["friends", "pending"],
     queryFn: async () => {
       const res = await apiClient.get("/friends/pending");
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
 // --- Standalone Mutations ---

@@ -3,12 +3,13 @@ import { NotFoundError } from "../../../../shared/errors/AppError.js";
 // --- Queries ---
 
 export class GetRoomsQuery {
-  constructor(communityId, category, page = 1, limit = 20, userId) {
+  constructor(communityId, category, page = 1, limit = 20, userId, includeWorldChat = false) {
     this.communityId = communityId;
     this.category = category;
     this.page = page;
     this.limit = limit;
     this.userId = userId;
+    this.includeWorldChat = includeWorldChat;
   }
 }
 
@@ -54,6 +55,7 @@ export class GetRoomsHandler {
       query.page,
       query.limit,
       query.userId,
+      query.includeWorldChat,
     );
   }
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, Filter, Activity, Hash } from "lucide-react";
+import { Search, TrendingUp, Flame, Sparkles, Hash, Loader2 } from "lucide-react";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,20 @@ export function RoomDiscovery() {
   const initialQuery = searchParams.get("q") || "";
   const [activeCategory, setActiveCategory] = useState(initialCategory);
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [inputText, setInputText] = useState(initialQuery);
+
+  // Debounce search input to filter query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(inputText);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [inputText]);
+
+  // Sync input text when search query is changed externally
+  useEffect(() => {
+    setInputText(searchQuery);
+  }, [searchQuery]);
 
   // Auto-scroll ref
   const resultsRef = useRef(null);
@@ -34,15 +48,14 @@ export function RoomDiscovery() {
   // Autocomplete suggestions state
   const [isFocused, setIsFocused] = useState(false);
 
-  // Advanced Filters State
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [minMembers, setMinMembers] = useState("");
-  const [minActive, setMinActive] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState("Any");
-  const [selectedImpact, setSelectedImpact] = useState("Any");
-  const [selectedDateRange, setSelectedDateRange] = useState("Any Time");
-  const [customStartDate, setCustomStartDate] = useState("");
-  const [customEndDate, setCustomEndDate] = useState("");
+  // Sorting and Pagination State
+  const [sortBy, setSortBy] = useState("trending"); // "trending", "hot", "newest"
+  const [visibleRoomsCount, setVisibleRoomsCount] = useState(6);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setVisibleRoomsCount(6);
+  }, [activeCategory, searchQuery, sortBy]);
 
   const { useRoomsQuery, joinRoomMutation, leaveRoomMutation } = useRooms();
   const { data: rooms = [], isLoading } = useRoomsQuery({
@@ -135,66 +148,40 @@ export function RoomDiscovery() {
     }
   }, [searchParams]);
 
-  const filteredRooms = rooms.filter((room) => {
-    // 1. Search Query Check
-    const matchesSearch =
-      !searchQuery ||
-      room.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (room.tags &&
-        room.tags.some((t) =>
-          t.toLowerCase().includes(searchQuery.toLowerCase()),
-        ));
+  const filteredRooms = useMemo(() => {
+    return rooms.filter((room) => {
+      const matchesSearch =
+        !searchQuery ||
+        room.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        room.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        room.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (room.tags &&
+          room.tags.some((t) =>
+            t.toLowerCase().includes(searchQuery.toLowerCase()),
+          ));
+      return matchesSearch;
+    });
+  }, [rooms, searchQuery]);
 
-    if (!matchesSearch) return false;
-
-    // 2. Member Count Check
-    const memberCount = room.memberCount ?? room._count?.members ?? 0;
-    if (minMembers && memberCount < parseInt(minMembers)) return false;
-
-    // 3. Active Members Check
-    const activeCount = room.activeNow ?? 0;
-    if (minActive && activeCount < parseInt(minActive)) return false;
-
-    // 4. Region Check
-    if (selectedRegion && selectedRegion !== "Any") {
-      const regionLower = selectedRegion.toLowerCase();
-      const hasRegion =
-        room.title.toLowerCase().includes(regionLower) ||
-        room.description.toLowerCase().includes(regionLower) ||
-        (room.tags && room.tags.some((t) => t.toLowerCase().includes(regionLower)));
-      if (!hasRegion) return false;
+  const sortedRooms = useMemo(() => {
+    const list = [...filteredRooms];
+    if (sortBy === "trending") {
+      return list.sort((a, b) => {
+        const aCount = a.memberCount ?? a._count?.members ?? 0;
+        const bCount = b.memberCount ?? b._count?.members ?? 0;
+        return bCount - aCount;
+      });
+    } else if (sortBy === "hot") {
+      return list.sort((a, b) => {
+        const aMsg = a._count?.messages ?? 0;
+        const bMsg = b._count?.messages ?? 0;
+        return bMsg - aMsg;
+      });
+    } else if (sortBy === "newest") {
+      return list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }
-
-    // 5. Impact Check
-    if (selectedImpact && selectedImpact !== "Any") {
-      const impactLower = selectedImpact.toLowerCase();
-      const hasImpact =
-        room.title.toLowerCase().includes(impactLower) ||
-        room.description.toLowerCase().includes(impactLower) ||
-        (room.tags && room.tags.some((t) => t.toLowerCase().includes(impactLower)));
-      if (!hasImpact) return false;
-    }
-
-    // 6. Date Range Check
-    if (selectedDateRange && selectedDateRange !== "Any Time") {
-      const createdTime = new Date(room.createdAt).getTime();
-      const now = Date.now();
-      if (selectedDateRange === "24h") {
-        if (now - createdTime > 24 * 60 * 60 * 1000) return false;
-      } else if (selectedDateRange === "7d") {
-        if (now - createdTime > 7 * 24 * 60 * 60 * 1000) return false;
-      } else if (selectedDateRange === "30d") {
-        if (now - createdTime > 30 * 24 * 60 * 60 * 1000) return false;
-      } else if (selectedDateRange === "custom") {
-        if (customStartDate && createdTime < new Date(customStartDate).getTime()) return false;
-        if (customEndDate && createdTime > new Date(customEndDate).getTime() + 24 * 60 * 60 * 1000) return false;
-      }
-    }
-
-    return true;
-  });
+    return list;
+  }, [filteredRooms, sortBy]);
 
   return (
     <div className="space-y-12 pb-10 w-full font-sans">
@@ -215,8 +202,8 @@ export function RoomDiscovery() {
             />
             <Input 
               placeholder="Search for topics, keywords, or communities..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               onKeyDown={(e) => {
@@ -342,164 +329,52 @@ export function RoomDiscovery() {
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Showing {filteredRooms.length} relevant communities
               </p>
-            </div>            <div className="relative">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            </div>
+            <div className="flex items-center gap-6 self-end -mb-6">
+              <button
+                onClick={() => setSortBy("trending")}
                 className={cn(
-                  "rounded-xl font-bold border-2 gap-2 h-10 px-6 cursor-pointer transition-all",
-                  showAdvancedFilters && "bg-primary/10 border-primary text-primary hover:bg-primary/15"
+                  "flex items-center gap-2 pb-6 text-sm font-bold transition-all relative cursor-pointer border-b-2",
+                  sortBy === "trending"
+                    ? "text-[#e11d48] border-[#e11d48] font-black"
+                    : "text-muted-foreground hover:text-foreground font-semibold border-transparent"
                 )}
               >
-                <Filter size={16} /> Advanced Filters
-              </Button>
+                <TrendingUp size={16} />
+                <span>Trending Feed</span>
+              </button>
 
-              {/* Advanced Filters Dropdown Popover */}
-              {showAdvancedFilters && (
-                <div className="absolute right-0 top-full z-30 mt-2 w-[320px] sm:w-[480px] p-5 bg-card/95 backdrop-blur-md border border-border shadow-2xl rounded-2xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {/* Min Members */}
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">
-                        Min Members
-                      </label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. 5"
-                        value={minMembers}
-                        onChange={(e) => setMinMembers(e.target.value)}
-                        className="h-9 rounded-lg bg-secondary/30 border-border/50 text-xs font-semibold"
-                      />
-                    </div>
+              <button
+                onClick={() => setSortBy("hot")}
+                className={cn(
+                  "flex items-center gap-2 pb-6 text-sm font-bold transition-all relative cursor-pointer border-b-2",
+                  sortBy === "hot"
+                    ? "text-[#e11d48] border-[#e11d48] font-black"
+                    : "text-muted-foreground hover:text-foreground font-semibold border-transparent"
+                )}
+              >
+                <Flame size={16} />
+                <span>Hot Debates</span>
+              </button>
 
-                    {/* Min Active Members */}
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">
-                        Min Active Citizens
-                      </label>
-                      <Input
-                        type="number"
-                        placeholder="e.g. 2"
-                        value={minActive}
-                        onChange={(e) => setMinActive(e.target.value)}
-                        className="h-9 rounded-lg bg-secondary/30 border-border/50 text-xs font-semibold"
-                      />
-                    </div>
-
-                    {/* Region */}
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">
-                        Region
-                      </label>
-                      <select
-                        value={selectedRegion}
-                        onChange={(e) => setSelectedRegion(e.target.value)}
-                        className="w-full h-9 px-2.5 rounded-lg bg-secondary/30 border border-border/50 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="Any">Any Region</option>
-                        <option value="Global">Global</option>
-                        <option value="Europe">Europe</option>
-                        <option value="North America">North America</option>
-                        <option value="Asia">Asia</option>
-                        <option value="Africa">Africa</option>
-                        <option value="South America">South America</option>
-                        <option value="Oceania">Oceania</option>
-                      </select>
-                    </div>
-
-                    {/* Impact */}
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">
-                        Impact Focus
-                      </label>
-                      <select
-                        value={selectedImpact}
-                        onChange={(e) => setSelectedImpact(e.target.value)}
-                        className="w-full h-9 px-2.5 rounded-lg bg-secondary/30 border border-border/50 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="Any">Any Impact</option>
-                        <option value="Advocacy">Advocacy / Policy</option>
-                        <option value="Climate">Climate Action</option>
-                        <option value="Humanitarian">Humanitarian Support</option>
-                        <option value="Community">Community Building</option>
-                      </select>
-                    </div>
-
-                    {/* Date Created */}
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground font-mono">
-                        Date Created
-                      </label>
-                      <select
-                        value={selectedDateRange}
-                        onChange={(e) => setSelectedDateRange(e.target.value)}
-                        className="w-full h-9 px-2.5 rounded-lg bg-secondary/30 border border-border/50 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="Any Time">Any Time</option>
-                        <option value="24h">Last 24 Hours</option>
-                        <option value="7d">Last 7 Days</option>
-                        <option value="30d">Last 30 Days</option>
-                        <option value="custom">Custom Range</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Custom Date Range Selectors */}
-                  {selectedDateRange === "custom" && (
-                    <div className="flex flex-col sm:flex-row gap-2.5 p-3.5 bg-secondary/20 border border-border/30 rounded-xl animate-in fade-in duration-200">
-                      <div className="flex-grow space-y-1">
-                        <label className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
-                          Start Date
-                        </label>
-                        <Input
-                          type="date"
-                          value={customStartDate}
-                          onChange={(e) => setCustomStartDate(e.target.value)}
-                          className="h-8.5 rounded-lg bg-secondary/30 border-border/50 text-xs font-semibold"
-                        />
-                      </div>
-                      <div className="flex-grow space-y-1">
-                        <label className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground">
-                          End Date
-                        </label>
-                        <Input
-                          type="date"
-                          value={customEndDate}
-                          onChange={(e) => setCustomEndDate(e.target.value)}
-                          className="h-8.5 rounded-lg bg-secondary/30 border-border/50 text-xs font-semibold"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Reset button */}
-                  <div className="flex justify-end gap-2 border-t border-border/40 pt-3">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setMinMembers("");
-                        setMinActive("");
-                        setSelectedRegion("Any");
-                        setSelectedImpact("Any");
-                        setSelectedDateRange("Any Time");
-                        setCustomStartDate("");
-                        setCustomEndDate("");
-                      }}
-                      className="rounded-lg font-bold text-xs h-8 px-3.5 cursor-pointer text-muted-foreground hover:text-foreground"
-                    >
-                      Reset Filters
-                    </Button>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => setSortBy("newest")}
+                className={cn(
+                  "flex items-center gap-2 pb-6 text-sm font-bold transition-all relative cursor-pointer border-b-2",
+                  sortBy === "newest"
+                    ? "text-[#e11d48] border-[#e11d48] font-black"
+                    : "text-muted-foreground hover:text-foreground font-semibold border-transparent"
+                )}
+              >
+                <Sparkles size={16} />
+                <span>Newly Created</span>
+              </button>
             </div>
           </div>
 
           {isLoading ? (
             <div className="py-24 text-center">
-              <Activity
+              <Loader2
                 className="animate-spin mx-auto text-primary"
                 size={32}
               />
@@ -507,18 +382,32 @@ export function RoomDiscovery() {
                 Searching...
               </p>
             </div>
-          ) : filteredRooms.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredRooms.map((room) => (
-                <div key={room.id} className="animate-in fade-in duration-200">
-                  <RoomCard
-                    room={room}
-                    onJoin={handleJoin}
-                    onLeave={handleLeave}
-                    onClick={(id) => navigate(`/room/${id}`)}
-                  />
+          ) : sortedRooms.length > 0 ? (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {sortedRooms.slice(0, visibleRoomsCount).map((room, idx) => (
+                  <div key={room.id} className="animate-in fade-in duration-200">
+                    <RoomCard
+                      room={room}
+                      index={idx}
+                      activeTab={sortBy}
+                      onJoin={handleJoin}
+                      onLeave={handleLeave}
+                      onClick={(id) => navigate(`/room/${id}`)}
+                    />
+                  </div>
+                ))}
+              </div>
+              {sortedRooms.length > visibleRoomsCount && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    onClick={() => setVisibleRoomsCount((prev) => prev + 6)}
+                    className="rounded-full px-8 h-12 font-black uppercase text-[10px] tracking-widest shadow-xl shadow-primary/10 cursor-pointer"
+                  >
+                    Load More Rooms
+                  </Button>
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             <div className="py-20 text-center text-muted-foreground font-medium text-sm">

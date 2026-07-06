@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import { StatusDot } from "./Badge";
 import { cn } from "@/utils/cn";
 
@@ -27,8 +28,11 @@ export function Avatar({
   status,
   showStatus = false,
   className,
+  userId,
+  onClick,
 }) {
   const [imageError, setImageError] = React.useState(false);
+  const navigate = useNavigate();
 
   React.useEffect(() => {
     setImageError(false);
@@ -37,8 +41,27 @@ export function Avatar({
   const initials = getInitials(name);
   const sizeClasses = sizeMap[size] || sizeMap.md;
 
+  const handleClick = (e) => {
+    if (isClickable) {
+      e.stopPropagation();
+    }
+    if (onClick) {
+      onClick(e);
+    } else if (userId) {
+      navigate(`/profile/${userId}`);
+    }
+  };
+
+  const isClickable = !!onClick || !!userId;
+
   return (
-    <div className="relative inline-flex shrink-0">
+    <div
+      className={cn(
+        "relative inline-flex shrink-0",
+        isClickable && "cursor-pointer hover:opacity-90 active:scale-95 transition-all"
+      )}
+      onClick={handleClick}
+    >
       <div
         className={cn(
           "relative flex items-center justify-center overflow-hidden rounded-full border border-border select-none shrink-0",

@@ -71,7 +71,7 @@ function PendingRequestsList({ roomId }) {
       {pendingMembers.map((member) => (
         <div key={member.id} className="flex flex-col gap-2 p-3 bg-secondary/50 rounded-2xl border border-border/50">
           <div className="flex items-center gap-2 min-w-0">
-            <Avatar name={member.name || member.username} src={member.avatar} size="xs" />
+            <Avatar name={member.name || member.username} src={member.avatar} size="xs" userId={member.id} />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-foreground truncate">{member.name || member.username}</p>
               <p className="text-[9px] text-muted-foreground truncate">@{member.username}</p>
@@ -142,6 +142,11 @@ export function DiscussionRoom() {
     currentUser?.role === "admin" ||
     currentUser?.role === "superadmin" ||
     (room?.createdBy?.id && room.createdBy.id === currentUser?.id);
+
+  const isActualModeratorOrAdmin =
+    currentUser?.role === "moderator" ||
+    currentUser?.role === "admin" ||
+    currentUser?.role === "superadmin";
 
   const { data: messages = [], isLoading: messagesLoading } =
     useMessagesQuery(roomId);
@@ -508,7 +513,7 @@ export function DiscussionRoom() {
   // Right sidebar widgets markup (reused on desktop sidebar & mobile popup dialog)
   const sidebarWidgetsContent = (
     <>
-      {isModeratorOrOwner && (
+      {isActualModeratorOrAdmin && (
         <div className="p-4 bg-zinc-900 text-white rounded-[20px] border border-neutral-800 space-y-3 relative overflow-hidden dark:bg-[#151515]">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
           <div className="flex items-center gap-1.5">
@@ -544,6 +549,7 @@ export function DiscussionRoom() {
                 status="online"
                 showStatus
                 className="ring-2 ring-transparent group-hover:ring-primary/20 transition-all cursor-pointer rounded-xl hover:scale-105"
+                userId={u.id}
               />
               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-popover text-popover-foreground text-[9px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap pointer-events-none shadow-xl z-50 uppercase tracking-wider border border-border">
                 @{u.username}
@@ -901,6 +907,7 @@ export function DiscussionRoom() {
                     src={currentUser?.avatar}
                     name={currentUser?.username || "You"}
                     size="sm"
+                    userId={currentUser?.id}
                   />
                 </div>
                 <textarea

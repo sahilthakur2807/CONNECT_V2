@@ -48,7 +48,7 @@ export function WorldChatPage() {
   const { user: currentUser } = useAuth();
   
   const { useRoomsQuery, createRoomMutation } = useRooms();
-  const { data: rooms = [], isLoading: roomsLoading } = useRoomsQuery({ limit: 100 });
+  const { data: rooms = [], isLoading: roomsLoading } = useRoomsQuery({ limit: 100, includeWorldChat: true });
 
   const [worldChatRoomId, setWorldChatRoomId] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -350,6 +350,7 @@ export function WorldChatPage() {
                   src={currentUser?.avatar}
                   name={currentUser?.username || "You"}
                   size="sm"
+                  userId={currentUser?.id}
                 />
               </div>
 

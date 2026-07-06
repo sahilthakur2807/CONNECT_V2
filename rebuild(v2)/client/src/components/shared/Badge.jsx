@@ -10,10 +10,17 @@ import {
   Award,
   Clock,
   MessageSquare,
+  Flame,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 
 const configs = {
+  hot: {
+    label: "Hot",
+    icon: <Flame size={12} />,
+    className:
+      "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800",
+  },
   verified: {
     label: "Verified",
     icon: <ShieldCheck size={12} />,

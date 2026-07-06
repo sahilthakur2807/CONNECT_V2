@@ -1,6 +1,7 @@
 import { activityFeedRepository } from "../../infrastructure/repository/ActivityFeedRepository.js";
 import { analyticsRepository } from "../../infrastructure/repository/AnalyticsRepository.js";
 import { ForbiddenError } from "../../../../shared/errors/AppError.js";
+import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 
 // --- Queries ---
 
@@ -45,21 +46,126 @@ export class GetPlatformMetricsQuery {
 
 export class GetUserActivityFeedHandler {
   async execute(query) {
-    return activityFeedRepository.findUserFeed(
-      query.userId,
-      query.limit,
-      query.cursor,
-    );
+    // 1. Fetch non-message activities
+    const items = await prisma.activityFeedItem.findMany({
+      where: {
+        userId: query.userId,
+        type: { not: "message.posted" }
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, name: true, avatar: true },
+        },
+        community: { select: { id: true, name: true } },
+        room: { select: { id: true, title: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: query.limit
+    });
+
+    // 2. Fetch top 5 takes with reactions
+    const topTakes = await prisma.message.findMany({
+      where: {
+        userId: query.userId,
+        deleted: false,
+        reactions: {
+          some: {} // has at least one reaction
+        }
+      },
+      include: {
+        reactions: true,
+        room: { select: { id: true, title: true } },
+        user: { select: { id: true, username: true, name: true, avatar: true } }
+      },
+      orderBy: {
+        reactions: {
+          _count: "desc"
+        }
+      },
+      take: 5
+    });
+
+    // Map top takes to feed items structure
+    const topTakeFeedItems = topTakes.map(msg => ({
+      id: msg.id,
+      type: "top.take",
+      userId: msg.userId,
+      user: msg.user,
+      roomId: msg.roomId,
+      room: msg.room,
+      metadata: JSON.stringify({ messageId: msg.id, reactionCount: msg.reactions.length }),
+      createdAt: msg.createdAt,
+      description: `Shared a top take in room "${msg.room?.title || 'Unknown'}": "${msg.content.length > 80 ? msg.content.substring(0, 80) + '...' : msg.content}" (${msg.reactions.length} reactions)`
+    }));
+
+    // 3. Format other activities
+    const mappedItems = items.map(item => {
+      let description = "";
+      switch (item.type) {
+        case "user.registered":
+          description = "Registered a new account.";
+          break;
+        case "community.created":
+          description = `Created community "${item.community?.name || 'Unknown'}".`;
+          break;
+        case "community.joined":
+          description = `Joined community "${item.community?.name || 'Unknown'}".`;
+          break;
+        case "room.created":
+          description = `Created room "${item.room?.title || 'Unknown'}".`;
+          break;
+        case "room.joined":
+          description = `Joined room "${item.room?.title || 'Unknown'}".`;
+          break;
+        case "friend.accepted":
+          description = "Became friends with a citizen.";
+          break;
+        default:
+          description = `Performed action: ${item.type}`;
+      }
+      return {
+        ...item,
+        description
+      };
+    });
+
+    // 4. Combine and sort
+    const combined = [...mappedItems, ...topTakeFeedItems];
+    combined.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return combined.slice(0, query.limit);
   }
 }
 
 export class GetCommunityActivityFeedHandler {
   async execute(query) {
-    return activityFeedRepository.findCommunityFeed(
+    const items = await activityFeedRepository.findCommunityFeed(
       query.communityId,
       query.limit,
       query.cursor,
     );
+    return items.map(item => {
+      let description = "";
+      switch (item.type) {
+        case "community.created":
+          description = `Community "${item.community?.name || 'Unknown'}" was created.`;
+          break;
+        case "community.joined":
+          description = `@${item.user?.username || 'user'} joined the community.`;
+          break;
+        case "room.created":
+          description = `Room "${item.room?.title || 'Unknown'}" was created.`;
+          break;
+        case "message.posted":
+          description = `@${item.user?.username || 'user'} posted a take in room "${item.room?.title || 'Unknown'}".`;
+          break;
+        default:
+          description = `Action: ${item.type}`;
+      }
+      return {
+        ...item,
+        description
+      };
+    });
   }
 }
 

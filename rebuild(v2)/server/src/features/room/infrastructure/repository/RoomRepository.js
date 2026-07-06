@@ -30,7 +30,41 @@ export class RoomRepository extends BaseRepository {
     };
   }
 
-  mapRoom(room, userId) {
+  async getGlobalBadgesInfo(tx) {
+    const delegate = this.getDelegate(tx);
+    const N = 5;
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+    const newRooms = await delegate.findMany({
+      where: { deleted: false, createdAt: { gte: twoDaysAgo }, title: { not: "World Chat" } },
+      orderBy: { createdAt: "desc" },
+      take: N,
+      select: { id: true }
+    });
+
+    const trendingRooms = await delegate.findMany({
+      where: { deleted: false, createdAt: { gte: twoDaysAgo }, title: { not: "World Chat" } },
+      orderBy: { members: { _count: "desc" } },
+      take: N,
+      select: { id: true }
+    });
+
+    const hotRooms = await delegate.findMany({
+      where: { deleted: false, title: { not: "World Chat" } },
+      orderBy: { messages: { _count: "desc" } },
+      take: N,
+      select: { id: true }
+    });
+
+    return {
+      newIds: new Set(newRooms.map(r => r.id)),
+      trendingIds: new Set(trendingRooms.map(r => r.id)),
+      hotIds: new Set(hotRooms.map(r => r.id))
+    };
+  }
+
+  mapRoom(room, userId, badgeInfo = null) {
     if (!room) return null;
     const members = Array.isArray(room.members) ? room.members : [];
     const membership = userId ? members.find((m) => m.userId === userId) : null;
@@ -38,11 +72,18 @@ export class RoomRepository extends BaseRepository {
     const isPending = membership ? membership.status === "pending" : false;
     const activeNow = members.filter((m) => m.user?.status === "online").length;
 
+    const isNew = badgeInfo ? badgeInfo.newIds.has(room.id) : (room.isNew ?? false);
+    const trending = badgeInfo ? badgeInfo.trendingIds.has(room.id) : (room.trending ?? false);
+    const isHot = badgeInfo ? badgeInfo.hotIds.has(room.id) : false;
+
     return {
       ...room,
       isJoined,
       isPending,
       activeNow,
+      isNew,
+      trending,
+      isHot,
     };
   }
 
@@ -55,10 +96,12 @@ export class RoomRepository extends BaseRepository {
     page = 1,
     limit = 20,
     userId,
+    includeWorldChat = false,
     tx,
   ) {
     const delegate = this.getDelegate(tx);
     const skip = (page - 1) * limit;
+    const badgeInfo = await this.getGlobalBadgesInfo(tx);
 
     const where = {
       deleted: false,
@@ -67,6 +110,9 @@ export class RoomRepository extends BaseRepository {
         ...(userId ? [{ createdById: userId }] : []),
       ],
     };
+    if (!includeWorldChat) {
+      where.title = { not: "World Chat" };
+    }
     if (communityId) where.communityId = communityId;
     if (category) where.category = { equals: category, mode: "insensitive" };
 
@@ -88,7 +134,7 @@ export class RoomRepository extends BaseRepository {
       },
     });
 
-    return rooms.map((room) => this.mapRoom(room, userId));
+    return rooms.map((room) => this.mapRoom(room, userId, badgeInfo));
   }
 
   /**
@@ -96,9 +142,11 @@ export class RoomRepository extends BaseRepository {
    */
   async findTrending(limit = 20, userId, tx) {
     const delegate = this.getDelegate(tx);
+    const badgeInfo = await this.getGlobalBadgesInfo(tx);
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
+        title: { not: "World Chat" },
         OR: [
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
@@ -118,7 +166,7 @@ export class RoomRepository extends BaseRepository {
       take: limit,
     });
 
-    return rooms.map((room) => this.mapRoom(room, userId));
+    return rooms.map((room) => this.mapRoom(room, userId, badgeInfo));
   }
 
   /**
@@ -126,9 +174,11 @@ export class RoomRepository extends BaseRepository {
    */
   async findHot(limit = 20, userId, tx) {
     const delegate = this.getDelegate(tx);
+    const badgeInfo = await this.getGlobalBadgesInfo(tx);
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
+        title: { not: "World Chat" },
         OR: [
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
@@ -148,16 +198,18 @@ export class RoomRepository extends BaseRepository {
       take: limit,
     });
 
-    return rooms.map((room) => this.mapRoom(room, userId));
+    return rooms.map((room) => this.mapRoom(room, userId, badgeInfo));
   }
 
   /**
    * Retrieves newest rooms.
    */
   async findNewest(limit = 20, userId, tx) {
+    const badgeInfo = await this.getGlobalBadgesInfo(tx);
     const rooms = await this.getDelegate(tx).findMany({
       where: {
         deleted: false,
+        title: { not: "World Chat" },
         OR: [
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
@@ -175,7 +227,7 @@ export class RoomRepository extends BaseRepository {
       take: limit,
     });
 
-    return rooms.map((room) => this.mapRoom(room, userId));
+    return rooms.map((room) => this.mapRoom(room, userId, badgeInfo));
   }
 
   /**
@@ -183,6 +235,7 @@ export class RoomRepository extends BaseRepository {
    */
   async findRoomById(id, userId, tx) {
     const delegate = this.getDelegate(tx);
+    const badgeInfo = await this.getGlobalBadgesInfo(tx);
     const room = await delegate.findFirst({
       where: { id, deleted: false },
       include: {
@@ -196,7 +249,7 @@ export class RoomRepository extends BaseRepository {
       },
     });
 
-    return this.mapRoom(room, userId);
+    return this.mapRoom(room, userId, badgeInfo);
   }
 
   /**
