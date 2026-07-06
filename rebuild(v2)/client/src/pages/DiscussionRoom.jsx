@@ -735,7 +735,7 @@ export function DiscussionRoom() {
                     {isJoined && (
                       <DropdownMenuItem
                         onClick={handleJoinLeaveRoom}
-                        className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-medium"
+                        className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-medium"
                       >
                         <LogOut size={12} /> Leave Room
                       </DropdownMenuItem>
@@ -773,7 +773,7 @@ export function DiscussionRoom() {
 
                         <DropdownMenuItem
                           onClick={handleDeleteRoom}
-                          className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-bold"
+                          className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-bold"
                         >
                           <Trash2 size={12} /> Delete Room
                         </DropdownMenuItem>

@@ -14,7 +14,17 @@ import {
   UserX,
   Edit2,
   Check,
-  Palette
+  Palette,
+  UserCheck,
+  Layers,
+  Users,
+  MessageCircle,
+  UserPlus,
+  Sparkles,
+  Clock,
+  Quote,
+  ArrowRight,
+  BookOpen
 } from "lucide-react";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
@@ -47,6 +57,104 @@ const BANNER_PRESETS = [
   { name: "Sleek Obsidian", value: "bg-gradient-to-r from-zinc-800 to-zinc-950" },
   { name: "Golden Consensus", value: "bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600" }
 ];
+
+function getCitizenRank(reputation = 0) {
+  if (reputation >= 500) {
+    return {
+      title: "Archon of Consensus",
+      color: "text-red-500 border-red-500/20 bg-red-500/5",
+      desc: "A pillar of the community, shaping the consensus of the entire network."
+    };
+  }
+  if (reputation >= 200) {
+    return {
+      title: "Grandmaster Counsel",
+      color: "text-amber-500 border-amber-500/20 bg-amber-500/5",
+      desc: "A highly esteemed orator and advisor with massive community respect."
+    };
+  }
+  if (reputation >= 100) {
+    return {
+      title: "Master Advocate",
+      color: "text-violet-500 border-violet-500/20 bg-violet-500/5",
+      desc: "A trusted voice who consistently drives productive debates."
+    };
+  }
+  if (reputation >= 50) {
+    return {
+      title: "Catalyst Orator",
+      color: "text-blue-500 border-blue-500/20 bg-blue-500/5",
+      desc: "Initiates critical discussions and inspires citizen responses."
+    };
+  }
+  if (reputation >= 20) {
+    return {
+      title: "Active Debater",
+      color: "text-emerald-500 border-emerald-500/20 bg-emerald-500/5",
+      desc: "Contributes regularly with meaningful insights and takes."
+    };
+  }
+  return {
+    title: "Novice Citizen",
+    color: "text-muted-foreground border-border/40 bg-muted/40",
+    desc: "A new voice beginning their journey in the consensus space."
+  };
+}
+
+function parseTopTake(item) {
+  if (item.type !== "top.take") return null;
+  const match = item.description.match(/Shared a top take in room "([^"]+)": "([\s\S]+)" \((\d+) reactions\)/);
+  if (match) {
+    return {
+      roomTitle: match[1],
+      content: match[2],
+      reactions: parseInt(match[3])
+    };
+  }
+  return {
+    roomTitle: item.room?.title || "Unknown Room",
+    content: item.description,
+    reactions: 0
+  };
+}
+
+const MILESTONE_STYLES = {
+  "user.registered": {
+    icon: UserCheck,
+    color: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+    label: "Registration Complete",
+  },
+  "community.created": {
+    icon: Layers,
+    color: "bg-purple-500/10 text-purple-500 border-purple-500/20",
+    label: "Community Spawned",
+  },
+  "community.joined": {
+    icon: Users,
+    color: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20",
+    label: "Community Joined",
+  },
+  "room.created": {
+    icon: MessageSquare,
+    color: "bg-pink-500/10 text-pink-500 border-pink-500/20",
+    label: "Oratory Chamber Opened",
+  },
+  "room.joined": {
+    icon: MessageCircle,
+    color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
+    label: "Entered Chamber",
+  },
+  "friend.accepted": {
+    icon: UserPlus,
+    color: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+    label: "Consensus Ally",
+  },
+  default: {
+    icon: Activity,
+    color: "bg-muted text-muted-foreground border-border/40",
+    label: "Network Action",
+  },
+};
 
 export function UserProfile() {
   const { id } = useParams();
@@ -324,6 +432,23 @@ export function UserProfile() {
     );
   }
 
+  // Derive dossier metrics
+  const topTakeItems = activityFeed.filter((item) => item.type === "top.take");
+  const parsedSpotlight = topTakeItems.length > 0 ? parseTopTake(topTakeItems[0]) : null;
+  const nonTakeMilestones = activityFeed.filter((item) => item.type !== "top.take");
+  
+  const rankInfo = getCitizenRank(profileUser.reputation || 0);
+
+  const networkIndex =
+    (stats?.roomsJoined || 0) * 3 +
+    (stats?.communitiesJoined || 0) * 5 +
+    (stats?.friends || 0) * 2;
+
+  const dailyRate =
+    stats?.accountAgeDays > 0
+      ? (stats.messagesSent / stats.accountAgeDays).toFixed(2)
+      : stats?.messagesSent || 0;
+
   return (
     <div className="w-full space-y-8 pb-10 font-sans">
       <Card className="overflow-hidden border-border/50 rounded-[40px] shadow-sm bg-card animate-in fade-in duration-500">
@@ -422,7 +547,7 @@ export function UserProfile() {
                         setEditBanner(profileUser.banner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800");
                         setIsEditModalOpen(true);
                       }}
-                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted text-foreground flex items-center gap-2"
+                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted hover:text-foreground text-foreground flex items-center gap-2"
                     >
                       <Edit2 size={16} /> Edit Profile Details
                     </DropdownMenuItem>
@@ -430,7 +555,7 @@ export function UserProfile() {
                       onClick={() => {
                         document.getElementById("avatar-file-input").click();
                       }}
-                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted text-foreground flex items-center gap-2"
+                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted hover:text-foreground text-foreground flex items-center gap-2"
                     >
                       <Zap size={16} /> Change Profile Photo
                     </DropdownMenuItem>
@@ -439,7 +564,7 @@ export function UserProfile() {
                         setEditBanner(profileUser.banner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800");
                         setIsBannerModalOpen(true);
                       }}
-                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted text-foreground flex items-center gap-2"
+                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted hover:text-foreground text-foreground flex items-center gap-2"
                     >
                       <Palette size={16} /> Change Banner Color
                     </DropdownMenuItem>
@@ -449,7 +574,7 @@ export function UserProfile() {
                         fetchBlockedUsers();
                         setIsBlockedModalOpen(true);
                       }}
-                      className="rounded-xl px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10 flex items-center gap-2"
+                      className="rounded-xl px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive flex items-center gap-2"
                     >
                       <UserX size={16} /> Blocked Citizens
                     </DropdownMenuItem>
@@ -614,39 +739,137 @@ export function UserProfile() {
             </TabsList>
           </div>
 
-          <TabsContent value="activity" className="space-y-4">
-            {activityFeed.length > 0 ? (
-              activityFeed.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-8 bg-card border border-border/50 rounded-[32px] hover:border-primary/20 transition-all group flex items-start gap-6 animate-in fade-in"
-                >
-                  <div className="w-12 h-12 bg-muted rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors text-muted-foreground group-hover:text-primary">
-                    <Activity size={20} />
+          <TabsContent value="activity">
+            <div className="space-y-8 animate-in fade-in duration-300">
+              {/* Top: Spotlight/Pledge Section (Full Width) */}
+              {parsedSpotlight ? (
+                <Card className="border-border/50 rounded-[32px] bg-gradient-to-br from-card to-primary/5 shadow-md overflow-hidden relative group p-8 space-y-6">
+                  <div className="absolute right-6 top-6 text-primary/10 group-hover:text-primary/20 transition-colors pointer-events-none">
+                    <Quote size={80} strokeWidth={1} />
                   </div>
-                  <div className="space-y-2 flex-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="font-bold text-foreground capitalize">
-                        {item.type.replace(/\./g, " ")}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(item.createdAt).toLocaleDateString([], {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      {item.description}
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 bg-primary/10 rounded-xl text-primary">
+                      <Sparkles size={16} />
+                    </span>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary font-mono">
+                      Top Oratory Take
                     </p>
                   </div>
+                  <blockquote className="text-lg font-serif font-bold text-foreground leading-relaxed italic relative z-10">
+                    "{parsedSpotlight.content}"
+                  </blockquote>
+                  <div className="flex items-center justify-between border-t border-border/40 pt-4 text-xs text-muted-foreground font-medium z-10 relative">
+                    <div className="flex items-center gap-1">
+                      <span>Argued in</span>
+                      <span className="font-bold text-foreground">"{parsedSpotlight.roomTitle}"</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-600 rounded-full font-bold">
+                      <Star size={12} className="fill-current" />
+                      <span>{parsedSpotlight.reactions} Reactions</span>
+                    </div>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="border-border/50 rounded-[32px] bg-gradient-to-br from-card to-blue-500/5 shadow-sm p-8 space-y-6 relative overflow-hidden group">
+                  <div className="absolute right-6 top-6 text-blue-500/10 pointer-events-none">
+                    <BookOpen size={80} strokeWidth={1} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 bg-blue-500/10 rounded-xl text-blue-500">
+                      <UserCheck size={16} />
+                    </span>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-500 font-mono">
+                      Citizen Oath & Identity
+                    </p>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed italic font-serif">
+                    "I commit to seeking consensus, participating in thoughtful arguments, and respecting the diverse voices of this network."
+                  </p>
+                  <div className="border-t border-border/40 pt-4 flex items-center justify-between text-xs text-muted-foreground font-medium">
+                    <span>Consensus Index</span>
+                    <span className="font-bold text-blue-500">Active Network Participant</span>
+                  </div>
+                </Card>
+              )}
+
+              {/* Bottom: Insights & Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+                {/* Rank Card */}
+                <Card className={cn(
+                  "border rounded-3xl p-6 flex flex-col justify-between space-y-4 shadow-sm transition-all hover:shadow-md md:col-span-1",
+                  rankInfo.color
+                )}>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Award size={16} />
+                      <p className="text-[10px] font-black uppercase tracking-widest font-mono opacity-85">
+                        Consensus Rank
+                      </p>
+                    </div>
+                    <h5 className="text-2xl font-black tracking-tight font-serif">
+                      {rankInfo.title}
+                    </h5>
+                  </div>
+                  <p className="text-xs leading-relaxed opacity-90 font-medium pt-2">
+                    {rankInfo.desc}
+                  </p>
+                </Card>
+
+                {/* Analytics Grid */}
+                <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Network Index */}
+                  <Card className="border-border/50 rounded-2xl p-5 bg-card hover:border-indigo-500/20 transition-all flex flex-col justify-between space-y-4">
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest font-mono">
+                      Network Index
+                    </p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-foreground">
+                        {networkIndex}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium font-mono">points</span>
+                    </div>
+                  </Card>
+
+                  {/* Oratory Rate */}
+                  <Card className="border-border/50 rounded-2xl p-5 bg-card hover:border-pink-500/20 transition-all flex flex-col justify-between space-y-4">
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest font-mono">
+                      Daily Oratory Rate
+                    </p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-foreground">
+                        {dailyRate}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium font-mono">posts / day</span>
+                    </div>
+                  </Card>
+
+                  {/* Account Synergy */}
+                  <Card className="border-border/50 rounded-2xl p-5 bg-card hover:border-blue-500/20 transition-all flex flex-col justify-between space-y-4">
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest font-mono">
+                      Account Synergy
+                    </p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xl font-black text-foreground">
+                        {stats?.accountAgeDays === 0 ? "Joined Today" : `${stats?.accountAgeDays || 0} Days Active`}
+                      </span>
+                    </div>
+                  </Card>
+
+                  {/* Connections */}
+                  <Card className="border-border/50 rounded-2xl p-5 bg-card hover:border-emerald-500/20 transition-all flex flex-col justify-between space-y-4">
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest font-mono">
+                      Allies Reached
+                    </p>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-2xl font-black text-foreground">
+                        {stats?.friends || 0}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-medium font-mono">citizens</span>
+                    </div>
+                  </Card>
                 </div>
-              ))
-            ) : (
-              <div className="py-20 text-center text-muted-foreground font-medium italic bg-card rounded-[40px] border border-border/50">
-                No activity logs recorded.
               </div>
-            )}
+            </div>
           </TabsContent>
 
           <TabsContent
