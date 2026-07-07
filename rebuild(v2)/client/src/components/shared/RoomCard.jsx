@@ -1,4 +1,4 @@
-import { Users, MessageSquare, Activity, Lock } from "lucide-react";
+import { UsersIcon, ChatBubbleLeftRightIcon, BoltIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import { Badge } from "./Badge";
 import { cn } from "@/utils/cn";
 import {
@@ -117,7 +117,7 @@ export function RoomCard({
           })()}
           {room.isPrivate && (
             <span className="text-[10px] font-bold text-amber-600 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/20 px-2 py-0.5 rounded border border-amber-200/50 flex items-center gap-1">
-              <Lock size={10} /> Private
+              <LockClosedIcon className="w-2.5 h-2.5" /> Private
             </span>
           )}
           {room.archived && (
@@ -137,11 +137,11 @@ export function RoomCard({
       <CardContent className="p-4 pt-1 flex-1">
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <Users size={14} className="text-muted-foreground/70" />
+            <UsersIcon className="w-3.5 h-3.5 text-muted-foreground/70" />
             {memberCount.toLocaleString()}
           </span>
           <span className="flex items-center gap-1.5">
-            <MessageSquare size={14} className="text-muted-foreground/70" />
+            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-muted-foreground/70" />
             {messageCount.toLocaleString()}
           </span>
         </div>
@@ -159,7 +159,7 @@ export function RoomCard({
             </>
           ) : (
             <>
-              <Activity size={14} className="opacity-40" />
+              <BoltIcon className="w-3.5 h-3.5 opacity-40" />
               <span className="text-muted-foreground">0 in room now</span>
             </>
           )}

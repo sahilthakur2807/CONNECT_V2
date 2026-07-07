@@ -6,13 +6,13 @@ import {
   useLocation,
 } from "react-router-dom";
 import {
-  Home,
-  Compass,
-  MessageSquare,
-  Bell,
-  User as UserIcon,
-  Hash,
-} from "lucide-react";
+  HomeIcon,
+  GlobeAltIcon,
+  ChatBubbleLeftRightIcon,
+  BellIcon,
+  UserCircleIcon,
+  HashtagIcon,
+} from "@heroicons/react/24/outline";
 import { Navbar } from "./Navbar";
 import { useAppSelector, useAppDispatch } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
@@ -34,15 +34,15 @@ const CATEGORIES = [
 ];
 
 const sideNavLinks = [
-  { to: "/home", icon: <Home size={18} />, label: "Home" },
-  { to: "/discover", icon: <Compass size={18} />, label: "Discover" },
+  { to: "/home", icon: <HomeIcon className="w-[18px] h-[18px]" />, label: "Home" },
+  { to: "/discover", icon: <GlobeAltIcon className="w-[18px] h-[18px]" />, label: "Discover" },
   {
     to: "/discussions",
-    icon: <MessageSquare size={18} />,
+    icon: <ChatBubbleLeftRightIcon className="w-[18px] h-[18px]" />,
     label: "Discussions",
   },
-  { to: "/notifications", icon: <Bell size={18} />, label: "Notifications" },
-  { to: "/profile", icon: <UserIcon size={18} />, label: "Profile" },
+  { to: "/notifications", icon: <BellIcon className="w-[18px] h-[18px]" />, label: "Notifications" },
+  { to: "/profile", icon: <UserCircleIcon className="w-[18px] h-[18px]" />, label: "Profile" },
 ];
 
 function LeftSidebar() {
@@ -118,9 +118,8 @@ function LeftSidebar() {
                         : "text-muted-foreground hover:text-foreground hover:bg-secondary"
                     }`}
                   >
-                    <Hash
-                      size={14}
-                      className={isActiveCategory ? "text-primary shrink-0" : "text-muted-foreground/50 shrink-0"}
+                    <HashtagIcon
+                      className={cn("w-3.5 h-3.5 shrink-0", isActiveCategory ? "text-primary" : "text-muted-foreground/50")}
                     />
                     {cat}
                   </Link>

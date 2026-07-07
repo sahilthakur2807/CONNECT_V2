@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDownIcon, CheckIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/utils/cn";
 
 const SelectContext = React.createContext({});
@@ -47,7 +47,7 @@ export function SelectTrigger({ placeholder, className, ...props }) {
       {...props}
     >
       <span className="truncate">{value || placeholder}</span>
-      <ChevronDown
+      <ChevronDownIcon
         className={cn(
           "h-4 w-4 opacity-50 transition-transform duration-200 shrink-0 ml-2",
           open && "rotate-180"
@@ -95,7 +95,7 @@ export function SelectItem({ value, children, className, ...props }) {
     >
       {isSelected && (
         <span className="absolute left-2.5 flex h-3.5 w-3.5 items-center justify-center">
-          <Check className="h-4 w-4 text-primary" />
+          <CheckIcon className="h-4 w-4 text-primary" />
         </span>
       )}
       <span className="truncate">{children}</span>

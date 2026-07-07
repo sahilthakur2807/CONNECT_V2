@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
-  Bell,
-  Search,
-  Menu,
-  LogOut,
-  User as UserIcon,
-  Settings,
-  Shield,
-  Home,
-  Sun,
-  Moon,
-  X,
-} from "lucide-react";
+  BellIcon,
+  MagnifyingGlassIcon,
+  Bars3Icon,
+  ArrowRightOnRectangleIcon,
+  UserCircleIcon,
+  Cog6ToothIcon,
+  ShieldCheckIcon,
+  HomeIcon,
+  SunIcon,
+  MoonIcon,
+  XMarkIcon,
+  ChevronDownIcon,
+} from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -140,10 +141,9 @@ export function Navbar() {
               searchFocused && "max-w-xl",
             )}
           >
-            <Search
-              size={18}
+            <MagnifyingGlassIcon
               className={cn(
-                "absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 pointer-events-none z-10",
+                "w-[18px] h-[18px] absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 pointer-events-none z-10",
                 searchFocused ? "text-primary" : "text-muted-foreground/50",
               )}
               aria-hidden="true"
@@ -176,7 +176,7 @@ export function Navbar() {
                   className="relative h-10 w-10 rounded-xl hover:bg-secondary transition-colors flex items-center justify-center cursor-pointer"
                   aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
                 >
-                  <Bell size={20} className="text-muted-foreground" />
+                  <BellIcon className="w-5 h-5 text-muted-foreground" />
                   {unreadCount > 0 && (
                     <span
                       className="absolute top-2 right-2 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-card"
@@ -282,9 +282,9 @@ export function Navbar() {
               className="h-10 w-10 rounded-xl hover:bg-secondary transition-colors cursor-pointer"
             >
               {theme === "dark" ? (
-                <Sun className="text-muted-foreground" />
+                <SunIcon className="w-[18px] h-[18px] text-muted-foreground" />
               ) : (
-                <Moon className="text-muted-foreground" />
+                <MoonIcon className="w-[18px] h-[18px] text-muted-foreground" />
               )}
             </Button>
 
@@ -309,21 +309,10 @@ export function Navbar() {
                       {user.role}
                     </span>
                   </div>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="lucide lucide-chevron-down hidden lg:block text-muted-foreground/50 transition-transform duration-200"
+                  <ChevronDownIcon
+                    className="w-3.5 h-3.5 hidden lg:block text-muted-foreground/50 transition-transform duration-200"
                     aria-hidden="true"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-64 p-2 rounded-2xl shadow-2xl border-border/50">
@@ -363,11 +352,11 @@ export function Navbar() {
                 <DropdownMenuItem
                   onClick={() => navigate(`/profile/${user.id}`)}
                 >
-                  <UserIcon size={16} className="text-muted-foreground" />
+                  <UserCircleIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Your Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/notifications")}>
-                  <Bell size={16} className="text-muted-foreground" />
+                  <BellIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Notifications</span>
                   {unreadCount > 0 && (
                     <span className="ml-auto text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -382,7 +371,7 @@ export function Navbar() {
                     onClick={() => navigate("/moderator")}
                     className="text-purple-600 dark:text-purple-400"
                   >
-                    <Shield size={16} />
+                    <ShieldCheckIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Moderator Panel</span>
                   </DropdownMenuItem>
                 )}
@@ -391,13 +380,13 @@ export function Navbar() {
                     onClick={() => navigate("/admin")}
                     className="text-blue-600 dark:text-blue-400"
                   >
-                    <Settings size={16} />
+                    <Cog6ToothIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Admin Settings</span>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/home")}>
-                  <Home size={16} className="text-muted-foreground" />
+                  <HomeIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Home</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -406,7 +395,7 @@ export function Navbar() {
                   }}
                   className="text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-950/30"
                 >
-                  <LogOut size={16} />
+                  <ArrowRightOnRectangleIcon className="w-4 h-4" />
                   <span className="font-medium text-sm">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -419,7 +408,7 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(true)}
               className="md:hidden rounded-xl h-10 w-10 cursor-pointer"
             >
-              <Menu size={20} />
+              <Bars3Icon className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -444,14 +433,13 @@ export function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="h-10 w-10 rounded-xl cursor-pointer"
               >
-                <X size={20} />
+                <XMarkIcon className="w-5 h-5" />
               </Button>
             </div>
             <div className="px-6 py-4 space-y-6">
               <div className="relative">
-                <Search
-                  size={18}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                <MagnifyingGlassIcon
+                  className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
                   placeholder="Search..."
@@ -514,7 +502,7 @@ export function Navbar() {
                   logout();
                 }}
               >
-                <LogOut size={18} /> Sign Out
+                <ArrowRightOnRectangleIcon className="w-[18px] h-[18px]" /> Sign Out
               </Button>
             </div>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Move, ZoomIn, ZoomOut, Check, X } from "lucide-react";
+import { ArrowsPointingOutIcon, MagnifyingGlassMinusIcon, MagnifyingGlassPlusIcon, CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/Button";
 
 export function ImageCropper({
@@ -208,7 +208,7 @@ export function ImageCropper({
   return (
     <div className="space-y-4">
       <div className="text-xs font-black uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-        <Move size={12} />
+        <ArrowsPointingOutIcon className="w-3 h-3" />
         <span>Drag & scale to adjust banner crop area</span>
       </div>
 
@@ -250,7 +250,7 @@ export function ImageCropper({
 
       {/* Zoom Control Slider */}
       <div className="flex items-center gap-3 bg-secondary/30 p-2.5 rounded-xl border border-border/40">
-        <ZoomOut size={14} className="text-muted-foreground" />
+        <MagnifyingGlassMinusIcon className="w-3.5 h-3.5 text-muted-foreground" />
         <input
           type="range"
           min="1"
@@ -260,7 +260,7 @@ export function ImageCropper({
           onChange={(e) => setZoom(parseFloat(e.target.value))}
           className="flex-1 accent-primary cursor-pointer h-1 rounded-lg"
         />
-        <ZoomIn size={14} className="text-muted-foreground" />
+        <MagnifyingGlassPlusIcon className="w-3.5 h-3.5 text-muted-foreground" />
         <span className="text-[10px] font-mono font-bold text-muted-foreground w-8 text-right">
           {Math.round(zoom * 100)}%
         </span>
@@ -275,7 +275,7 @@ export function ImageCropper({
           onClick={onCancel}
           className="rounded-xl text-xs font-bold h-9 cursor-pointer"
         >
-          <X size={13} className="mr-1" />
+          <XMarkIcon className="w-3 h-3 mr-1" />
           Cancel
         </Button>
         <Button
@@ -284,7 +284,7 @@ export function ImageCropper({
           onClick={handleCrop}
           className="rounded-xl text-xs font-bold h-9 px-4 cursor-pointer"
         >
-          <Check size={13} className="mr-1" />
+          <CheckIcon className="w-3 h-3 mr-1" />
           Apply Crop
         </Button>
       </div>

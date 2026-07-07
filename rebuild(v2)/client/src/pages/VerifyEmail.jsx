@@ -2,12 +2,11 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { motion } from "motion/react";
 import {
-  ShieldCheck,
-  ShieldAlert,
-  Loader2,
-  ArrowRight,
-  MailCheck,
-} from "lucide-react";
+  ShieldCheckIcon,
+  ShieldExclamationIcon,
+  ArrowPathIcon,
+  ArrowRightIcon,
+} from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { apiClient } from "@/services/apiClient";
@@ -82,7 +81,7 @@ export function VerifyEmail() {
                 className="space-y-6 w-full"
               >
                 <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center relative mx-auto">
-                  <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                  <ArrowPathIcon className="h-10 w-10 text-primary animate-spin" />
                   <motion.div
                     animate={{ scale: [1, 1.2, 1] }}
                     transition={{ repeat: Infinity, duration: 2 }}
@@ -107,7 +106,7 @@ export function VerifyEmail() {
                 className="space-y-6 w-full"
               >
                 <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto text-emerald-500">
-                  <ShieldCheck className="h-10 w-10" />
+                  <ShieldCheckIcon className="h-10 w-10" />
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-xl font-serif font-black text-foreground">Verification Successful</h3>
@@ -121,7 +120,7 @@ export function VerifyEmail() {
                     onClick={() => navigate("/home")}
                     className="w-full rounded-2xl h-12 font-bold uppercase text-xs tracking-wider gap-2 shadow-lg shadow-primary/20 cursor-pointer"
                   >
-                    Enter Platform <ArrowRight size={14} />
+                    Enter Platform <ArrowRightIcon className="w-3.5 h-3.5" />
                   </Button>
                 </div>
               </motion.div>
@@ -136,7 +135,7 @@ export function VerifyEmail() {
                 className="space-y-6 w-full"
               >
                 <div className="w-20 h-20 bg-destructive/10 rounded-full flex items-center justify-center mx-auto text-destructive">
-                  <ShieldAlert className="h-10 w-10" />
+                  <ShieldExclamationIcon className="h-10 w-10" />
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-xl font-serif font-black text-foreground">Attestation Failed</h3>

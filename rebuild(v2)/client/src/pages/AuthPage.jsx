@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Eye,
-  EyeOff,
-  ArrowLeft,
-  AlertCircle,
-  CheckCircle2,
-} from "lucide-react";
+  EyeIcon,
+  EyeSlashIcon,
+  ArrowLeftIcon,
+  ExclamationCircleIcon,
+  CheckCircleIcon,
+} from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -202,9 +202,8 @@ export function AuthPage() {
             <Card className="border-green-100 bg-green-50/50 dark:bg-green-950/10 dark:border-green-900/30 overflow-hidden rounded-xl">
               <CardContent className="p-8 text-center">
                 <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <CheckCircle2
-                    className="text-green-600 dark:text-green-400"
-                    size={32}
+                  <CheckCircleIcon
+                    className="w-8 h-8 text-green-600 dark:text-green-400"
                   />
                 </div>
                 <h2 className="text-xl font-bold text-foreground mb-2">
@@ -224,7 +223,7 @@ export function AuthPage() {
                     setForgotSent(false);
                   }}
                 >
-                  <ArrowLeft size={16} className="mr-2" /> Back to Sign In
+                  <ArrowLeftIcon className="w-4 h-4 mr-2" /> Back to Sign In
                 </Button>
               </CardContent>
             </Card>
@@ -232,7 +231,7 @@ export function AuthPage() {
             <div className="space-y-5">
               {error && (
                 <div className="flex gap-2 items-start p-3 bg-destructive/10 text-destructive border border-destructive/20 rounded-xl text-sm font-medium animate-in fade-in">
-                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  <ExclamationCircleIcon className="w-4 h-4 mt-0.5 shrink-0" />
                   <div>
                     <p className="font-bold">Error</p>
                     <p className="opacity-90">{error}</p>
@@ -332,9 +331,9 @@ export function AuthPage() {
                         className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       >
                         {showPassword ? (
-                          <EyeOff size={16} />
+                          <EyeSlashIcon className="w-4 h-4" />
                         ) : (
-                          <Eye size={16} />
+                          <EyeIcon className="w-4 h-4" />
                         )}
                       </button>
                     </div>

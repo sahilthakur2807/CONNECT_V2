@@ -1,39 +1,35 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
-  MessageSquare,
-  Award,
-  Star,
-  Zap,
-  Activity,
-  Calendar,
-  ShieldAlert,
-  MoreVertical,
-  Shield,
-  X,
-  UserX,
-  Edit2,
-  Check,
-  Palette,
-  UserCheck,
-  Layers,
-  Users,
-  MessageCircle,
-  UserPlus,
-  Clock,
-  Quote,
-  ArrowRight,
-  BookOpen,
-  Settings,
-  Pause,
-  Play,
-  Trash2,
-  Camera,
-  ChevronRight,
-  Sparkles,
-  TrendingUp,
-  Network,
-} from "lucide-react";
+  ChatBubbleLeftRightIcon,
+  TrophyIcon,
+  StarIcon,
+  BoltIcon,
+  CalendarIcon,
+  ShieldExclamationIcon,
+  EllipsisVerticalIcon,
+  ShieldCheckIcon,
+  XMarkIcon,
+  UserMinusIcon,
+  PencilSquareIcon,
+  CheckIcon,
+  PaintBrushIcon,
+  UserIcon,
+  Squares2X2Icon,
+  UsersIcon,
+  UserPlusIcon,
+  ClockIcon,
+  ChatBubbleBottomCenterTextIcon,
+  ArrowRightIcon,
+  BookOpenIcon,
+  Cog6ToothIcon,
+  PauseIcon,
+  PlayIcon,
+  TrashIcon,
+  CameraIcon,
+  ChevronRightIcon,
+  SparklesIcon,
+} from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 
@@ -95,13 +91,13 @@ function parseTopTake(item) {
 }
 
 const MILESTONE_CONFIG = {
-  "user.registered": { icon: UserCheck, color: "#3b82f6", label: "Joined the network" },
-  "community.created": { icon: Layers, color: "#8b5cf6", label: "Founded a community" },
-  "community.joined": { icon: Users, color: "#6366f1", label: "Joined a community" },
-  "room.created": { icon: MessageSquare, color: "#ec4899", label: "Opened a chamber" },
-  "room.joined": { icon: MessageCircle, color: "#10b981", label: "Entered a chamber" },
-  "friend.accepted": { icon: UserPlus, color: "#f59e0b", label: "Gained an ally" },
-  default: { icon: Activity, color: "#94a3b8", label: "Network activity" },
+  "user.registered": { icon: UserIcon, color: "#3b82f6", label: "Joined the network" },
+  "community.created": { icon: Squares2X2Icon, color: "#8b5cf6", label: "Founded a community" },
+  "community.joined": { icon: UsersIcon, color: "#6366f1", label: "Joined a community" },
+  "room.created": { icon: ChatBubbleLeftRightIcon, color: "#ec4899", label: "Opened a chamber" },
+  "room.joined": { icon: ChatBubbleLeftRightIcon, color: "#10b981", label: "Entered a chamber" },
+  "friend.accepted": { icon: UserPlusIcon, color: "#f59e0b", label: "Gained an ally" },
+  default: { icon: BoltIcon, color: "#94a3b8", label: "Network activity" },
 };
 
 /* ─── Tiny reusable pieces ───────────────────────────────────── */
@@ -334,7 +330,7 @@ function Modal({ open, onClose, title, icon: Icon, children, maxWidth = "max-w-m
       >
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2.5">
-            {Icon && <Icon size={17} className="text-primary" />}
+            {Icon && <Icon className="w-[17px] h-[17px] text-primary" />}
             <h3 style={{ fontFamily: "'DM Serif Display', serif" }} className="text-xl text-foreground">
               {title}
             </h3>
@@ -343,7 +339,7 @@ function Modal({ open, onClose, title, icon: Icon, children, maxWidth = "max-w-m
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
           >
-            <X size={16} />
+            <XMarkIcon className="w-4 h-4" />
           </button>
         </div>
         {children}
@@ -534,7 +530,7 @@ export function UserProfile() {
   if (fetchError) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-5 text-center max-w-sm mx-auto">
-        <ShieldAlert size={40} className="text-destructive" />
+        <ShieldExclamationIcon className="w-10 h-10 text-destructive" />
         <div>
           <h3 className="text-xl font-semibold text-foreground mb-1" style={{ fontFamily: "'DM Serif Display', serif" }}>
             Access Restricted
@@ -610,7 +606,7 @@ export function UserProfile() {
               onClick={() => { setEditBanner(profileUser.banner || ""); setModal("banner"); }}
               className="absolute bottom-3 right-4 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/25 hover:bg-black/40 backdrop-blur-sm border border-white/15 text-white text-xs font-medium transition-all"
             >
-              <Palette size={12} /> Change banner
+              <PaintBrushIcon className="w-3 h-3" /> Change banner
             </button>
           )}
         </div>
@@ -638,7 +634,7 @@ export function UserProfile() {
                     onClick={() => document.getElementById("avatar-upload").click()}
                     className="absolute inset-0 rounded-full flex items-center justify-center bg-black/0 group-hover:bg-black/45 transition-all duration-200"
                   >
-                    <Camera size={18} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <CameraIcon className="w-[18px] h-[18px] text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                   </button>
                   <input id="avatar-upload" type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
                 </>
@@ -677,7 +673,7 @@ export function UserProfile() {
                       )}
                       <Button onClick={handleBlockUser} variant="outline"
                         className="h-9 px-4 rounded-xl text-sm font-medium border-border/50 text-muted-foreground hover:text-destructive hover:border-destructive/30">
-                        <ShieldAlert size={14} />
+                        <ShieldExclamationIcon className="w-3.5 h-3.5" />
                       </Button>
                     </>
                   )}
@@ -689,31 +685,31 @@ export function UserProfile() {
                     variant="outline"
                     className="h-9 px-5 rounded-xl text-sm font-medium border-border/60"
                   >
-                    <Edit2 size={14} className="mr-2" /> Edit profile
+                    <PencilSquareIcon className="w-3.5 h-3.5 mr-2" /> Edit profile
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="outline-hidden" size="icon" className="h-8 w-7 border-border/60 cursor-pointer">
-                        <MoreVertical size={15} />
+                        <EllipsisVerticalIcon className="w-3.5 h-3.5" />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52 bg-card border border-border rounded-2xl p-1.5 shadow-xl z-50">
                       <DropdownMenuItem onClick={() => document.getElementById("avatar-upload").click()}
                         className="rounded-xl px-3 py-2 text-sm cursor-pointer flex items-center gap-2.5">
-                        <Camera size={14} className="text-muted-foreground" /> Change photo
+                        <CameraIcon className="w-3.5 h-3.5 text-muted-foreground" /> Change photo
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setEditBanner(profileUser.banner || ""); setModal("banner"); }}
                         className="rounded-xl px-3 py-2 text-sm cursor-pointer flex items-center gap-2.5">
-                        <Palette size={14} className="text-muted-foreground" /> Change banner
+                        <PaintBrushIcon className="w-3.5 h-3.5 text-muted-foreground" /> Change banner
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setModal("settings")}
                         className="rounded-xl px-3 py-2 text-sm cursor-pointer flex items-center gap-2.5">
-                        <Settings size={14} className="text-muted-foreground" /> Account settings
+                        <Cog6ToothIcon className="w-3.5 h-3.5 text-muted-foreground" /> Account settings
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-1 border-border/40" />
                       <DropdownMenuItem onClick={() => { fetchBlockedUsers(); setModal("blocked"); }}
                         className="rounded-xl px-3 py-2 text-sm cursor-pointer flex items-center gap-2.5 text-destructive focus:text-destructive">
-                        <UserX size={14} /> Blocked citizens
+                        <UserMinusIcon className="w-3.5 h-3.5" /> Blocked citizens
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -735,7 +731,7 @@ export function UserProfile() {
                 {profileUser.verified && <Badge variant="verified" size="sm" />}
                 {profileUser.isPaused && (
                   <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                    <Pause size={11} /> Paused
+                    <PauseIcon className="w-2.5 h-2.5" /> Paused
                   </span>
                 )}
               </div>
@@ -762,14 +758,14 @@ export function UserProfile() {
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
               {joinedDate && (
                 <span className="flex items-center gap-1.5">
-                  <Calendar size={14} /> Joined {joinedDate}
+                  <CalendarIcon className="w-3.5 h-3.5" /> Joined {joinedDate}
                 </span>
               )}
               <span className="flex items-center gap-1.5">
-                <Users size={14} /> {stats?.friends || 0} allies
+                <UsersIcon className="w-3.5 h-3.5" /> {stats?.friends || 0} allies
               </span>
               <span className="flex items-center gap-1.5">
-                <Layers size={14} /> {stats?.communitiesJoined || 0} communities
+                <Squares2X2Icon className="w-3.5 h-3.5" /> {stats?.communitiesJoined || 0} communities
               </span>
             </div>
           </div>
@@ -850,7 +846,7 @@ export function UserProfile() {
                       className="w-10 h-10 rounded-xl flex items-center justify-center"
                       style={{ background: `${rank.accent}18`, color: rank.accent }}
                     >
-                      <Award size={18} />
+                      <TrophyIcon className="w-[18px] h-[18px]" />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -901,10 +897,10 @@ export function UserProfile() {
                 {spotlight ? (
                   <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3 relative overflow-hidden">
                     <div className="absolute -bottom-3 -right-3 text-muted-foreground/6 pointer-events-none">
-                      <Quote size={72} strokeWidth={1} />
+                      <ChatBubbleBottomCenterTextIcon className="w-[72px] h-[72px] stroke-[1]" />
                     </div>
                     <div className="flex items-center gap-2">
-                      <Sparkles size={13} className="text-amber-500" />
+                      <SparklesIcon className="w-3 h-3 text-amber-500" />
                       <Label>Top take</Label>
                     </div>
                     <p className="text-sm text-foreground leading-relaxed font-light italic relative z-10 line-clamp-5"
@@ -915,17 +911,17 @@ export function UserProfile() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
                       <span className="truncate max-w-[65%]">in "{spotlight.roomTitle}"</span>
                       <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                        <Star size={11} className="fill-current" /> {spotlight.reactions}
+                        <StarIcon className="w-2.5 h-2.5 fill-current" /> {spotlight.reactions}
                       </span>
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3 relative overflow-hidden">
                     <div className="absolute -bottom-3 -right-3 text-muted-foreground/6 pointer-events-none">
-                      <BookOpen size={72} strokeWidth={1} />
+                      <BookOpenIcon className="w-[72px] h-[72px] stroke-[1]" />
                     </div>
                     <div className="flex items-center gap-2">
-                      <UserCheck size={13} className="text-primary" />
+                      <UserIcon className="w-3 h-3 text-primary" />
                       <Label>Citizen oath</Label>
                     </div>
                     <p className="text-sm text-foreground/70 leading-relaxed font-light italic"
@@ -970,7 +966,7 @@ export function UserProfile() {
                     className="group rounded-2xl border border-border/50 bg-card p-6 flex items-start gap-4 hover:border-primary/25 hover:shadow-sm transition-all"
                   >
                     <div className="w-10 h-10 rounded-xl bg-primary/8 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
-                      <Award size={18} />
+                      <TrophyIcon className="w-[18px] h-[18px]" />
                     </div>
                     <div className="space-y-1 min-w-0">
                       <h4 className="text-sm font-semibold text-foreground">{badge}</h4>
@@ -983,7 +979,7 @@ export function UserProfile() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-2xl border border-border/40 bg-card/50 text-center">
-                <Award size={32} className="text-muted-foreground/30" />
+                <TrophyIcon className="w-8 h-8 text-muted-foreground/30" />
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">No honours earned yet</p>
                   <p className="text-xs text-muted-foreground/60 mt-1 font-light">Keep contributing to earn your first.</p>
@@ -1021,15 +1017,15 @@ export function UserProfile() {
                             {room.title}
                           </h4>
                         </div>
-                        <ChevronRight size={14} className="text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
+                        <ChevronRightIcon className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
                       </div>
                       <p className="text-xs text-muted-foreground font-light line-clamp-2 leading-relaxed">
                         {room.description}
                       </p>
                       <Divider />
                       <div className="flex gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Users size={11} /> {room._count?.members || 0} members</span>
-                        <span className="flex items-center gap-1"><MessageSquare size={11} /> {room._count?.messages || 0} takes</span>
+                        <span className="flex items-center gap-1"><UsersIcon className="w-3 h-3" /> {room._count?.members || 0} members</span>
+                        <span className="flex items-center gap-1"><ChatBubbleLeftRightIcon className="w-3 h-3" /> {room._count?.messages || 0} takes</span>
                       </div>
                     </div>
                   ))}
@@ -1044,7 +1040,7 @@ export function UserProfile() {
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-2xl border border-border/40 bg-card/50 text-center">
-                <MessageSquare size={32} className="text-muted-foreground/30" />
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-muted-foreground/30" />
                 <p className="text-sm font-medium text-muted-foreground">No rooms owned yet.</p>
               </div>
             )}
@@ -1058,7 +1054,7 @@ export function UserProfile() {
       ══════════════════════════════════════════ */}
 
       {/* Edit Profile */}
-      <Modal open={modal === "edit"} onClose={() => setModal(null)} title="Edit profile" icon={Edit2}>
+      <Modal open={modal === "edit"} onClose={() => setModal(null)} title="Edit profile" icon={PencilSquareIcon}>
         <form onSubmit={handleUpdateProfile} className="space-y-5">
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground">Display name</label>
@@ -1085,7 +1081,7 @@ export function UserProfile() {
                     editBanner === p.value ? "border-primary scale-105" : "border-transparent opacity-60 hover:opacity-90")}>
                   {editBanner === p.value && (
                     <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
-                      <Check size={12} />
+                      <CheckIcon className="w-3 h-3" />
                     </span>
                   )}
                 </button>
@@ -1100,7 +1096,7 @@ export function UserProfile() {
       </Modal>
 
       {/* Change Banner */}
-      <Modal open={modal === "banner"} onClose={() => setModal(null)} title="Change banner" icon={Palette}>
+      <Modal open={modal === "banner"} onClose={() => setModal(null)} title="Change banner" icon={PaintBrushIcon}>
         <div className="space-y-5">
           <div className={cn("h-20 w-full rounded-2xl transition-all duration-200",
             (() => { const b = editBanner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800"; return b.startsWith("bg-") ? b : `bg-gradient-to-r ${b}`; })()
@@ -1111,7 +1107,7 @@ export function UserProfile() {
                 className={cn("h-9 rounded-xl relative overflow-hidden transition-all border-2", p.value,
                   editBanner === p.value ? "border-primary scale-105" : "border-transparent opacity-60 hover:opacity-90")}>
                 {editBanner === p.value && (
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white"><Check size={12} /></span>
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white"><CheckIcon className="w-3 h-3" /></span>
                 )}
               </button>
             ))}
@@ -1123,8 +1119,8 @@ export function UserProfile() {
         </div>
       </Modal>
 
-      {/* Blocked Users */}
-      <Modal open={modal === "blocked"} onClose={() => setModal(null)} title="Blocked citizens" icon={Shield}>
+      {/* Blocked Citizens */}
+      <Modal open={modal === "blocked"} onClose={() => setModal(null)} title="Blocked citizens" icon={ShieldCheckIcon}>
         <div className="space-y-4">
           <div className="space-y-2 max-h-72 overflow-y-auto scrollbar-none">
             {isLoadingBlocked ? (
@@ -1154,7 +1150,7 @@ export function UserProfile() {
       </Modal>
 
       {/* Account Settings */}
-      <Modal open={modal === "settings"} onClose={() => setModal(null)} title="Account settings" icon={Settings}>
+      <Modal open={modal === "settings"} onClose={() => setModal(null)} title="Account settings" icon={Cog6ToothIcon}>
         <div className="space-y-4">
           {/* Pause */}
           <div className="p-4 rounded-xl bg-muted/40 border border-border/30 flex items-center justify-between gap-4">
@@ -1166,7 +1162,7 @@ export function UserProfile() {
             </div>
             <Button onClick={handleTogglePause} variant={profileUser.isPaused ? "default" : "outline"}
               className="rounded-xl h-9 px-4 text-xs font-medium shrink-0">
-              {profileUser.isPaused ? <><Play size={12} className="mr-1.5" />Resume</> : <><Pause size={12} className="mr-1.5" />Pause</>}
+              {profileUser.isPaused ? <><PlayIcon className="w-3 h-3 mr-1.5" />Resume</> : <><PauseIcon className="w-3 h-3 mr-1.5" />Pause</>}
             </Button>
           </div>
 
@@ -1199,7 +1195,7 @@ export function UserProfile() {
             <p className="text-xs text-muted-foreground font-light">Permanently remove your account and data.</p>
             <Button onClick={() => { setDeleteMode(null); setModal("delete"); }}
               className="w-full rounded-xl h-9 text-xs bg-destructive hover:bg-destructive/90 text-white">
-              <Trash2 size={13} className="mr-2" /> Delete account
+              <TrashIcon className="w-3.5 h-3.5 mr-2" /> Delete account
             </Button>
           </div>
           <Button variant="outline" className="w-full rounded-xl h-9 text-sm" onClick={() => setModal(null)}>Close</Button>
@@ -1207,7 +1203,7 @@ export function UserProfile() {
       </Modal>
 
       {/* Delete Confirm */}
-      <Modal open={modal === "delete"} onClose={() => setModal(null)} title="Delete account" icon={Trash2}>
+      <Modal open={modal === "delete"} onClose={() => setModal(null)} title="Delete account" icon={TrashIcon}>
         {!deleteMode ? (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground font-light leading-relaxed">

@@ -1,13 +1,14 @@
 import { useRef, useMemo } from "react";
 import { useNavigate } from "react-router";
 import {
-  MessageSquare,
-  Flame,
-  Sparkles,
-  Activity,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+  ChatBubbleLeftRightIcon,
+  FireIcon,
+  SparklesIcon,
+  ArrowPathIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  BoltIcon,
+} from "@heroicons/react/24/outline";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/shared/Avatar";
@@ -83,7 +84,7 @@ export function DiscussionsDashboard() {
   if (loading) {
     return (
       <div className="py-24 text-center">
-        <Activity className="animate-spin mx-auto text-primary" size={32} />
+        <ArrowPathIcon className="animate-spin mx-auto text-primary w-8 h-8" />
         <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
           Loading discussions...
         </p>
@@ -105,7 +106,7 @@ export function DiscussionsDashboard() {
           <div key={cat} className="space-y-6 animate-in fade-in duration-300">
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} className="text-primary animate-pulse" />
+                <SparklesIcon className="w-[18px] h-[18px] text-primary animate-pulse" />
                 <h2
                   className="text-xl md:text-2xl font-black text-foreground"
                   style={{ fontFamily: "'Playfair Display', serif" }}
@@ -124,7 +125,7 @@ export function DiscussionsDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Left"
                 >
-                  <ChevronLeft size={16} />
+                   <ChevronLeftIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() =>
@@ -136,7 +137,7 @@ export function DiscussionsDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Right"
                 >
-                  <ChevronRight size={16} />
+                   <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -160,7 +161,7 @@ export function DiscussionsDashboard() {
                           {room.category}
                         </span>
                         <div className="flex items-center gap-1.5 text-primary">
-                          <Activity size={12} className="animate-pulse" />
+                          <BoltIcon className="w-3 h-3 animate-pulse" />
                           <span className="text-[10px] font-black uppercase tracking-widest">
                             Live
                           </span>
@@ -175,7 +176,7 @@ export function DiscussionsDashboard() {
                     </div>
                     <div className="mt-8 flex items-center justify-between border-t border-border pt-4">
                       <div className="flex items-center gap-2 text-muted-foreground">
-                        <MessageSquare size={14} />
+                        <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
                         <span className="text-xs font-bold">
                           {room._count?.messages || 0} messages
                         </span>
@@ -232,7 +233,7 @@ export function DiscussionsDashboard() {
       {/* Masonry Takes Section */}
       <div className="space-y-6">
         <div className="flex items-center gap-2 px-2">
-          <Flame size={20} className="text-primary" />
+          <FireIcon className="w-5 h-5 text-primary" />
           <h2
             className="text-2xl font-black text-foreground"
             style={{ fontFamily: "'Playfair Display', serif" }}
@@ -274,16 +275,15 @@ export function DiscussionsDashboard() {
 
                 <div className="flex items-center justify-between pt-2 border-t border-border/40">
                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full border border-border/50 text-xs">
-                    <MessageSquare
-                      size={12}
-                      className="text-muted-foreground"
+                    <ChatBubbleLeftRightIcon
+                      className="w-3 h-3 text-muted-foreground"
                     />
                     <span className="font-bold text-foreground">
                       View Thread
                     </span>
                   </div>
                   <div className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View <ChevronRight size={12} />
+                    View <ChevronRightIcon className="w-3 h-3" />
                   </div>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Search, TrendingUp, Flame, Sparkles, Loader2 } from "lucide-react";
+import { MagnifyingGlassIcon, ArrowTrendingUpIcon, FireIcon, SparklesIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -196,9 +196,8 @@ export function RoomDiscovery() {
             Find the conversations that matter to you.
           </h2>
           <div className="relative ">
-            <Search
-              size={18}
-              className="absolute left-5 top-1/2 -translate-y-1/2 text-[#888880]/30 dark:text-foreground/30 pointer-events-none"
+            <MagnifyingGlassIcon
+              className="w-[18px] h-[18px] absolute left-5 top-1/2 -translate-y-1/2 text-[#888880]/30 dark:text-foreground/30 pointer-events-none"
             />
             <Input 
               placeholder="Search for topics, keywords, or communities..."
@@ -340,7 +339,7 @@ export function RoomDiscovery() {
                     : "text-muted-foreground hover:text-foreground font-semibold border-transparent"
                 )}
               >
-                <TrendingUp size={16} />
+                <ArrowTrendingUpIcon className="w-4 h-4" />
                 <span>Trending Feed</span>
               </button>
 
@@ -353,7 +352,7 @@ export function RoomDiscovery() {
                     : "text-muted-foreground hover:text-foreground font-semibold border-transparent"
                 )}
               >
-                <Flame size={16} />
+                <FireIcon className="w-4 h-4" />
                 <span>Hot Debates</span>
               </button>
 
@@ -366,7 +365,7 @@ export function RoomDiscovery() {
                     : "text-muted-foreground hover:text-foreground font-semibold border-transparent"
                 )}
               >
-                <Sparkles size={16} />
+                <SparklesIcon className="w-4 h-4" />
                 <span>Newly Created</span>
               </button>
             </div>
@@ -374,9 +373,8 @@ export function RoomDiscovery() {
 
           {isLoading ? (
             <div className="py-24 text-center">
-              <Loader2
-                className="animate-spin mx-auto text-primary"
-                size={32}
+              <ArrowPathIcon
+                className="animate-spin mx-auto text-primary w-8 h-8"
               />
               <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
                 Searching...

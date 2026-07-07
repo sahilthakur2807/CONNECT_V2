@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getSocket } from "@/services/socketService";
 import {
-  Flag,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
+  FlagIcon,
+  EllipsisHorizontalIcon,
+  PencilSquareIcon,
+  TrashIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
 import { Avatar } from "./Avatar";
 import { useEditMessageMutation, useDeleteMessageMutation } from "@/hooks/useMessages";
 import { useModeration } from "@/hooks/useModeration";
@@ -389,12 +389,12 @@ export function MessageCard({
               >
                 {isCollapsed ? (
                   <>
-                    <ChevronRight size={12} />
+                    <ChevronRightIcon className="w-3 h-3" />
                     Show ({message.replies.length})
                   </>
                 ) : (
                   <>
-                    <ChevronDown size={12} />
+                    <ChevronDownIcon className="w-3 h-3" />
                     Collapse
                   </>
                 )}
@@ -473,7 +473,7 @@ export function MessageCard({
           <DropdownMenu>
             <DropdownMenuTrigger>
               <button className="flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer">
-                <MoreHorizontal size={12} />
+                <EllipsisHorizontalIcon className="w-3 h-3" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-40 rounded-xl p-1 shadow-xl border-border/50 bg-card">
@@ -483,13 +483,13 @@ export function MessageCard({
                     onClick={() => setIsEditing(true)}
                     className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-foreground bg-transparent"
                   >
-                    <Pencil size={12} /> Edit Take
+                    <PencilSquareIcon className="w-3 h-3" /> Edit Take
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={handleDelete}
                     className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
                   >
-                    <Trash2 size={12} /> Delete Take
+                    <TrashIcon className="w-3 h-3" /> Delete Take
                   </DropdownMenuItem>
                 </>
               )}
@@ -498,7 +498,7 @@ export function MessageCard({
                   onClick={() => setReportOpen(true)}
                   className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
                 >
-                  <Flag size={12} /> Report Abuse
+                  <FlagIcon className="w-3 h-3" /> Report Abuse
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>

@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Send,
-  Activity,
-  Users,
-  Lock,
-  ChevronLeft,
-} from "lucide-react";
+  PaperAirplaneIcon,
+  ArrowPathIcon,
+  UsersIcon,
+  LockClosedIcon,
+  ChevronLeftIcon,
+  BoltIcon,
+} from "@heroicons/react/24/outline";
 import { buildMessageTree } from "@/utils/tree";
 import { Avatar } from "@/components/shared/Avatar";
 import { MessageCard } from "@/components/shared/MessageCard";
@@ -211,7 +212,7 @@ export function WorldChatPage() {
   if (loading) {
     return (
       <div className="flex-grow flex flex-col justify-center items-center h-64 bg-background">
-        <Activity className="animate-spin text-primary" size={32} />
+        <ArrowPathIcon className="animate-spin text-primary w-8 h-8" />
         <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
           Connecting to World Chat...
         </p>
@@ -225,7 +226,7 @@ export function WorldChatPage() {
       <div className="flex-grow flex flex-col justify-center items-center py-20 px-6 font-sans text-center bg-background min-h-[70vh]">
         <div className="max-w-md w-full bg-card border border-border/80 rounded-[32px] p-8 shadow-sm space-y-6 animate-in fade-in duration-300">
           <div className="w-16 h-16 bg-amber-500/10 text-amber-600 rounded-3xl flex items-center justify-center mx-auto">
-            <Lock size={28} />
+            <LockClosedIcon className="w-7 h-7" />
           </div>
           <div className="space-y-2">
             <h1
@@ -263,7 +264,7 @@ export function WorldChatPage() {
             onClick={() => navigate(-1)}
             className="rounded-full px-6 font-black uppercase text-[10px] tracking-widest cursor-pointer h-11 w-full gap-2 hover:bg-secondary"
           >
-            <ChevronLeft size={12} /> Go Back
+            <ChevronLeftIcon className="w-3 h-3" /> Go Back
           </Button>
         </div>
       </div>
@@ -305,7 +306,7 @@ export function WorldChatPage() {
               </div>
             )}
             <div className="flex items-center gap-1.5 text-green-600 text-[10px] font-black uppercase tracking-widest font-mono">
-              <Activity size={10} className="animate-pulse" />
+              <BoltIcon className="w-2.5 h-2.5 animate-pulse" />
               <span>{activeUsers.length} active</span>
             </div>
           </div>
@@ -318,7 +319,7 @@ export function WorldChatPage() {
         >
           {messageTree.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-24 text-muted-foreground text-center space-y-2.5">
-              <Users size={36} className="opacity-50" />
+              <UsersIcon className="w-9 h-9 opacity-50" />
               <p className="text-sm font-bold text-foreground/80">No statements published yet.</p>
               <p className="text-xs text-muted-foreground max-w-xs leading-relaxed">
                 Be the first to address the global square and kickstart the citizen chat!
@@ -401,7 +402,7 @@ export function WorldChatPage() {
                   className="rounded-xl h-8 w-8 cursor-pointer shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0"
                   title="Send message"
                 >
-                  <Send size={12} />
+                  <PaperAirplaneIcon className="w-3 h-3" />
                 </Button>
               </div>
             </div>

@@ -1,15 +1,15 @@
 import {
-  Bell,
-  MessageSquare,
-  AtSign,
-  TrendingUp,
-  Shield,
-  Heart,
-  CheckCircle2,
-  UserPlus,
-  UserCheck,
-  Activity,
-} from "lucide-react";
+  BellIcon,
+  ChatBubbleLeftRightIcon,
+  AtSymbolIcon,
+  ArrowTrendingUpIcon,
+  ShieldCheckIcon,
+  HeartIcon,
+  CheckCircleIcon,
+  UserPlusIcon,
+  UserIcon,
+  ArrowPathIcon,
+} from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -23,41 +23,41 @@ import { toast } from "sonner";
 
 const ICON_MAP = {
   mention: {
-    icon: <AtSign size={16} />,
+    icon: <AtSymbolIcon className="w-4 h-4" />,
     color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400",
     label: "Mention",
   },
   reply: {
-    icon: <MessageSquare size={16} />,
+    icon: <ChatBubbleLeftRightIcon className="w-4 h-4" />,
     color:
       "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400",
     label: "Reply",
   },
   reaction: {
-    icon: <Heart size={16} />,
+    icon: <HeartIcon className="w-4 h-4" />,
     color: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
     label: "Reaction",
   },
   room_update: {
-    icon: <TrendingUp size={16} />,
+    icon: <ArrowTrendingUpIcon className="w-4 h-4" />,
     color:
       "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400",
     label: "Update",
   },
   moderation: {
-    icon: <Shield size={16} />,
+    icon: <ShieldCheckIcon className="w-4 h-4" />,
     color:
       "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400",
     label: "System",
   },
   "friend.request.sent": {
-    icon: <UserPlus size={16} />,
+    icon: <UserPlusIcon className="w-4 h-4" />,
     color:
       "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400",
     label: "Friend Request",
   },
   "friend.request.accepted": {
-    icon: <UserCheck size={16} />,
+    icon: <UserIcon className="w-4 h-4" />,
     color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400",
     label: "Friend Added",
   },
@@ -147,7 +147,7 @@ export function NotificationCenter() {
       return (
         <div className="py-24 text-center space-y-6 bg-card rounded-[40px] border-2 border-dashed border-border animate-in fade-in">
           <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto text-muted-foreground">
-            <Bell size={40} />
+            <BellIcon className="w-10 h-10" />
           </div>
           <div className="space-y-2">
             <h3
@@ -309,7 +309,7 @@ export function NotificationCenter() {
   if (isLoading) {
     return (
       <div className="py-24 text-center">
-        <Activity className="animate-spin mx-auto text-primary" size={32} />
+        <ArrowPathIcon className="animate-spin mx-auto text-primary w-8 h-8" />
         <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">
           Loading alerts...
         </p>
@@ -328,7 +328,7 @@ export function NotificationCenter() {
               onClick={handleMarkAllRead}
               className="rounded-xl font-bold h-10 px-4 cursor-pointer gap-2"
             >
-              <CheckCircle2 size={16} /> Mark all read
+              <CheckCircleIcon className="w-4 h-4" /> Mark all read
             </Button>
           )
         }

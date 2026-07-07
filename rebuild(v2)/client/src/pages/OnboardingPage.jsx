@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ArrowRight, Sparkles, Hash } from "lucide-react";
+import { CheckIcon, ArrowRightIcon, SparklesIcon, HashtagIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils/cn";
 
@@ -111,7 +111,7 @@ export function OnboardingPage() {
                             : "bg-black/5 text-[#888880]"
                         )}
                       >
-                        <Hash size={16} />
+                        <HashtagIcon className="w-4 h-4" />
                       </div>
                       <span
                         className={cn(
@@ -126,7 +126,7 @@ export function OnboardingPage() {
                     </div>
                     {selectedInterests.includes(cat) && (
                       <div className="absolute top-2.5 right-2.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center text-white">
-                        <Check size={10} strokeWidth={3} />
+                        <CheckIcon className="w-2.5 h-2.5" />
                       </div>
                     )}
                   </button>
@@ -137,7 +137,7 @@ export function OnboardingPage() {
             <div className="space-y-6 text-center animate-in fade-in slide-in-from-right duration-300 flex flex-col justify-center h-full min-h-0">
               <div className="space-y-2 shrink-0">
                 <div className="w-12 h-12 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-2 shrink-0">
-                  <Sparkles size={24} />
+                  <SparklesIcon className="w-6 h-6" />
                 </div>
                 <h1
                   className="text-2xl md:text-3xl font-black text-[#0d0d0d] tracking-tight"
@@ -180,7 +180,7 @@ export function OnboardingPage() {
                           Join 1.2k participants debating now
                         </p>
                       </div>
-                      <ArrowRight size={14} className="text-[#888880] shrink-0" />
+                       <ArrowRightIcon className="w-3.5 h-3.5 text-[#888880] shrink-0" />
                     </div>
                   ))}
                 </div>
@@ -204,7 +204,7 @@ export function OnboardingPage() {
             className="rounded-full px-8 h-14 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 cursor-pointer animate-pulse"
           >
             {step === 1 ? "Continue" : "Enter Network"}{" "}
-            <ArrowRight size={16} className="ml-2" />
+            <ArrowRightIcon className="w-4 h-4 ml-2" />
           </Button>
         </div>
       </div>

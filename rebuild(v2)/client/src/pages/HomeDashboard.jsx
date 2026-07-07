@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  TrendingUp,
-  Sparkles,
-  Flame,
-  Activity,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-  Upload,
-} from "lucide-react";
+  ArrowTrendingUpIcon,
+  SparklesIcon,
+  FireIcon,
+  ArrowPathIcon,
+  XMarkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  ArrowUpTrayIcon,
+} from "@heroicons/react/24/outline";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -298,7 +298,7 @@ export function HomeDashboard() {
   if (isLoading) {
     return (
       <div className="p-20 flex flex-col justify-center items-center h-64">
-        <Activity className="animate-spin text-primary" size={32} />
+        <ArrowPathIcon className="animate-spin text-primary w-8 h-8" />
         <p className="mt-4 text-sm font-bold text-muted-foreground uppercase tracking-widest">
           Loading network...
         </p>
@@ -377,12 +377,11 @@ export function HomeDashboard() {
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground cursor-pointer"
                   >
-                    <X size={12} />
+                    <XMarkIcon className="w-3 h-3" />
                   </button>
                 ) : (
-                  <Search
-                    size={12}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
+                  <MagnifyingGlassIcon
+                    className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
                   />
                 )}
               </div>
@@ -471,7 +470,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Left"
                 >
-                  <ChevronLeft size={16} />
+                   <ChevronLeftIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() =>
@@ -483,7 +482,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Right"
                 >
-                  <ChevronRight size={16} />
+                   <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -528,7 +527,7 @@ export function HomeDashboard() {
                     className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md scale-0 group-hover:scale-100 transition-all duration-200 cursor-pointer"
                     title="Remove Friend"
                   >
-                    <X size={10} />
+                    <XMarkIcon className="w-2.5 h-2.5" />
                   </button>
                 </div>
                 <div className="min-w-0 w-full font-sans">
@@ -565,7 +564,7 @@ export function HomeDashboard() {
                   fontWeight: 900,
                 }}
               >
-                <Flame size={14} className="animate-pulse text-primary" />
+                <FireIcon className="w-3.5 h-3.5 animate-pulse text-primary" />
                 DEBATE OF THE DAY
               </div>
 
@@ -638,13 +637,13 @@ export function HomeDashboard() {
               {
                 id: "trending",
                 label: "Trending Feed",
-                icon: <TrendingUp size={16} />,
+                icon: <ArrowTrendingUpIcon className="w-4 h-4" />,
               },
-              { id: "hot", label: "Hot Debates", icon: <Flame size={16} /> },
+              { id: "hot", label: "Hot Debates", icon: <FireIcon className="w-4 h-4" /> },
               {
                 id: "new",
                 label: "Newly Created",
-                icon: <Sparkles size={16} />,
+                icon: <SparklesIcon className="w-4 h-4" />,
               },
             ].map((tab) => (
               <button
@@ -726,7 +725,7 @@ export function HomeDashboard() {
               onClick={() => setShowCreateRoom(false)}
               className="absolute top-6 right-6 text-muted-foreground hover:text-foreground cursor-pointer"
             >
-              <X size={20} />
+              <XMarkIcon className="w-5 h-5" />
             </button>
             <div className="space-y-1">
               <h2
@@ -883,7 +882,7 @@ export function HomeDashboard() {
 
                   {/* Upload Image Button */}
                   <label className="h-8 px-3 rounded-xl border border-border bg-secondary hover:bg-secondary/80 flex items-center justify-center gap-1.5 text-xs font-bold text-foreground cursor-pointer transition-colors">
-                    <Upload size={12} />
+                    <ArrowUpTrayIcon className="w-3 h-3" />
                     <span>Upload custom banner</span>
                     <input
                       type="file"
@@ -920,7 +919,7 @@ export function HomeDashboard() {
               onClick={() => setShowCreateCommunity(false)}
               className="absolute top-6 right-6 text-muted-foreground hover:text-foreground cursor-pointer"
             >
-              <X size={20} />
+              <XMarkIcon className="w-5 h-5" />
             </button>
             <div className="space-y-1">
               <h2

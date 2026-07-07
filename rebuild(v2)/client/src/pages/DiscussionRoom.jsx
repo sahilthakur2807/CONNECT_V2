@@ -1,25 +1,26 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
-  Send,
-  ChevronLeft,
-  Pin,
-  X,
-  Share2,
-  Activity,
-  Award,
-  Info,
-  Lock,
-  Unlock,
-  MoreVertical,
-  LogOut,
-  Check,
-  Trash2,
-  Archive,
-  Users,
-  Image,
-  Upload,
-} from "lucide-react";
+  PaperAirplaneIcon,
+  ChevronLeftIcon,
+  MapPinIcon,
+  XMarkIcon,
+  ShareIcon,
+  ArrowPathIcon,
+  TrophyIcon,
+  InformationCircleIcon,
+  LockClosedIcon,
+  LockOpenIcon,
+  EllipsisVerticalIcon,
+  ArrowRightOnRectangleIcon,
+  CheckIcon,
+  TrashIcon,
+  ArchiveBoxIcon,
+  UsersIcon,
+  PhotoIcon,
+  ArrowUpTrayIcon,
+  BoltIcon,
+} from "@heroicons/react/24/outline";
 
 import { Avatar } from "@/components/shared/Avatar";
 import { MessageCard } from "@/components/shared/MessageCard";
@@ -429,7 +430,7 @@ export function DiscussionRoom() {
   if (roomLoading) {
     return (
       <div className="flex-grow flex flex-col justify-center items-center h-64 bg-background">
-        <Activity className="animate-spin text-primary" size={32} />
+        <ArrowPathIcon className="animate-spin text-primary w-8 h-8" />
         <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
           Loading room details...
         </p>
@@ -455,7 +456,7 @@ export function DiscussionRoom() {
     return (
       <div className="flex-grow flex flex-col justify-center items-center h-full bg-background font-sans p-8 text-center max-w-md mx-auto space-y-6">
         <div className="h-16 w-16 bg-amber-50 dark:bg-amber-950/20 text-amber-600 rounded-full flex items-center justify-center border border-amber-200/50">
-          <Lock size={32} />
+          <LockClosedIcon className="w-8 h-8" />
         </div>
         <div className="space-y-2">
           <h2 className="text-2xl font-serif font-black tracking-tight text-foreground">
@@ -507,7 +508,7 @@ export function DiscussionRoom() {
         <div className="p-4 bg-zinc-900 text-white rounded-[20px] border border-neutral-800 space-y-3 relative overflow-hidden dark:bg-[#151515]">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
           <div className="flex items-center gap-1.5">
-            <Pin size={13} className="text-primary animate-pulse" />
+            <MapPinIcon className="w-3.5 h-3.5 text-primary animate-pulse" />
             <h4 className="text-[9px] font-black text-primary uppercase tracking-widest font-mono">
               Moderator Directive
             </h4>
@@ -557,7 +558,7 @@ export function DiscussionRoom() {
       {/* Pulse Metrics */}
       <div className="p-6 bg-secondary/35 rounded-[24px] border border-border/40 space-y-4">
         <div className="flex items-center gap-2">
-          <Info size={14} className="text-foreground/80" />
+          <InformationCircleIcon className="w-3.5 h-3.5 text-foreground/80" />
           <h3 className="text-[11px] font-black text-foreground uppercase tracking-wider font-mono">
             Discussion Pulse
           </h3>
@@ -626,14 +627,14 @@ export function DiscussionRoom() {
             onClick={() => navigate(-1)}
             className="w-full justify-start gap-2.5 rounded-xl hover:bg-secondary font-black uppercase text-[9px] tracking-widest text-muted-foreground cursor-pointer"
           >
-            <ChevronLeft size={14} /> Back
+            <ChevronLeftIcon className="w-3.5 h-3.5" /> Back
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto p-5 space-y-8">
           {isCreator && room.isPrivate && (
             <div className="space-y-4">
               <div className="flex items-center gap-1.5 px-2">
-                <Lock size={12} className="text-amber-600 animate-pulse" />
+                <LockClosedIcon className="w-3 h-3 text-amber-600 animate-pulse" />
                 <h3 className="text-muted-foreground uppercase tracking-[0.2em] text-[9px] font-black font-mono">
                   Admit Queue
                 </h3>
@@ -644,7 +645,7 @@ export function DiscussionRoom() {
 
           <div className="space-y-4">
             <div className="flex items-center gap-1.5 px-2">
-              <Activity size={12} className="text-primary" />
+              <BoltIcon className="w-3 h-3 text-primary" />
               <h3 className="text-muted-foreground uppercase tracking-[0.2em] text-[9px] font-black font-mono">
                 Recommended Discussions
               </h3>
@@ -669,13 +670,13 @@ export function DiscussionRoom() {
                   onClick={() => navigate(-1)}
                   className="xl:hidden h-8 w-8 bg-secondary rounded-lg cursor-pointer"
                 >
-                  <ChevronLeft size={16} />
+                  <ChevronLeftIcon className="w-4 h-4" />
                 </Button>
                 <span className="px-2 py-0.5 bg-secondary text-secondary-foreground text-[8px] font-black uppercase tracking-widest rounded-md font-mono">
                   {room.category}
                 </span>
                 <span className="flex items-center gap-1 text-green-500 text-[9px] font-black uppercase tracking-widest">
-                  <Activity size={10} className="animate-pulse" />{" "}
+                  <BoltIcon className="w-2.5 h-2.5 animate-pulse" />{" "}
                   {room._count?.members || 0} Members
                 </span>
               </div>
@@ -695,7 +696,7 @@ export function DiscussionRoom() {
                 className="xl:hidden flex items-center justify-center h-9 w-9 bg-secondary hover:bg-secondary/80 text-foreground rounded-full transition-colors cursor-pointer"
                 title="Room details"
               >
-                <Info size={16} />
+                <InformationCircleIcon className="w-4 h-4" />
               </button>
 
               {/* Join / Joined Button */}
@@ -706,7 +707,7 @@ export function DiscussionRoom() {
                   className="rounded-full font-bold text-xs h-9 px-4 border-green-200 text-green-600 bg-green-500/5 dark:border-green-900/30 dark:text-green-400 cursor-default"
                   disabled
                 >
-                  <Check size={12} className="mr-1.5" /> Joined
+                  <CheckIcon className="w-3 h-3 mr-1.5" /> Joined
                 </Button>
               ) : (
                 <Button
@@ -728,7 +729,7 @@ export function DiscussionRoom() {
                       size="icon"
                       className="rounded-full h-9 w-9 hover:bg-secondary cursor-pointer"
                     >
-                      <MoreVertical size={14} />
+                      <EllipsisVerticalIcon className="w-3.5 h-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-lg rounded-xl">
@@ -737,7 +738,7 @@ export function DiscussionRoom() {
                         onClick={handleJoinLeaveRoom}
                         className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-medium"
                       >
-                        <LogOut size={12} /> Leave Room
+                        <ArrowRightOnRectangleIcon className="w-3 h-3" /> Leave Room
                       </DropdownMenuItem>
                     )}
 
@@ -747,7 +748,7 @@ export function DiscussionRoom() {
                           onClick={openBannerModal}
                           className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
                         >
-                          <Image size={12} /> Update Banner
+                          <PhotoIcon className="w-3 h-3" /> Update Banner
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={handleTogglePrivacy}
@@ -755,11 +756,11 @@ export function DiscussionRoom() {
                         >
                           {room.isPrivate ? (
                             <>
-                              <Unlock size={12} /> Make Public
+                              <LockOpenIcon className="w-3 h-3" /> Make Public
                             </>
                           ) : (
                             <>
-                              <Lock size={12} /> Make Private
+                              <LockClosedIcon className="w-3 h-3" /> Make Private
                             </>
                           )}
                         </DropdownMenuItem>
@@ -768,14 +769,14 @@ export function DiscussionRoom() {
                           onClick={handleArchiveRoom}
                           className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
                         >
-                          <Archive size={12} /> {room.archived ? "Unarchive Room" : "Archive Room"}
+                          <ArchiveBoxIcon className="w-3 h-3" /> {room.archived ? "Unarchive Room" : "Archive Room"}
                         </DropdownMenuItem>
 
                         <DropdownMenuItem
                           onClick={handleDeleteRoom}
                           className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-bold"
                         >
-                          <Trash2 size={12} /> Delete Room
+                          <TrashIcon className="w-3 h-3" /> Delete Room
                         </DropdownMenuItem>
                       </>
                     )}
@@ -793,7 +794,7 @@ export function DiscussionRoom() {
                 className="rounded-full h-9 w-9 cursor-pointer hover:bg-secondary/80 transition-colors"
                 title="Share Room link"
               >
-                <Share2 size={15} />
+                <ShareIcon className="w-[15px] h-[15px]" />
               </Button>
             </div>
           </div>
@@ -808,7 +809,7 @@ export function DiscussionRoom() {
             {isCreator && room.isPrivate && (
               <div className="xl:hidden block mb-4 p-4 bg-amber-50/20 border border-amber-200/40 rounded-2xl">
                 <div className="flex items-center gap-1.5 mb-2.5">
-                  <Lock size={12} className="text-amber-600 animate-pulse" />
+                  <LockClosedIcon className="w-3 h-3 text-amber-600 animate-pulse" />
                   <h4 className="text-[10px] font-black uppercase tracking-wider text-amber-700 font-mono">
                     Admit Queue
                   </h4>
@@ -819,9 +820,8 @@ export function DiscussionRoom() {
 
             {messagesLoading ? (
               <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                <Activity
-                  className="animate-spin text-primary mb-3"
-                  size={24}
+                <ArrowPathIcon
+                  className="animate-spin text-primary mb-3 w-6 h-6"
                 />
                 <span className="text-[10px] font-black uppercase tracking-widest animate-pulse font-mono">
                   Retrieving Takes...
@@ -829,7 +829,7 @@ export function DiscussionRoom() {
               </div>
             ) : messageTree.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-2 text-muted-foreground text-center space-y-2">
-                <Users size={32} className="opacity-50" />
+                <UsersIcon className="w-8 h-8 opacity-50" />
                 <p className="text-sm font-bold text-foreground/80">No takes shared yet.</p>
                 <p className="text-xs text-muted-foreground max-w-xs">
                   Be the first to share your stance and kick off the discussion!
@@ -870,14 +870,14 @@ export function DiscussionRoom() {
             {replyingTo && (
               <div className="flex items-center justify-between px-4 py-2 bg-primary/5 rounded-xl border border-primary/10 overflow-hidden animate-in slide-in-from-bottom-2">
                 <span className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5 font-mono">
-                  <Award size={12} /> Replying to @{replyingTo.name}
+                  <TrophyIcon className="w-3 h-3" /> Replying to @{replyingTo.name}
                 </span>
                 <button
                   className="h-5 w-5 hover:bg-primary/10 rounded-full flex items-center justify-center cursor-pointer transition-colors"
                   onClick={() => setReplyingTo(null)}
                   title="Cancel reply"
                 >
-                  <X size={12} className="text-primary" />
+                  <XMarkIcon className="w-3 h-3 text-primary" />
                 </button>
               </div>
             )}
@@ -938,7 +938,7 @@ export function DiscussionRoom() {
                     className="rounded-xl h-8 w-8 cursor-pointer shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0"
                     title="Send Take"
                   >
-                    <Send size={12} />
+                    <PaperAirplaneIcon className="w-3 h-3" />
                   </Button>
                 </div>
               </div>
@@ -1043,7 +1043,7 @@ export function DiscussionRoom() {
 
                   {/* Upload Image Button */}
                   <label className="h-8 px-3 rounded-xl border border-border bg-secondary hover:bg-secondary/80 flex items-center justify-center gap-1.5 text-[10px] font-bold text-foreground cursor-pointer transition-colors">
-                    <Upload size={12} />
+                    <ArrowUpTrayIcon className="w-3 h-3" />
                     <span>Upload custom banner</span>
                     <input
                       type="file"
