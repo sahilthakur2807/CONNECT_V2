@@ -153,8 +153,8 @@ export function createRoomsRouter() {
   // 6. Create room
   router.post("/", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
-      title: z.string().min(3).max(100),
-      description: z.string().min(10).max(500),
+      title: z.string().min(10).max(100),
+      description: z.string().max(500),
       category: z.string().min(2).max(30),
       tags: z.array(z.string()).optional().default([]),
       imageUrl: z.string().optional(),
@@ -184,8 +184,8 @@ export function createRoomsRouter() {
   // 7. Update room
   router.patch("/:id", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
-      title: z.string().min(3).max(100).optional(),
-      description: z.string().min(10).max(500).optional(),
+      title: z.string().min(10).max(100).optional(),
+      description: z.string().max(500).optional(),
       category: z.string().min(2).max(30).optional(),
       tags: z.array(z.string()).optional(),
       imageUrl: z.string().optional(),

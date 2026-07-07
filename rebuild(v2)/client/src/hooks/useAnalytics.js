@@ -30,6 +30,17 @@ export const useUserFeedQuery = (userId, limit = 20, cursor) =>
     enabled: !!userId,
   });
 
+export const useUserContributionsQuery = (userId) =>
+  useQuery({
+    queryKey: ["analytics", "user", userId, "contributions"],
+    queryFn: async () => {
+      if (!userId) throw new Error("User ID required");
+      const res = await apiClient.get(`/users/${userId}/contributions`);
+      return res.data.data;
+    },
+    enabled: !!userId,
+  });
+
 export const useCommunityStatsQuery = (communityId) =>
   useQuery({
     queryKey: ["analytics", "community", communityId, "stats"],
@@ -98,6 +109,7 @@ export function useAnalytics() {
   return {
     useUserStatsQuery,
     useUserFeedQuery,
+    useUserContributionsQuery,
     useCommunityStatsQuery,
     useCommunityFeedQuery,
     useAdminMetricsQuery,

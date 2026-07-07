@@ -176,6 +176,11 @@ export function HomeDashboard() {
         .split(/[\s,]+/)
         .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
+      let normalizedSourceUrl = roomForm.sourceUrl?.trim() || undefined;
+      if (normalizedSourceUrl && !/^https?:\/\//i.test(normalizedSourceUrl)) {
+        normalizedSourceUrl = `https://${normalizedSourceUrl}`;
+      }
+
       const newRoom = await createRoomMutation.mutateAsync({
         title: roomForm.title,
         description:
@@ -183,7 +188,7 @@ export function HomeDashboard() {
           "No description provided for this room.",
         category: roomForm.category,
         tags: tagsArray,
-        sourceUrl: roomForm.sourceUrl || undefined,
+        sourceUrl: normalizedSourceUrl,
         imageUrl: finalImageUrl,
       });
       setShowCreateRoom(false);

@@ -121,12 +121,16 @@ function Label({ children, className }) {
   );
 }
 
-function StatPill({ label, value, accent }) {
+function StatPill({ label, value }) {
+  const isTextVal = typeof value === "string" && value.length > 8;
   return (
     <div className="flex flex-col gap-0.5">
       <span
-        className="text-[28px] font-bold leading-none"
-        style={{ fontFamily: "'DM Serif Display', serif", color: accent || "var(--foreground)" }}
+        className={cn(
+          "font-bold leading-none text-foreground",
+          isTextVal ? "text-lg py-1.5" : "text-[28px]"
+        )}
+        style={{ fontFamily: "'DM Serif Display', serif" }}
       >
         {typeof value === "number" ? value.toLocaleString() : value}
       </span>
@@ -134,6 +138,187 @@ function StatPill({ label, value, accent }) {
     </div>
   );
 }
+
+/* ─── Room Contribution Pie Chart ───────────────────────────── */
+
+const PIE_COLORS = [
+  "#3b82f6", // Blue
+  "#10b981", // Emerald
+  "#f59e0b", // Amber
+  "#ef4444", // Red
+  "#8b5cf6", // Violet
+  "#ec4899", // Pink
+  "#06b6d4", // Cyan
+  "#f97316", // Orange
+  "#a855f7", // Purple
+  "#14b8a6", // Teal
+];
+
+function RoomContributionPieChart({ contributions = [], isLoading }) {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, roomTitle: "", count: 0, percentage: 0 });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[350px] w-full gap-3">
+        <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <p className="text-sm text-muted-foreground font-light">Loading contributions...</p>
+      </div>
+    );
+  }
+
+  const totalCount = contributions.reduce((sum, item) => sum + item.messageCount, 0);
+
+  if (totalCount === 0 || contributions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[350px] w-full gap-4 text-center px-6">
+        <div className="w-20 h-20 rounded-full border border-dashed border-muted-foreground/30 flex items-center justify-center opacity-70">
+          <svg className="w-8 h-8 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
+          </svg>
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">No monthly contributions yet</p>
+          <p className="text-xs text-muted-foreground max-w-xs leading-relaxed font-light">
+            Send messages in rooms to see your contribution breakdown for this month.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // SVG parameters (center at 170,170 with viewport 340x340 to allow room for hover animations)
+  const cx = 170;
+  const cy = 170;
+  const radius = 160;
+
+  // Calculate slice paths
+  let currentAngle = -Math.PI / 2; // Start at 12 o'clock
+
+  const slices = contributions.map((item, idx) => {
+    const sliceAngle = (item.messageCount / totalCount) * 2 * Math.PI;
+    const endAngle = currentAngle + sliceAngle;
+
+    const x1 = cx + radius * Math.cos(currentAngle);
+    const y1 = cy + radius * Math.sin(currentAngle);
+    const x2 = cx + radius * Math.cos(endAngle);
+    const y2 = cy + radius * Math.sin(endAngle);
+
+    const largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
+    const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+
+    const prevAngle = currentAngle;
+    currentAngle = endAngle;
+
+    return {
+      pathData,
+      color: PIE_COLORS[idx % PIE_COLORS.length],
+      item,
+      idx,
+      midAngle: prevAngle + sliceAngle / 2
+    };
+  });
+
+  const handleSliceMouseEnter = (idx, slice) => {
+    setHoveredIdx(idx);
+    const midX = cx + (radius * 0.55) * Math.cos(slice.midAngle);
+    const midY = cy + (radius * 0.55) * Math.sin(slice.midAngle);
+    const pctX = (midX / 340) * 100;
+    const pctY = (midY / 340) * 100;
+    setTooltip({
+      visible: true,
+      x: pctX,
+      y: pctY,
+      roomTitle: slice.item.roomTitle,
+      count: slice.item.messageCount,
+      percentage: slice.item.percentage
+    });
+  };
+
+  const handleCircleMouseEnter = () => {
+    setHoveredIdx(0);
+    setTooltip({
+      visible: true,
+      x: 50,
+      y: 35,
+      roomTitle: contributions[0].roomTitle,
+      count: contributions[0].messageCount,
+      percentage: contributions[0].percentage
+    });
+  };
+
+  return (
+    <div className="pie-chart-container relative w-full flex items-center justify-center p-6 min-h-[350px]">
+      <div 
+        className="relative w-full max-w-[340px] aspect-square"
+        onMouseLeave={() => setTooltip(prev => ({ ...prev, visible: false }))}
+      >
+        <svg viewBox="0 0 340 340" className="w-full h-full overflow-visible">
+          {contributions.length === 1 ? (
+            <circle
+              cx={cx}
+              cy={cy}
+              r={radius}
+              fill={PIE_COLORS[0]}
+              className="transition-all duration-300 cursor-pointer origin-center hover:scale-[1.03]"
+              onMouseEnter={handleCircleMouseEnter}
+              onMouseLeave={() => setHoveredIdx(null)}
+            />
+          ) : (
+            slices.map((slice, idx) => {
+              const isHovered = hoveredIdx === idx;
+              const offsetDistance = isHovered ? 8 : 0;
+              const offsetX = offsetDistance * Math.cos(slice.midAngle);
+              const offsetY = offsetDistance * Math.sin(slice.midAngle);
+
+              return (
+                <path
+                  key={idx}
+                  d={slice.pathData}
+                  fill={slice.color}
+                  className="transition-all duration-300 ease-out cursor-pointer"
+                  style={{
+                    transform: `translate(${offsetX}px, ${offsetY}px)`,
+                    filter: isHovered ? "drop-shadow(0 4px 12px rgba(0,0,0,0.15))" : "none",
+                    opacity: hoveredIdx !== null && !isHovered ? 0.6 : 1,
+                  }}
+                  onMouseEnter={() => handleSliceMouseEnter(idx, slice)}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                />
+              );
+            })
+          )}
+        </svg>
+
+        {/* Floating Tooltip */}
+        {tooltip.visible && (
+          <div
+            className="absolute z-50 pointer-events-none bg-zinc-950/95 text-zinc-50 border border-zinc-800 rounded-xl p-3 shadow-xl backdrop-blur-md min-w-[160px] flex flex-col gap-1 transition-all duration-75 text-left"
+            style={{
+              left: `${tooltip.x}%`,
+              top: `${tooltip.y}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Room</span>
+            <span className="text-xs font-semibold text-zinc-200 line-clamp-1">{tooltip.roomTitle}</span>
+            <div className="h-px bg-zinc-800 my-1" />
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-zinc-400">Contributions</span>
+              <span className="font-bold text-zinc-200">{tooltip.count} {tooltip.count === 1 ? 'msg' : 'msgs'}</span>
+            </div>
+            <div className="flex justify-between items-center text-[11px]">
+              <span className="text-zinc-400">Percentage</span>
+              <span className="font-bold text-emerald-400">{tooltip.percentage}%</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 /* ─── Modal wrapper ─────────────────────────────────────────── */
 function Modal({ open, onClose, title, icon: Icon, children, maxWidth = "max-w-md" }) {
@@ -174,7 +359,7 @@ export function UserProfile() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user: currentUser, logout } = useAuth();
-  const { useUserStatsQuery, useUserFeedQuery } = useAnalytics();
+  const { useUserStatsQuery, useUserFeedQuery, useUserContributionsQuery } = useAnalytics();
   const {
     blockUserMutation, unblockUserMutation,
     sendFriendRequestMutation, acceptFriendRequestMutation,
@@ -211,6 +396,7 @@ export function UserProfile() {
 
   const { data: stats, isLoading: statsLoading } = useUserStatsQuery(targetId);
   const { data: activityFeed = [], isLoading: feedLoading } = useUserFeedQuery(targetId);
+  const { data: contributions = [], isLoading: contributionsLoading } = useUserContributionsQuery(targetId);
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
 
   /* ── Data fetching ── */
@@ -372,8 +558,7 @@ export function UserProfile() {
   const topTakes = activityFeed.filter(i => i.type === "top.take");
   const spotlight = topTakes.length > 0 ? parseTopTake(topTakes[0]) : null;
   const milestones = activityFeed.filter(i => i.type !== "top.take");
-  const networkIndex = (stats?.roomsJoined || 0) * 3 + (stats?.communitiesJoined || 0) * 5 + (stats?.friends || 0) * 2;
-  const dailyRate = stats?.accountAgeDays > 0 ? (stats.messagesSent / stats.accountAgeDays).toFixed(1) : (stats?.messagesSent || 0);
+  const dailyRate = stats?.accountAgeDays > 0 ? (stats.nonWorldChatMessagesSent / stats.accountAgeDays).toFixed(1) : (stats?.nonWorldChatMessagesSent || 0);
 
   const bannerClass = (() => {
     const b = profileUser.banner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800";
@@ -385,6 +570,23 @@ export function UserProfile() {
     const d = new Date(profileUser.createdAt);
     return isNaN(d) ? null : d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   })();
+
+  const joinedDateShort = (() => {
+    if (!profileUser.createdAt) return null;
+    const d = new Date(profileUser.createdAt);
+    return isNaN(d) ? null : d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  })();
+
+  const formatContributions = (val) => {
+    if (typeof val !== "number") return val;
+    if (val >= 1000000) {
+      return (val / 1000000).toFixed(1).replace(/\.0$/, "") + "M";
+    }
+    if (val >= 10000) {
+      return (val / 1000).toFixed(0) + "k";
+    }
+    return val.toLocaleString();
+  };
 
   /* ─────────────────────────────────────────────
      RENDER
@@ -491,7 +693,7 @@ export function UserProfile() {
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl border-border/60">
+                      <Button variant="outline-hidden" size="icon" className="h-8 w-7 border-border/60 cursor-pointer">
                         <MoreVertical size={15} />
                       </Button>
                     </DropdownMenuTrigger>
@@ -567,39 +769,8 @@ export function UserProfile() {
                 <Users size={14} /> {stats?.friends || 0} allies
               </span>
               <span className="flex items-center gap-1.5">
-                <MessageSquare size={14} /> {stats?.roomsJoined || 0} debates
+                <Layers size={14} /> {stats?.communitiesJoined || 0} communities
               </span>
-            </div>
-
-            {/* Rank strip */}
-            <div className="flex items-center gap-4 pt-1">
-              <div
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border text-sm font-medium"
-                style={{
-                  borderColor: `${rank.accent}40`,
-                  background: `${rank.accent}10`,
-                  color: rank.accent,
-                }}
-              >
-                <Award size={14} />
-                {rank.label}
-              </div>
-              {rank.next && (
-                <div className="flex items-center gap-3 flex-1 max-w-xs">
-                  <div className="flex-1 h-1.5 rounded-full bg-border/60 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-1000 ease-out"
-                      style={{ width: `${rank.progress}%`, background: rank.accent }}
-                    />
-                  </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                    {rank.progress}% to {rank.next.label}
-                  </span>
-                </div>
-              )}
-              {!rank.next && (
-                <span className="text-xs text-muted-foreground">Maximum rank achieved</span>
-              )}
             </div>
           </div>
         </div>
@@ -608,15 +779,16 @@ export function UserProfile() {
       {/* ══════════════════════════════════════════
           STATS ROW
       ══════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-border/40 border border-border/40 rounded-2xl overflow-hidden mt-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border/40 border border-border/40 rounded-2xl overflow-hidden mt-4">
         {[
-          { label: "Reputation", value: profileUser.reputation || 0, accent: rank.accent },
-          { label: "Contributions", value: stats?.messagesSent || 0, accent: "#3b82f6" },
-          { label: "Network index", value: networkIndex, accent: "#8b5cf6" },
-          { label: "Days active", value: stats?.accountAgeDays || 0, accent: "#10b981" },
-        ].map(({ label, value, accent }) => (
+          { label: "Reputation", value: (profileUser.reputation || 0) + " XP" },
+          { label: "Contributions", value: formatContributions(stats?.messagesSent || 0) },
+          { label: "Rooms Created", value: stats?.roomsCreated || 0 },
+          { label: "Login Streak", value: (stats?.streak || 0) + " days" },
+          { label: joinedDateShort || "N/A", value: "Member since" }
+        ].map(({ label, value }) => (
           <div key={label} className="bg-card px-6 py-5">
-            <StatPill label={label} value={value} accent={accent} />
+            <StatPill label={label} value={value} />
           </div>
         ))}
       </div>
@@ -683,7 +855,7 @@ export function UserProfile() {
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{profileUser.reputation || 0} reputation</span>
+                      <span>{profileUser.reputation || 0} XP</span>
                       {rank.next && <span>Next: {rank.next.min}</span>}
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-border/50 overflow-hidden">
@@ -712,16 +884,16 @@ export function UserProfile() {
                     >
                       {dailyRate}
                     </span>
-                    <Label>Posts / day</Label>
+                    <Label>Takes / day</Label>
                   </div>
                   <div className="pl-4 space-y-0.5">
                     <span
                       className="text-2xl font-semibold text-foreground block"
                       style={{ fontFamily: "'DM Serif Display', serif" }}
                     >
-                      {stats?.communitiesJoined || 0}
+                      {stats?.roomsJoined || 0}
                     </span>
-                    <Label>Communities</Label>
+                    <Label>Rooms Joined</Label>
                   </div>
                 </div>
 
@@ -764,55 +936,23 @@ export function UserProfile() {
                 )}
               </div>
 
-              {/* Right col — timeline */}
+              {/* Right col — Room Contributions Pie Chart */}
               <div className="lg:col-span-3">
-                <div className="rounded-2xl border border-border/50 bg-card h-full overflow-hidden">
-                  <div className="px-6 py-4 border-b border-border/40 flex items-center gap-2.5">
-                    <Activity size={15} className="text-primary" />
-                    <h4 className="text-sm font-semibold text-foreground">Activity</h4>
-                    <span className="ml-auto text-xs text-muted-foreground">{milestones.length} events</span>
+                <div className="relative h-full flex flex-col justify-center items-center min-h-[420px]">
+                  {/* Top-left label to explain the chart */}
+                  <div className="absolute top-5 left-6 flex flex-col gap-0.5 pointer-events-none">
+                    <span 
+                      className="text-[10px] font-bold tracking-[0.12em] uppercase text-muted-foreground"
+                      style={{ fontFamily: "'DM Sans', sans-serif" }}
+                    >
+                      Room Contributions
+                    </span>
+                    <span className="text-[9px] text-muted-foreground/50 tracking-wider">
+                      This Month
+                    </span>
                   </div>
 
-                  <div className="overflow-y-auto max-h-[520px] scrollbar-none">
-                    {milestones.length > 0 ? (
-                      <div className="divide-y divide-border/30">
-                        {milestones.map((item, i) => {
-                          const cfg = MILESTONE_CONFIG[item.type] || MILESTONE_CONFIG.default;
-                          const Icon = cfg.icon;
-                          const date = item.createdAt ? new Date(item.createdAt) : null;
-                          return (
-                            <div key={item.id || i} className="flex gap-4 px-6 py-4 hover:bg-muted/30 transition-colors">
-                              <div
-                                className="w-8 h-8 rounded-xl flex-shrink-0 flex items-center justify-center mt-0.5"
-                                style={{ background: `${cfg.color}12`, color: cfg.color }}
-                              >
-                                <Icon size={14} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-foreground leading-snug" style={{ color: cfg.color }}>
-                                  {cfg.label}
-                                </p>
-                                <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed font-light">
-                                  {item.description}
-                                </p>
-                                {date && (
-                                  <p className="text-xs text-muted-foreground/60 mt-1.5 flex items-center gap-1">
-                                    <Clock size={10} />
-                                    {date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="py-20 flex flex-col items-center gap-3 text-center px-6">
-                        <Activity size={28} className="text-muted-foreground/30" />
-                        <p className="text-sm text-muted-foreground font-light">No activity recorded yet.</p>
-                      </div>
-                    )}
-                  </div>
+                  <RoomContributionPieChart contributions={contributions} isLoading={contributionsLoading} />
                 </div>
               </div>
             </div>

@@ -114,6 +114,7 @@ apiClient.interceptors.response.use(
     );
     formattedError.status = error.response?.status;
     formattedError.code = serverError?.error?.code || "API_ERROR";
+    formattedError.details = serverError?.error?.details || null;
     return Promise.reject(formattedError);
   },
 );

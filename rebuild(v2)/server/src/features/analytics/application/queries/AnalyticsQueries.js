@@ -42,6 +42,12 @@ export class GetPlatformMetricsQuery {
   }
 }
 
+export class GetUserMonthlyContributionsQuery {
+  constructor(userId) {
+    this.userId = userId;
+  }
+}
+
 // --- Handlers ---
 
 export class GetUserActivityFeedHandler {
@@ -194,5 +200,48 @@ export class GetPlatformMetricsHandler {
       query.startDate,
       query.endDate,
     );
+  }
+}
+
+export class GetUserMonthlyContributionsHandler {
+  async execute(query) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+
+    const contributions = await prisma.message.groupBy({
+      by: ["roomId"],
+      where: {
+        userId: query.userId,
+        deleted: false,
+        createdAt: {
+          gte: startOfMonth,
+        },
+      },
+      _count: {
+        id: true,
+      },
+      orderBy: {
+        _count: {
+          id: "desc",
+        },
+      },
+      take: 10,
+    });
+
+    const roomIds = contributions.map((c) => c.roomId);
+    const rooms = await prisma.room.findMany({
+      where: { id: { in: roomIds } },
+      select: { id: true, title: true },
+    });
+
+    const roomMap = new Map(rooms.map((r) => [r.id, r.title]));
+    const totalMessages = contributions.reduce((sum, c) => sum + c._count.id, 0);
+
+    return contributions.map((c) => ({
+      roomId: c.roomId,
+      roomTitle: roomMap.get(c.roomId) || "Unknown Room",
+      messageCount: c._count.id,
+      percentage: totalMessages > 0 ? parseFloat(((c._count.id / totalMessages) * 100).toFixed(1)) : 0,
+    }));
   }
 }

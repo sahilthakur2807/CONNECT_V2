@@ -14,11 +14,13 @@ import {
   GetUserStatsHandler,
   GetCommunityStatsHandler,
   GetPlatformMetricsHandler,
+  GetUserMonthlyContributionsHandler,
   GetUserActivityFeedQuery,
   GetCommunityActivityFeedQuery,
   GetUserStatsQuery,
   GetCommunityStatsQuery,
   GetPlatformMetricsQuery,
+  GetUserMonthlyContributionsQuery,
 } from "../application/queries/AnalyticsQueries.js";
 
 const awardReputationHandler = new AwardReputationHandler();
@@ -27,6 +29,7 @@ const getCommunityActivityFeedHandler = new GetCommunityActivityFeedHandler();
 const getUserStatsHandler = new GetUserStatsHandler();
 const getCommunityStatsHandler = new GetCommunityStatsHandler();
 const getPlatformMetricsHandler = new GetPlatformMetricsHandler();
+const getUserMonthlyContributionsHandler = new GetUserMonthlyContributionsHandler();
 
 export function createAnalyticsRouter() {
   const router = Router();
@@ -194,6 +197,49 @@ export function createAnalyticsRouter() {
 
       const query = new GetUserStatsQuery(targetUserId);
       const result = await getUserStatsHandler.execute(query);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Get User Monthly Contributions (Room pie chart)
+  router.get("/users/:id/contributions", authenticateJWT, async (req, res, next) => {
+    try {
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
+      // Check if target user has paused their account
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { isPaused: true },
+      });
+
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+
+      if (targetUser?.isPaused && !isAdmin) {
+        return res.json({ success: true, data: [] });
+      }
+
+      const query = new GetUserMonthlyContributionsQuery(targetUserId);
+      const result = await getUserMonthlyContributionsHandler.execute(query);
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);
