@@ -14,6 +14,7 @@ import ModeratorDashboard from "@/pages/ModeratorDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import CommunitiesPage from "@/pages/CommunitiesPage";
 import WorldChatPage from "@/pages/WorldChatPage";
+import VerifyEmail from "@/pages/VerifyEmail";
 
 // Route protection wrapper for authenticated routes
 function ProtectedRoute({ children }) {
@@ -92,6 +93,7 @@ export function App() {
       {/* Public Pages */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* Standalone Protected Onboarding Flow */}
       <Route

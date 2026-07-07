@@ -24,7 +24,11 @@ import {
   Clock,
   Quote,
   ArrowRight,
-  BookOpen
+  BookOpen,
+  Settings,
+  Pause,
+  Play,
+  Trash2
 } from "lucide-react";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
@@ -160,7 +164,7 @@ export function UserProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, logout } = useAuth();
   const { useUserStatsQuery, useUserFeedQuery } = useAnalytics();
   const {
     blockUserMutation,
@@ -194,6 +198,13 @@ export function UserProfile() {
   const [editBanner, setEditBanner] = useState("");
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [isLoadingBlocked, setIsLoadingBlocked] = useState(false);
+  const [isAdditionalSettingsModalOpen, setIsAdditionalSettingsModalOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [deleteMode, setDeleteMode] = useState(null); // 'cascade' | 'anonymize'
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [isUpdatingCredentials, setIsUpdatingCredentials] = useState(false);
 
   // Fetch Stats, Activity Feed and Pending Requests
   const { data: stats, isLoading: statsLoading } = useUserStatsQuery(targetId);
@@ -222,6 +233,12 @@ export function UserProfile() {
       fetchUserProfile();
     }
   }, [targetId]);
+
+  useEffect(() => {
+    if (profileUser?.email) {
+      setNewEmail(profileUser.email);
+    }
+  }, [profileUser]);
 
   // 2. Fetch owned rooms
   useEffect(() => {
@@ -390,6 +407,75 @@ export function UserProfile() {
       toast.success("User unblocked successfully");
     } catch (err) {
       toast.error(err.message || "Failed to unblock user");
+    }
+  };
+
+  const handleTogglePause = async () => {
+    try {
+      const res = await apiClient.post("/users/pause");
+      if (res.data.success) {
+        setResolvedUser(prev => ({
+          ...prev,
+          isPaused: res.data.data.isPaused
+        }));
+        toast.success(res.data.data.isPaused ? "Account paused successfully." : "Account resumed successfully.");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to toggle pause status");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!deleteMode) return;
+    setIsDeleting(true);
+    try {
+      const res = await apiClient.post("/users/delete", { mode: deleteMode });
+      if (res.data.success) {
+        toast.success(res.data.message || "Your account has been deleted.");
+        setIsDeleteConfirmOpen(false);
+        setIsAdditionalSettingsModalOpen(false);
+        logout();
+        navigate("/");
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to delete account");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleUpdateEmail = async () => {
+    if (!newEmail) return;
+    setIsUpdatingCredentials(true);
+    try {
+      const res = await apiClient.put("/users/profile/credentials", { email: newEmail });
+      if (res.data.success) {
+        setResolvedUser(prev => ({
+          ...prev,
+          email: res.data.data.email
+        }));
+        toast.success("Email address updated successfully.");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || "Failed to update email address");
+    } finally {
+      setIsUpdatingCredentials(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPassword || newPassword.length < 8) return;
+    setIsUpdatingCredentials(true);
+    try {
+      const res = await apiClient.put("/users/profile/credentials", { password: newPassword });
+      if (res.data.success) {
+        setNewPassword("");
+        toast.success("Password updated successfully.");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || "Failed to update password");
+    } finally {
+      setIsUpdatingCredentials(false);
     }
   };
 
@@ -567,6 +653,14 @@ export function UserProfile() {
                       className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted hover:text-foreground text-foreground flex items-center gap-2"
                     >
                       <Palette size={16} /> Change Banner Color
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setIsAdditionalSettingsModalOpen(true);
+                      }}
+                      className="rounded-xl px-4 py-2 text-sm font-semibold hover:bg-muted hover:text-foreground text-foreground flex items-center gap-2"
+                    >
+                      <Settings size={16} /> Additional Settings
                     </DropdownMenuItem>
                     <DropdownMenuSeparator className="my-1 border-t border-border/40" />
                     <DropdownMenuItem
@@ -1189,6 +1283,209 @@ export function UserProfile() {
                 Save Style
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Additional Settings Modal */}
+      {isAdditionalSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border/50 rounded-[32px] w-full max-w-md p-8 space-y-6 shadow-2xl animate-in scale-in duration-200">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Settings className="text-primary" size={20} />
+                <h3 className="text-xl font-serif font-black text-foreground">Additional Settings</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full hover:bg-muted"
+                onClick={() => setIsAdditionalSettingsModalOpen(false)}
+              >
+                <X size={20} />
+              </Button>
+            </div>
+
+            {/* Pause Account Option */}
+            <div className="p-5 bg-muted/30 border border-border/30 rounded-2xl space-y-3">
+              <div className="flex justify-between items-center">
+                <div className="space-y-0.5">
+                  <h4 className="text-sm font-bold text-foreground">Pause Account</h4>
+                  <p className="text-[11px] text-muted-foreground font-medium leading-relaxed max-w-[240px]">
+                    Hides your status and activities from standard citizens. Admins will still know your account is paused.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleTogglePause}
+                  variant={profileUser.isPaused ? "default" : "outline"}
+                  className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider h-9"
+                >
+                  {profileUser.isPaused ? (
+                    <span className="flex items-center gap-1.5"><Play size={12} /> Resume</span>
+                  ) : (
+                    <span className="flex items-center gap-1.5"><Pause size={12} /> Pause</span>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Update Credentials Option */}
+            <div className="p-5 bg-muted/30 border border-border/30 rounded-2xl space-y-4 text-left">
+              <h4 className="text-sm font-bold text-foreground">Update Credentials</h4>
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Email Address</label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder="name@example.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      className="h-9 px-3 rounded-xl text-xs font-semibold flex-grow"
+                    />
+                    <Button
+                      onClick={handleUpdateEmail}
+                      disabled={isUpdatingCredentials || newEmail === profileUser.email}
+                      className="rounded-xl px-4 h-9 text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer"
+                    >
+                      Update
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">New Password</label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="Minimum 8 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="h-9 px-3 rounded-xl text-xs font-semibold flex-grow"
+                    />
+                    <Button
+                      onClick={handleUpdatePassword}
+                      disabled={isUpdatingCredentials || !newPassword || newPassword.length < 8}
+                      className="rounded-xl px-4 h-9 text-xs font-black uppercase tracking-wider shrink-0 cursor-pointer"
+                    >
+                      Change
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Delete Account Option */}
+            <div className="p-5 bg-destructive/5 border border-destructive/10 rounded-2xl space-y-3">
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-destructive">Danger Zone</h4>
+                <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
+                  Permanently delete your profile information and account data from our directory.
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setDeleteMode(null);
+                  setIsDeleteConfirmOpen(true);
+                }}
+                className="rounded-xl px-4 py-2 text-xs font-black uppercase tracking-wider bg-destructive hover:bg-destructive/90 text-white w-full h-10 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Trash2 size={14} /> Delete Account
+              </Button>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="outline"
+                className="rounded-2xl font-bold uppercase text-xs tracking-wider px-5 w-full"
+                onClick={() => setIsAdditionalSettingsModalOpen(false)}
+              >
+                Close Settings
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteConfirmOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border/50 rounded-[32px] w-full max-w-md p-8 space-y-6 shadow-2xl animate-in scale-in duration-200">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Trash2 className="text-destructive animate-pulse" size={20} />
+                <h3 className="text-xl font-serif font-black text-destructive">Confirm Deletion</h3>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full hover:bg-muted"
+                onClick={() => setIsDeleteConfirmOpen(false)}
+              >
+                <X size={20} />
+              </Button>
+            </div>
+
+            {!deleteMode ? (
+              // Step 1: Select delete option
+              <div className="space-y-4">
+                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                  Please select how you want to handle the content and rooms you have created before deleting your account:
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setDeleteMode("cascade")}
+                    className="w-full text-left p-4 bg-muted/40 border border-border/40 hover:border-destructive/30 hover:bg-destructive/5 rounded-2xl space-y-1 group transition-all"
+                  >
+                    <h4 className="text-xs font-bold text-foreground group-hover:text-destructive transition-colors">
+                      Option A: Delete everything
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground leading-normal font-medium">
+                      All rooms, messages, and communities you created will be completely deleted. This action cannot be undone.
+                    </p>
+                  </button>
+
+                  <button
+                    onClick={() => setDeleteMode("anonymize")}
+                    className="w-full text-left p-4 bg-muted/40 border border-border/40 hover:border-primary/30 hover:bg-primary/5 rounded-2xl space-y-1 group transition-all"
+                  >
+                    <h4 className="text-xs font-bold text-foreground group-hover:text-primary transition-colors">
+                      Option B: Delete profile only
+                    </h4>
+                    <p className="text-[10px] text-muted-foreground leading-normal font-medium">
+                      Your profile identity will be removed/anonymized, but the rooms and discussions you started will remain intact. A moderator will be notified to take responsibility of your rooms.
+                    </p>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              // Step 2: Final confirmation input
+              <div className="space-y-4">
+                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                  You have selected: <strong className="text-foreground">{deleteMode === "cascade" ? "Option A (Delete Everything)" : "Option B (Profile Only)"}</strong>.
+                </p>
+                <p className="text-xs font-medium text-destructive leading-relaxed">
+                  Warning: This action is permanent and your account cannot be recovered.
+                </p>
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    className="rounded-2xl font-bold uppercase text-xs tracking-wider px-5 w-1/2"
+                    onClick={() => setDeleteMode(null)}
+                  >
+                    Change Option
+                  </Button>
+                  <Button
+                    onClick={handleDeleteAccount}
+                    disabled={isDeleting}
+                    className="rounded-2xl font-bold uppercase text-xs tracking-wider px-5 w-1/2 bg-destructive hover:bg-destructive/90 text-white cursor-pointer"
+                  >
+                    {isDeleting ? "Deleting..." : "Confirm Delete"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

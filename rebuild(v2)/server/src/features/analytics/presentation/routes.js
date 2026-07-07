@@ -117,6 +117,18 @@ export function createAnalyticsRouter() {
         });
       }
 
+      // Check if target user has paused their account
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { isPaused: true },
+      });
+
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+
+      if (targetUser?.isPaused && !isAdmin) {
+        return res.json({ success: true, data: [] });
+      }
+
       const query = new GetUserActivityFeedQuery(
         targetUserId,
         parsed.limit,

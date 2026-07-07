@@ -198,7 +198,19 @@ export function createSocialRouter() {
     try {
       const query = new GetFriendsQuery(req.user.id);
       const result = await getFriendsHandler.execute(query);
-      res.json({ success: true, data: result });
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+
+      const sanitized = result.map((friend) => {
+        if (friend.isPaused && !isAdmin) {
+          return {
+            ...friend,
+            status: "offline",
+          };
+        }
+        return friend;
+      });
+
+      res.json({ success: true, data: sanitized });
     } catch (err) {
       next(err);
     }

@@ -4,6 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { prisma } from "../../../infrastructure/db/PrismaClient.js";
+import { Hash } from "../../../shared/utils/Hash.js";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
 
 // Ensure uploads directory exists at server root
@@ -99,6 +100,70 @@ export function createUserRouter() {
     }
   });
 
+  // 2b. Update credentials (email and/or password)
+  router.put("/profile/credentials", authenticateJWT, async (req, res, next) => {
+    const schema = z.object({
+      email: z.string().email().optional(),
+      password: z.string().min(8, "Password must be at least 8 characters long").optional()
+    });
+
+    try {
+      const parsed = schema.parse(req.body);
+      const userId = req.user.id;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      const updateData = {};
+
+      if (parsed.email && parsed.email !== user.email) {
+        const existing = await prisma.user.findUnique({
+          where: { email: parsed.email }
+        });
+        if (existing) {
+          return res.status(400).json({ success: false, error: "Email is already in use by another citizen" });
+        }
+        updateData.email = parsed.email;
+      }
+
+      if (parsed.password) {
+        updateData.password = await Hash.hash(parsed.password);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ success: false, error: "No changes provided" });
+      }
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          avatar: true,
+          bio: true,
+          banner: true,
+          verified: true,
+          badges: true,
+          reputation: true,
+          role: true,
+          createdAt: true
+        }
+      });
+
+      res.json({ success: true, data: updatedUser, message: "Credentials updated successfully" });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 3. Get profile details (Friendship status, block status, etc.)
   router.get("/:id", authenticateJWT, async (req, res, next) => {
     try {
@@ -120,7 +185,10 @@ export function createUserRouter() {
             badges: true,
             reputation: true,
             createdAt: true,
-            role: true
+            role: true,
+            status: true,
+            isPaused: true,
+            isDeleted: true
           }
         });
         if (!user || user.role === "banned") {
@@ -151,7 +219,10 @@ export function createUserRouter() {
           badges: true,
           reputation: true,
           createdAt: true,
-          role: true
+          role: true,
+          status: true,
+          isPaused: true,
+          isDeleted: true
         }
       });
 
@@ -208,10 +279,14 @@ export function createUserRouter() {
         }
       }
 
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const userPaused = user.isPaused;
       res.json({
         success: true,
         data: {
           ...user,
+          status: userPaused && !isAdmin ? "offline" : user.status,
+          isPaused: userPaused ? (isAdmin ? true : false) : false,
           isBlocked: !!blocksTarget,
           friendshipStatus,
           friendshipId
@@ -257,6 +332,153 @@ export function createUserRouter() {
       });
 
       res.json({ success: true, data: rooms });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 5. Toggle Pause Account
+  router.post("/pause", authenticateJWT, async (req, res, next) => {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: req.user.id },
+        select: { isPaused: true }
+      });
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      const newPausedState = !user.isPaused;
+      const updated = await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          isPaused: newPausedState,
+          status: newPausedState ? "paused" : "online"
+        },
+        select: {
+          id: true,
+          isPaused: true,
+          status: true
+        }
+      });
+
+      res.json({ success: true, data: updated });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 6. Delete Account (Cascade or Anonymize)
+  router.post("/delete", authenticateJWT, async (req, res, next) => {
+    const schema = z.object({
+      mode: z.enum(["cascade", "anonymize"])
+    });
+
+    try {
+      const parsed = schema.parse(req.body);
+      const userId = req.user.id;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      });
+
+      if (!user) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      if (parsed.mode === "cascade") {
+        await prisma.$transaction(async (tx) => {
+          // Delete all rooms created by this user
+          await tx.room.deleteMany({
+            where: { createdById: userId }
+          });
+
+          // Delete the user record
+          await tx.user.delete({
+            where: { id: userId }
+          });
+        });
+
+        res.json({ success: true, message: "Account and all created rooms deleted successfully." });
+      } else {
+        await prisma.$transaction(async (tx) => {
+          // 1. Delete friendships
+          await tx.friendship.deleteMany({
+            where: { OR: [{ userId }, { friendId: userId }] }
+          });
+
+          // 2. Delete room memberships
+          await tx.roomMember.deleteMany({
+            where: { userId }
+          });
+
+          // 3. Delete community memberships
+          await tx.communityMember.deleteMany({
+            where: { userId }
+          });
+
+          // 4. Delete blocks
+          await tx.block.deleteMany({
+            where: { OR: [{ userId }, { blockedId: userId }] }
+          });
+
+          // 5. Delete existing notifications (received by this user or triggered by this user)
+          await tx.notification.deleteMany({
+            where: { OR: [{ userId }, { triggerId: userId }] }
+          });
+
+          // 6. Delete OAuth accounts
+          await tx.oAuthAccount.deleteMany({
+            where: { userId }
+          });
+
+          // 7. Anonymize user details to release email & username
+          const anonymizedUsername = `deleted_user_${userId.substring(4)}`;
+          await tx.user.update({
+            where: { id: userId },
+            data: {
+              email: `deleted_${userId}@connect.com`,
+              username: anonymizedUsername,
+              password: "",
+              name: "Deleted Citizen",
+              avatar: null,
+              bio: "This account has been deleted.",
+              banner: "from-zinc-800 to-zinc-950",
+              badges: [],
+              reputation: 0,
+              isDeleted: true,
+              isPaused: false,
+              status: "offline"
+            }
+          });
+
+          // 8. Revoke sessions
+          await tx.session.deleteMany({
+            where: { userId }
+          });
+
+          // 9. Send notification to all moderators/admins
+          const moderators = await tx.user.findMany({
+            where: {
+              role: { in: ["moderator", "admin"] }
+            }
+          });
+
+          for (const mod of moderators) {
+            await tx.notification.create({
+              data: {
+                type: "system.user_deleted",
+                title: "User Profile Deleted",
+                body: `@${user.username} has deleted their profile. The rooms they created have been orphaned. Please review and assume responsibility.`,
+                userId: mod.id,
+                triggerId: userId,
+              }
+            });
+          }
+        });
+
+        res.json({ success: true, message: "Account profile deleted. Data preserved." });
+      }
     } catch (err) {
       next(err);
     }

@@ -357,14 +357,15 @@ export function HomeDashboard() {
               <div className="relative">
                 <Input
                   placeholder="Add friend by username..."
-                  value={friendSearchQuery}
+                  value={friendSearchInput}
                   onChange={(e) => handleFriendSearchChange(e.target.value)}
                   className="h-8 pr-8 bg-secondary/50 border-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all rounded-xl text-xs font-bold"
                 />
 
-                {friendSearchQuery ? (
+                {friendSearchInput ? (
                   <button
                     onClick={() => {
+                      setFriendSearchInput("");
                       setFriendSearchQuery("");
                       setShowSearch(false);
                       setSentFriendRequestIds([]);

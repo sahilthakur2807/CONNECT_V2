@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { apiClient } from "@/services/apiClient";
 import { toast } from "sonner";
 
 const PANEL_CONTENT = {
@@ -108,8 +109,13 @@ export function AuthPage() {
       if (!form.email) {
         setError("Please enter your email address.");
       } else {
-        setForgotSent(true);
-        toast.success("Simulation: Password reset email sent.");
+        try {
+          await apiClient.post("/auth/forgot-password", { email: form.email });
+          setForgotSent(true);
+          toast.success("Password reset email sent!");
+        } catch (err) {
+          setError(err.response?.data?.error || err.message || "Failed to send reset email.");
+        }
       }
     }
     setLoading(false);
@@ -295,6 +301,18 @@ export function AuthPage() {
                       >
                         Password
                       </label>
+                      {mode === "login" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMode("forgot");
+                            setError("");
+                          }}
+                          className="text-xs text-primary font-semibold hover:underline cursor-pointer"
+                        >
+                          Forgot password?
+                        </button>
+                      )}
                     </div>
                     <div className="relative">
                       <Input

@@ -39,6 +39,8 @@ export class FriendshipRepository extends BaseRepository {
             avatar: true,
             status: true,
             lastSeen: true,
+            isPaused: true,
+            isDeleted: true,
           },
         },
         friend: {
@@ -49,6 +51,8 @@ export class FriendshipRepository extends BaseRepository {
             avatar: true,
             status: true,
             lastSeen: true,
+            isPaused: true,
+            isDeleted: true,
           },
         },
       },
