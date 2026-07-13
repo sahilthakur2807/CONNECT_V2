@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BellIcon,
   ChatBubbleLeftRightIcon,
@@ -9,6 +10,7 @@ import {
   UserPlusIcon,
   UserIcon,
   ArrowPathIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
@@ -74,6 +76,7 @@ export function NotificationCenter() {
     rejectFriendRequestMutation,
   } = useSocial();
 
+  const [activeTab, setActiveTab] = useState("all");
   const { data: notifications = [], isLoading } = useNotificationsQuery(40);
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
   const { data: friendsList = [] } = useFriendsQuery();
@@ -173,130 +176,127 @@ export function NotificationCenter() {
     }
 
     return (
-      <div className="space-y-4">
+      <div className="bg-card border border-border/50 rounded-3xl overflow-hidden shadow-sm divide-y divide-border/40">
         {filteredList.map((n) => {
           const config = ICON_MAP[n.type] || ICON_MAP.moderation;
           const triggerUser = n.trigger;
           const avatarUrl = triggerUser?.avatar || undefined;
           return (
-            <div key={n.id} className="animate-in fade-in duration-200">
-              <Card
-                onClick={() => handleNotificationClick(n)}
-                className={cn(
-                  "border-border/50 rounded-[32px] transition-all hover:border-primary/20 cursor-pointer overflow-hidden group bg-card shadow-sm",
-                  !n.read && "bg-primary/[0.03] border-primary/20",
-                )}
-              >
-                <CardContent className="p-6 flex gap-6 items-center justify-between">
-                  <div className="flex gap-6 items-start min-w-0 flex-1">
-                    <div className="relative shrink-0 pt-1">
-                      <Avatar
-                        src={avatarUrl}
-                        name={n.title || "System"}
-                        size="md"
-                        userId={triggerUser?.id}
-                      />
-                      <div
-                        className={cn(
-                          "absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-card flex items-center justify-center shadow-sm",
-                          config.color,
-                        )}
-                      >
-                        <div className="scale-75">{config.icon}</div>
-                      </div>
-                    </div>
+            <div
+              key={n.id}
+              onClick={() => handleNotificationClick(n)}
+              className={cn(
+                "p-6 flex gap-6 items-center justify-between transition-all hover:bg-muted/30 cursor-pointer group",
+                !n.read && "bg-primary/[0.02]"
+              )}
+            >
+              <div className="flex gap-6 items-start min-w-0 flex-1">
+                <div className="relative shrink-0 pt-1">
+                  <Avatar
+                    src={avatarUrl}
+                    name={n.title || "System"}
+                    size="md"
+                    userId={triggerUser?.id}
+                  />
+                  <div
+                    className={cn(
+                      "absolute -bottom-1 -right-1 w-6 h-6 rounded-full border-2 border-card flex items-center justify-center shadow-sm",
+                      config.color,
+                    )}
+                  >
+                    <div className="scale-75">{config.icon}</div>
+                  </div>
+                </div>
 
-                    <div className="space-y-2 min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
-                          {config.label}
-                        </span>
-                        <span className="text-[10px] font-bold text-muted-foreground/60">
-                          {formatTime(n.createdAt)}
-                        </span>
-                      </div>
-
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-sm text-foreground leading-tight group-hover:text-primary transition-colors">
-                          {n.title}
-                        </h4>
-                        <div className="text-xs text-muted-foreground font-medium leading-relaxed">
-                          {n.type === "friend.request.sent" && triggerUser ? (
-                            <span>
-                              You received a friend request from{" "}
-                              <Link
-                                to={`/profile/${triggerUser.id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-primary font-bold hover:underline"
-                              >
-                                @{triggerUser.username}
-                              </Link>
-                            </span>
-                          ) : n.type === "friend.request.accepted" &&
-                            triggerUser ? (
-                            <span>
-                              Your friend request to{" "}
-                              <Link
-                                to={`/profile/${triggerUser.id}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-primary font-bold hover:underline"
-                              >
-                                @{triggerUser.username}
-                              </Link>{" "}
-                              was accepted
-                            </span>
-                          ) : (
-                            n.body
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                <div className="space-y-2 min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                      {config.label}
+                    </span>
+                    <span className="text-[10px] font-bold text-muted-foreground/60">
+                      {formatTime(n.createdAt)}
+                    </span>
                   </div>
 
-                  {n.type === "friend.request.sent" && (
-                    <div className="flex gap-2 shrink-0 ml-4">
-                      {n.status === "accepted" ? (
-                        <span className="text-[9px] font-black uppercase text-green-500 tracking-widest border border-green-500/20 bg-green-500/5 px-2.5 py-1 rounded-lg animate-in fade-in duration-300">
-                          Accepted
-                        </span>
-                      ) : n.status === "declined" ? (
-                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest border border-border/40 bg-muted/30 px-2.5 py-1 rounded-lg animate-in fade-in duration-300">
-                          Declined
-                        </span>
-                      ) : pendingRequests.some(
-                          (r) => r.id === n.referenceId,
-                        ) ? (
-                        <>
-                          <Button
-                            size="sm"
-                            onClick={(e) => handleAcceptRequest(e, n)}
-                            className="h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest bg-green-500 hover:bg-green-600 text-white cursor-pointer animate-in fade-in zoom-in-95 duration-200"
+                  <div className="space-y-1">
+                    <h4 className="font-bold text-sm text-foreground leading-tight group-hover:text-primary transition-colors">
+                      {n.title}
+                    </h4>
+                    <div className="text-xs text-muted-foreground font-medium leading-relaxed">
+                      {n.type === "friend.request.sent" && triggerUser ? (
+                        <span>
+                          You received a friend request from{" "}
+                          <Link
+                            to={`/profile/${triggerUser.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-primary font-bold hover:underline"
                           >
-                            Accept
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => handleRejectRequest(e, n)}
-                            className="h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-secondary cursor-pointer border border-border/50 animate-in fade-in zoom-in-95 duration-200"
+                            @{triggerUser.username}
+                          </Link>
+                        </span>
+                      ) : n.type === "friend.request.accepted" &&
+                        triggerUser ? (
+                        <span>
+                          Your friend request to{" "}
+                          <Link
+                            to={`/profile/${triggerUser.id}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-primary font-bold hover:underline"
                           >
-                            Decline
-                          </Button>
-                        </>
-                      ) : triggerUser &&
-                        friendsList.some((f) => f.id === triggerUser.id) ? (
-                        <span className="text-[9px] font-black uppercase text-green-500 tracking-widest border border-green-500/20 bg-green-500/5 px-2.5 py-1 rounded-lg animate-in fade-in duration-300">
-                          Accepted
+                            @{triggerUser.username}
+                          </Link>{" "}
+                          was accepted
                         </span>
                       ) : (
-                        <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest border border-border/40 bg-muted/30 px-2.5 py-1 rounded-lg animate-in fade-in duration-300">
-                          Declined
-                        </span>
+                        n.body
                       )}
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {n.type === "friend.request.sent" && (
+                <div className="flex gap-2 shrink-0 ml-4">
+                  {n.status === "accepted" ? (
+                    <span className="text-[9px] font-black uppercase text-green-500 tracking-widest border border-green-500/20 bg-green-500/5 px-2.5 py-1 rounded-lg">
+                      Accepted
+                    </span>
+                  ) : n.status === "declined" ? (
+                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest border border-border/40 bg-muted/30 px-2.5 py-1 rounded-lg">
+                      Declined
+                    </span>
+                  ) : pendingRequests.some(
+                      (r) => r.id === n.referenceId,
+                    ) ? (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={(e) => handleAcceptRequest(e, n)}
+                        className="h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest bg-green-500 hover:bg-green-600 text-white cursor-pointer"
+                      >
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => handleRejectRequest(e, n)}
+                        className="h-8 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:bg-secondary cursor-pointer border border-border/50"
+                      >
+                        Decline
+                      </Button>
+                    </>
+                  ) : triggerUser &&
+                    friendsList.some((f) => f.id === triggerUser.id) ? (
+                    <span className="text-[9px] font-black uppercase text-green-500 tracking-widest border border-green-500/20 bg-green-500/5 px-2.5 py-1 rounded-lg">
+                      Accepted
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest border border-border/40 bg-muted/30 px-2.5 py-1 rounded-lg">
+                      Declined
+                    </span>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              )}
             </div>
           );
         })}
@@ -334,33 +334,35 @@ export function NotificationCenter() {
         }
       />
 
-      <div className="w-full">
-        <Tabs defaultValue="all" className="space-y-6">
-          <div className="bg-card p-1.5 border border-border/50 rounded-2xl inline-flex shadow-sm">
-            <TabsList className="bg-transparent border-none p-0 flex gap-1">
-              <TabsTrigger
-                value="all"
-                className="rounded-xl px-8 h-10 font-bold text-xs uppercase tracking-widest transition-all"
-              >
-                All ({notifications.length})
-              </TabsTrigger>
-              <TabsTrigger
-                value="unread"
-                className="rounded-xl px-8 h-10 font-bold text-xs uppercase tracking-widest transition-all"
-              >
-                Unread ({unreadNotifications.length})
-              </TabsTrigger>
-            </TabsList>
-          </div>
+      <div className="w-full space-y-6">
+        {/* Custom Tab Bar — Underline style matching user profile tab */}
+        <div className="border-b border-border/50 flex gap-1">
+          {[
+            { id: "all", label: `All (${notifications.length})` },
+            { id: "unread", label: `Unread (${unreadNotifications.length})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "relative px-6 py-3 text-sm font-semibold tracking-wider uppercase transition-colors transition-all duration-200 cursor-pointer",
+                activeTab === tab.id
+                  ? "text-foreground font-black"
+                  : "text-muted-foreground hover:text-foreground font-medium",
+              )}
+              style={{ fontSize: "11px", letterSpacing: "0.08em" }}
+            >
+              {tab.label}
+              {activeTab === tab.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-full" />
+              )}
+            </button>
+          ))}
+        </div>
 
-          <TabsContent value="all" className="space-y-4">
-            {renderNotificationList(notifications)}
-          </TabsContent>
-
-          <TabsContent value="unread" className="space-y-4">
-            {renderNotificationList(unreadNotifications)}
-          </TabsContent>
-        </Tabs>
+        <div>
+          {activeTab === "all" ? renderNotificationList(notifications) : renderNotificationList(unreadNotifications)}
+        </div>
       </div>
     </div>
   );

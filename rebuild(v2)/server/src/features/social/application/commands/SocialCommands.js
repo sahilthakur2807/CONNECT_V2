@@ -211,6 +211,7 @@ export class SendFriendRequestHandler {
       // Realtime alert emission directly to B's user channel
       if (io) {
         io.to(command.targetUserId).emit("notification.created", {
+          ...notification,
           success: true,
           data: notification,
         });
@@ -287,6 +288,7 @@ export class AcceptFriendRequestHandler {
 
       if (io) {
         io.to(friendship.userId).emit("notification.created", {
+          ...notification,
           success: true,
           data: notification,
         });

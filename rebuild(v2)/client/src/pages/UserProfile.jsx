@@ -29,6 +29,8 @@ import {
   CameraIcon,
   ChevronRightIcon,
   SparklesIcon,
+  FireIcon,
+  LockClosedIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
@@ -82,24 +84,6 @@ function getCitizenRank(rep = 0) {
   return { ...tier, next, progress, tierIndex: idx };
 }
 
-function parseTopTake(item) {
-  if (item.type !== "top.take") return null;
-  const m = item.description.match(/Shared a top take in room "([^"]+)": "([\s\S]+)" \((\d+) reactions\)/);
-  return m
-    ? { roomTitle: m[1], content: m[2], reactions: parseInt(m[3]) }
-    : { roomTitle: item.room?.title || "Unknown Room", content: item.description, reactions: 0 };
-}
-
-const MILESTONE_CONFIG = {
-  "user.registered": { icon: UserIcon, color: "#3b82f6", label: "Joined the network" },
-  "community.created": { icon: Squares2X2Icon, color: "#8b5cf6", label: "Founded a community" },
-  "community.joined": { icon: UsersIcon, color: "#6366f1", label: "Joined a community" },
-  "room.created": { icon: ChatBubbleLeftRightIcon, color: "#ec4899", label: "Opened a chamber" },
-  "room.joined": { icon: ChatBubbleLeftRightIcon, color: "#10b981", label: "Entered a chamber" },
-  "friend.accepted": { icon: UserPlusIcon, color: "#f59e0b", label: "Gained an ally" },
-  default: { icon: BoltIcon, color: "#94a3b8", label: "Network activity" },
-};
-
 /* ─── Tiny reusable pieces ───────────────────────────────────── */
 
 function Divider({ className }) {
@@ -135,185 +119,102 @@ function StatPill({ label, value }) {
   );
 }
 
-/* ─── Room Contribution Pie Chart ───────────────────────────── */
+/* ─── Achievements Configurations ───────────────────────────── */
 
-const PIE_COLORS = [
-  "#3b82f6", // Blue
-  "#10b981", // Emerald
-  "#f59e0b", // Amber
-  "#ef4444", // Red
-  "#8b5cf6", // Violet
-  "#ec4899", // Pink
-  "#06b6d4", // Cyan
-  "#f97316", // Orange
-  "#a855f7", // Purple
-  "#14b8a6", // Teal
+const ACHIEVEMENT_BADGES = [
+  {
+    id: "verified",
+    title: "Verified Citizen",
+    description: "Identity verified by the consensus network moderation team.",
+    requirement: "Verify your account",
+    icon: ShieldCheckIcon,
+    accent: "from-cyan-500 to-blue-600",
+    glow: "rgba(6, 182, 212, 0.15)",
+    checkUnlock: (user, stats) => user?.verified || user?.badges?.some(b => b.toLowerCase() === "verified"),
+  },
+  {
+    id: "early-member",
+    title: "Early Pioneer",
+    description: "Joined the network in its early days to shape its foundation.",
+    requirement: "Join in the platform's early phase",
+    icon: ClockIcon,
+    accent: "from-sky-400 to-indigo-600",
+    glow: "rgba(56, 189, 248, 0.15)",
+    checkUnlock: (user, stats) => user?.badges?.some(b => b.toLowerCase().replace(" ", "-") === "early-member" || b.toLowerCase().replace(" ", "-") === "early-adopter"),
+  },
+  {
+    id: "top-contributor",
+    title: "Elite Advocate",
+    description: "Awarded for sending over 100 high-quality discussion takes.",
+    requirement: "Send 100+ takes (messages)",
+    icon: TrophyIcon,
+    accent: "from-amber-400 to-orange-600",
+    glow: "rgba(245, 158, 11, 0.15)",
+    checkUnlock: (user, stats) => stats?.messagesSent >= 100 || user?.badges?.some(b => b.toLowerCase().replace(" ", "-") === "top-contributor"),
+    currentProgress: (user, stats) => stats?.messagesSent || 0,
+    targetProgress: () => 100,
+  },
+  {
+    id: "chamber-architect",
+    title: "Chamber Architect",
+    description: "Founded 3 or more active discussion chambers.",
+    requirement: "Create 3+ discussion rooms",
+    icon: ChatBubbleLeftRightIcon,
+    accent: "from-emerald-400 to-teal-600",
+    glow: "rgba(52, 211, 153, 0.15)",
+    checkUnlock: (user, stats) => stats?.roomsCreated >= 3,
+    currentProgress: (user, stats) => stats?.roomsCreated || 0,
+    targetProgress: () => 3,
+  },
+  {
+    id: "devoted-citizen",
+    title: "Devoted Citizen",
+    description: "Maintained a consistent daily debate participation streak.",
+    requirement: "Reach a 5-day login streak",
+    icon: FireIcon,
+    accent: "from-rose-500 to-red-600",
+    glow: "rgba(244, 63, 94, 0.15)",
+    checkUnlock: (user, stats) => stats?.streak >= 5,
+    currentProgress: (user, stats) => stats?.streak || 0,
+    targetProgress: () => 5,
+  },
+  {
+    id: "social-catalyst",
+    title: "Consensus Ally",
+    description: "Formed mutual alliances with 5 or more network citizens.",
+    requirement: "Connect with 5+ allies (friends)",
+    icon: UsersIcon,
+    accent: "from-pink-500 to-purple-600",
+    glow: "rgba(236, 72, 153, 0.15)",
+    checkUnlock: (user, stats) => stats?.friends >= 5,
+    currentProgress: (user, stats) => stats?.friends || 0,
+    targetProgress: () => 5,
+  },
+  {
+    id: "community-founder",
+    title: "Guild Pioneer",
+    description: "Joined and participated in 3 or more local communities.",
+    requirement: "Join 3+ communities",
+    icon: Squares2X2Icon,
+    accent: "from-violet-500 to-indigo-700",
+    glow: "rgba(139, 92, 246, 0.15)",
+    checkUnlock: (user, stats) => stats?.communitiesJoined >= 3,
+    currentProgress: (user, stats) => stats?.communitiesJoined || 0,
+    targetProgress: () => 3,
+  },
+  {
+    id: "archon",
+    title: "Archon of Consensus",
+    description: "Achieved elite status by reaching 200+ Reputation XP.",
+    requirement: "Reach 200+ Reputation XP",
+    icon: SparklesIcon,
+    accent: "from-yellow-400 to-amber-600",
+    glow: "rgba(253, 224, 71, 0.15)",
+    checkUnlock: (user, stats) => (user?.reputation || 0) >= 200,
+    currentProgress: (user, stats) => user?.reputation || 0,
+    targetProgress: () => 200,
+  }
 ];
-
-function RoomContributionPieChart({ contributions = [], isLoading }) {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, roomTitle: "", count: 0, percentage: 0 });
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[350px] w-full gap-3">
-        <div className="w-12 h-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-        <p className="text-sm text-muted-foreground font-light">Loading contributions...</p>
-      </div>
-    );
-  }
-
-  const totalCount = contributions.reduce((sum, item) => sum + item.messageCount, 0);
-
-  if (totalCount === 0 || contributions.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[350px] w-full gap-4 text-center px-6">
-        <div className="w-20 h-20 rounded-full border border-dashed border-muted-foreground/30 flex items-center justify-center opacity-70">
-          <svg className="w-8 h-8 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-          </svg>
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">No monthly contributions yet</p>
-          <p className="text-xs text-muted-foreground max-w-xs leading-relaxed font-light">
-            Send messages in rooms to see your contribution breakdown for this month.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // SVG parameters (center at 170,170 with viewport 340x340 to allow room for hover animations)
-  const cx = 170;
-  const cy = 170;
-  const radius = 160;
-
-  // Calculate slice paths
-  let currentAngle = -Math.PI / 2; // Start at 12 o'clock
-
-  const slices = contributions.map((item, idx) => {
-    const sliceAngle = (item.messageCount / totalCount) * 2 * Math.PI;
-    const endAngle = currentAngle + sliceAngle;
-
-    const x1 = cx + radius * Math.cos(currentAngle);
-    const y1 = cy + radius * Math.sin(currentAngle);
-    const x2 = cx + radius * Math.cos(endAngle);
-    const y2 = cy + radius * Math.sin(endAngle);
-
-    const largeArcFlag = sliceAngle > Math.PI ? 1 : 0;
-    const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
-
-    const prevAngle = currentAngle;
-    currentAngle = endAngle;
-
-    return {
-      pathData,
-      color: PIE_COLORS[idx % PIE_COLORS.length],
-      item,
-      idx,
-      midAngle: prevAngle + sliceAngle / 2
-    };
-  });
-
-  const handleSliceMouseEnter = (idx, slice) => {
-    setHoveredIdx(idx);
-    const midX = cx + (radius * 0.55) * Math.cos(slice.midAngle);
-    const midY = cy + (radius * 0.55) * Math.sin(slice.midAngle);
-    const pctX = (midX / 340) * 100;
-    const pctY = (midY / 340) * 100;
-    setTooltip({
-      visible: true,
-      x: pctX,
-      y: pctY,
-      roomTitle: slice.item.roomTitle,
-      count: slice.item.messageCount,
-      percentage: slice.item.percentage
-    });
-  };
-
-  const handleCircleMouseEnter = () => {
-    setHoveredIdx(0);
-    setTooltip({
-      visible: true,
-      x: 50,
-      y: 35,
-      roomTitle: contributions[0].roomTitle,
-      count: contributions[0].messageCount,
-      percentage: contributions[0].percentage
-    });
-  };
-
-  return (
-    <div className="pie-chart-container relative w-full flex items-center justify-center p-6 min-h-[350px]">
-      <div 
-        className="relative w-full max-w-[340px] aspect-square"
-        onMouseLeave={() => setTooltip(prev => ({ ...prev, visible: false }))}
-      >
-        <svg viewBox="0 0 340 340" className="w-full h-full overflow-visible">
-          {contributions.length === 1 ? (
-            <circle
-              cx={cx}
-              cy={cy}
-              r={radius}
-              fill={PIE_COLORS[0]}
-              className="transition-all duration-300 cursor-pointer origin-center hover:scale-[1.03]"
-              onMouseEnter={handleCircleMouseEnter}
-              onMouseLeave={() => setHoveredIdx(null)}
-            />
-          ) : (
-            slices.map((slice, idx) => {
-              const isHovered = hoveredIdx === idx;
-              const offsetDistance = isHovered ? 8 : 0;
-              const offsetX = offsetDistance * Math.cos(slice.midAngle);
-              const offsetY = offsetDistance * Math.sin(slice.midAngle);
-
-              return (
-                <path
-                  key={idx}
-                  d={slice.pathData}
-                  fill={slice.color}
-                  className="transition-all duration-300 ease-out cursor-pointer"
-                  style={{
-                    transform: `translate(${offsetX}px, ${offsetY}px)`,
-                    filter: isHovered ? "drop-shadow(0 4px 12px rgba(0,0,0,0.15))" : "none",
-                    opacity: hoveredIdx !== null && !isHovered ? 0.6 : 1,
-                  }}
-                  onMouseEnter={() => handleSliceMouseEnter(idx, slice)}
-                  onMouseLeave={() => setHoveredIdx(null)}
-                />
-              );
-            })
-          )}
-        </svg>
-
-        {/* Floating Tooltip */}
-        {tooltip.visible && (
-          <div
-            className="absolute z-50 pointer-events-none bg-zinc-950/95 text-zinc-50 border border-zinc-800 rounded-xl p-3 shadow-xl backdrop-blur-md min-w-[160px] flex flex-col gap-1 transition-all duration-75 text-left"
-            style={{
-              left: `${tooltip.x}%`,
-              top: `${tooltip.y}%`,
-              transform: "translate(-50%, -50%)",
-            }}
-          >
-            <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Room</span>
-            <span className="text-xs font-semibold text-zinc-200 line-clamp-1">{tooltip.roomTitle}</span>
-            <div className="h-px bg-zinc-800 my-1" />
-            <div className="flex justify-between items-center text-[11px]">
-              <span className="text-zinc-400">Contributions</span>
-              <span className="font-bold text-zinc-200">{tooltip.count} {tooltip.count === 1 ? 'msg' : 'msgs'}</span>
-            </div>
-            <div className="flex justify-between items-center text-[11px]">
-              <span className="text-zinc-400">Percentage</span>
-              <span className="font-bold text-emerald-400">{tooltip.percentage}%</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 
 /* ─── Modal wrapper ─────────────────────────────────────────── */
@@ -355,7 +256,7 @@ export function UserProfile() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user: currentUser, logout } = useAuth();
-  const { useUserStatsQuery, useUserFeedQuery, useUserContributionsQuery } = useAnalytics();
+  const { useUserStatsQuery } = useAnalytics();
   const {
     blockUserMutation, unblockUserMutation,
     sendFriendRequestMutation, acceptFriendRequestMutation,
@@ -375,7 +276,7 @@ export function UserProfile() {
   const [visibleRooms, setVisibleRooms] = useState(6);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [isLoadingBlocked, setIsLoadingBlocked] = useState(false);
-  const [activeTab, setActiveTab] = useState("activity");
+  const [activeTab, setActiveTab] = useState("rooms");
 
   // Modal states
   const [modal, setModal] = useState(null); // null | 'edit' | 'banner' | 'blocked' | 'settings' | 'delete'
@@ -391,8 +292,6 @@ export function UserProfile() {
   const [isUpdatingCreds, setIsUpdatingCreds] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useUserStatsQuery(targetId);
-  const { data: activityFeed = [], isLoading: feedLoading } = useUserFeedQuery(targetId);
-  const { data: contributions = [], isLoading: contributionsLoading } = useUserContributionsQuery(targetId);
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
 
   /* ── Data fetching ── */
@@ -516,7 +415,7 @@ export function UserProfile() {
   };
 
   /* ── Loading / error states ── */
-  if (isLoadingProfile || statsLoading || feedLoading) {
+  if (isLoadingProfile || statsLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
@@ -549,17 +448,73 @@ export function UserProfile() {
   const profileUser = resolvedUser || currentUser;
   if (!profileUser) return null;
 
-  /* ── Derived data ── */
-  const rank = getCitizenRank(profileUser.reputation || 0);
-  const topTakes = activityFeed.filter(i => i.type === "top.take");
-  const spotlight = topTakes.length > 0 ? parseTopTake(topTakes[0]) : null;
-  const milestones = activityFeed.filter(i => i.type !== "top.take");
-  const dailyRate = stats?.accountAgeDays > 0 ? (stats.nonWorldChatMessagesSent / stats.accountAgeDays).toFixed(1) : (stats?.nonWorldChatMessagesSent || 0);
-
   const bannerClass = (() => {
     const b = profileUser.banner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800";
     return b.startsWith("bg-") ? b : `bg-gradient-to-r ${b}`;
   })();
+
+  if (profileUser.isDeleted) {
+    return (
+      <div
+        className="w-full pb-16 space-y-0 animate-in fade-in duration-300"
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
+      >
+        <div className="rounded-3xl overflow-hidden border border-border/50 bg-card shadow-sm">
+          {/* Banner */}
+          <div className={cn("relative h-44 w-full", bannerClass)}>
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/30" />
+          </div>
+
+          {/* Identity row */}
+          <div className="px-8 pb-8 pt-0">
+            <div className="flex items-end justify-between -mt-12 mb-6">
+              {/* Avatar */}
+              <div className="relative">
+                <div
+                  className="rounded-full p-[3px] bg-zinc-800"
+                  style={{ boxShadow: `0 0 0 3px var(--card)` }}
+                >
+                  <Avatar
+                    src={null}
+                    name={profileUser.name || "Deleted Citizen"}
+                    size="xl"
+                    className="w-24 h-24 border-0 rounded-full bg-zinc-700"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* User Meta */}
+            <div className="space-y-4">
+              <div>
+                <h2
+                  style={{ fontFamily: "'DM Serif Display', serif" }}
+                  className="text-[32px] leading-tight text-foreground font-bold"
+                >
+                  {profileUser.name || "Deleted Citizen"}
+                </h2>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    @{profileUser.username || "deleted_user"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-8 bg-muted/30 border border-border/40 rounded-2xl flex flex-col items-center justify-center text-center gap-3">
+                <ShieldExclamationIcon className="w-8 h-8 text-muted-foreground/60" />
+                <p className="text-sm font-semibold text-muted-foreground">
+                  This citizen has deleted the account.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Derived data ── */
+  const rank = getCitizenRank(profileUser.reputation || 0);
 
   const joinedDate = (() => {
     if (!profileUser.createdAt) return null;
@@ -796,9 +751,8 @@ export function UserProfile() {
         {/* Custom tab bar — underline style */}
         <div className="border-b border-border/50 flex gap-1">
           {[
-            { id: "activity", label: "Activity" },
-            { id: "badges", label: "Honours" },
             { id: "rooms", label: "Rooms" },
+            { id: "badges", label: "Badges" },
           ].map(tab => (
             <button
               key={tab.id}
@@ -818,176 +772,6 @@ export function UserProfile() {
             </button>
           ))}
         </div>
-
-        {/* ── Activity ── */}
-        {activeTab === "activity" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-              {/* Left col — rank + quick figures */}
-              <div className="lg:col-span-2 space-y-5">
-
-                {/* Rank card */}
-                <div
-                  className="rounded-2xl border p-6 space-y-5"
-                  style={{ borderColor: `${rank.accent}25`, background: `${rank.accent}06` }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <Label>Consensus rank</Label>
-                      <h3
-                        className="text-2xl leading-tight"
-                        style={{ fontFamily: "'DM Serif Display', serif", color: rank.accent }}
-                      >
-                        {rank.label}
-                      </h3>
-                    </div>
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ background: `${rank.accent}18`, color: rank.accent }}
-                    >
-                      <TrophyIcon className="w-[18px] h-[18px]" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{profileUser.reputation || 0} XP</span>
-                      {rank.next && <span>Next: {rank.next.min}</span>}
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-border/50 overflow-hidden">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${rank.progress}%`, background: rank.accent }}
-                      />
-                    </div>
-                    {rank.next && (
-                      <p className="text-xs text-muted-foreground">
-                        {rank.next.min - (profileUser.reputation || 0)} more to reach{" "}
-                        <span style={{ color: rank.next.accent }} className="font-medium">
-                          {rank.next.label}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Oratory rate */}
-                <div className="rounded-2xl border border-border/50 bg-card p-5 grid grid-cols-2 divide-x divide-border/40">
-                  <div className="pr-4 space-y-0.5">
-                    <span
-                      className="text-2xl font-semibold text-foreground block"
-                      style={{ fontFamily: "'DM Serif Display', serif" }}
-                    >
-                      {dailyRate}
-                    </span>
-                    <Label>Takes / day</Label>
-                  </div>
-                  <div className="pl-4 space-y-0.5">
-                    <span
-                      className="text-2xl font-semibold text-foreground block"
-                      style={{ fontFamily: "'DM Serif Display', serif" }}
-                    >
-                      {stats?.roomsJoined || 0}
-                    </span>
-                    <Label>Rooms Joined</Label>
-                  </div>
-                </div>
-
-                {/* Spotlight / Oath */}
-                {spotlight ? (
-                  <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3 relative overflow-hidden">
-                    <div className="absolute -bottom-3 -right-3 text-muted-foreground/6 pointer-events-none">
-                      <ChatBubbleBottomCenterTextIcon className="w-[72px] h-[72px] stroke-[1]" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <SparklesIcon className="w-3 h-3 text-amber-500" />
-                      <Label>Top take</Label>
-                    </div>
-                    <p className="text-sm text-foreground leading-relaxed font-light italic relative z-10 line-clamp-5"
-                      style={{ fontFamily: "'DM Serif Display', serif" }}>
-                      "{spotlight.content}"
-                    </p>
-                    <Divider />
-                    <div className="flex items-center justify-between text-xs text-muted-foreground pt-0.5">
-                      <span className="truncate max-w-[65%]">in "{spotlight.roomTitle}"</span>
-                      <span className="flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                        <StarIcon className="w-2.5 h-2.5 fill-current" /> {spotlight.reactions}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-border/50 bg-card p-5 space-y-3 relative overflow-hidden">
-                    <div className="absolute -bottom-3 -right-3 text-muted-foreground/6 pointer-events-none">
-                      <BookOpenIcon className="w-[72px] h-[72px] stroke-[1]" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <UserIcon className="w-3 h-3 text-primary" />
-                      <Label>Citizen oath</Label>
-                    </div>
-                    <p className="text-sm text-foreground/70 leading-relaxed font-light italic"
-                      style={{ fontFamily: "'DM Serif Display', serif" }}>
-                      "I commit to seeking consensus, participating in thoughtful arguments, and respecting the diverse voices of this network."
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Right col — Room Contributions Pie Chart */}
-              <div className="lg:col-span-3">
-                <div className="relative h-full flex flex-col justify-center items-center min-h-[420px]">
-                  {/* Top-left label to explain the chart */}
-                  <div className="absolute top-5 left-6 flex flex-col gap-0.5 pointer-events-none">
-                    <span 
-                      className="text-[10px] font-bold tracking-[0.12em] uppercase text-muted-foreground"
-                      style={{ fontFamily: "'DM Sans', sans-serif" }}
-                    >
-                      Room Contributions
-                    </span>
-                    <span className="text-[9px] text-muted-foreground/50 tracking-wider">
-                      This Month
-                    </span>
-                  </div>
-
-                  <RoomContributionPieChart contributions={contributions} isLoading={contributionsLoading} />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── Honours ── */}
-        {activeTab === "badges" && (
-          <div>
-            {profileUser.badges?.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {profileUser.badges.map(badge => (
-                  <div
-                    key={badge}
-                    className="group rounded-2xl border border-border/50 bg-card p-6 flex items-start gap-4 hover:border-primary/25 hover:shadow-sm transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-primary/8 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary/15 transition-colors">
-                      <TrophyIcon className="w-[18px] h-[18px]" />
-                    </div>
-                    <div className="space-y-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-foreground">{badge}</h4>
-                      <p className="text-xs text-muted-foreground font-light leading-relaxed">
-                        Awarded for exceptional contributions to the network.
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-2xl border border-border/40 bg-card/50 text-center">
-                <TrophyIcon className="w-8 h-8 text-muted-foreground/30" />
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">No honours earned yet</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1 font-light">Keep contributing to earn your first.</p>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ── Rooms ── */}
         {activeTab === "rooms" && (
@@ -1044,6 +828,125 @@ export function UserProfile() {
                 <p className="text-sm font-medium text-muted-foreground">No rooms owned yet.</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Badges ── */}
+        {activeTab === "badges" && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-1.5">
+              <h3 
+                className="text-2xl text-foreground"
+                style={{ fontFamily: "'DM Serif Display', serif" }}
+              >
+                Citizen Achievements
+              </h3>
+              <p className="text-sm text-muted-foreground font-light">
+                Unlock achievements and honors by participating in constructive dialogue across the network.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {ACHIEVEMENT_BADGES.map(ach => {
+                const isUnlocked = ach.checkUnlock(profileUser, stats);
+                const IconComponent = ach.icon;
+                
+                // Progress calculations (if applicable)
+                const current = ach.currentProgress ? ach.currentProgress(profileUser, stats) : null;
+                const target = ach.targetProgress ? ach.targetProgress(profileUser, stats) : null;
+                const percentage = current !== null && target !== null 
+                  ? Math.min(100, Math.round((current / target) * 100)) 
+                  : null;
+
+                return (
+                  <div
+                    key={ach.id}
+                    className={cn(
+                      "group relative rounded-2xl border p-6 flex flex-col justify-between transition-all duration-300 overflow-hidden",
+                      isUnlocked 
+                        ? "bg-card border-border/60 hover:border-primary/30 shadow-sm hover:shadow-md hover:-translate-y-0.5" 
+                        : "bg-muted/10 border-dashed border-border/70 opacity-60 hover:opacity-85"
+                    )}
+                    style={{
+                      boxShadow: isUnlocked ? `0 8px 24px -10px ${ach.glow}` : "none"
+                    }}
+                  >
+                    {/* Visual glowing aura for unlocked achievements */}
+                    {isUnlocked && (
+                      <div 
+                        className={cn(
+                          "absolute -right-16 -top-16 w-32 h-32 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-30 bg-gradient-to-br",
+                          ach.accent
+                        )}
+                      />
+                    )}
+
+                    <div className="space-y-4">
+                      {/* Icon & Status header */}
+                      <div className="flex items-center justify-between">
+                        <div 
+                          className={cn(
+                            "w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 duration-300",
+                            isUnlocked 
+                              ? `bg-gradient-to-br ${ach.accent} text-white shadow-md` 
+                              : "bg-muted/40 text-muted-foreground/60 border border-border/30"
+                          )}
+                        >
+                          <IconComponent className="w-5 h-5" />
+                        </div>
+
+                        {/* Status Label */}
+                        {isUnlocked ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <CheckIcon className="w-2.5 h-2.5 stroke-[3]" /> Unlocked
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase bg-muted/40 text-muted-foreground/60 border border-border/20">
+                            <LockClosedIcon className="w-2.5 h-2.5" /> Locked
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="space-y-1">
+                        <h4 className="text-base font-semibold text-foreground tracking-tight">
+                          {ach.title}
+                        </h4>
+                        <p className="text-xs text-muted-foreground leading-relaxed font-light">
+                          {ach.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Progress indicator / requirements */}
+                    <div className="mt-5 pt-4 border-t border-border/30">
+                      {isUnlocked ? (
+                        <p className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <SparklesIcon className="w-3 h-3 fill-current" /> Claimed Achievement
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                            <span>Requirement: {ach.requirement}</span>
+                            {percentage !== null && (
+                              <span className="font-bold">{current}/{target} ({percentage}%)</span>
+                            )}
+                          </div>
+                          {percentage !== null && (
+                            <div className="h-1 w-full bg-muted/50 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-muted-foreground/35 rounded-full transition-all duration-500" 
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

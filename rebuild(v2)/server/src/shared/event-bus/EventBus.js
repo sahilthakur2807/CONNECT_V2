@@ -26,17 +26,19 @@ export class EventBus {
     if (!set || set.size === 0) return;
 
     // Execute handlers concurrently
-    await Promise.all(
-      Array.from(set).map(async (handler) => {
-        try {
-          await handler(event);
-        } catch (error) {
-          console.error(
-            `[EventBus] Error in handler for event ${event.eventName}:`,
-            error,
-          );
-        }
-      }),
-    );
+    const promises = Array.from(set).map(async (handler) => {
+      try {
+        await handler(event);
+      } catch (error) {
+        console.error(
+          `[EventBus] Error in handler for event ${event.eventName}:`,
+          error,
+        );
+      }
+    });
+
+    if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+      await Promise.all(promises);
+    }
   }
 }

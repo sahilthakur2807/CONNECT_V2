@@ -20,6 +20,7 @@ import { errorMiddleware } from "./presentation/middlewares/ErrorMiddleware.js";
 import { authRouter } from "./features/auth/presentation/routes.js";
 import { registerAuthAuditSubscribers } from "./features/auth/infrastructure/events/AuthAuditSubscribers.js";
 import { registerEmailSubscribers } from "./features/auth/infrastructure/events/EmailNotificationSubscribers.js";
+import { registerNotificationSubscribers } from "./features/social/infrastructure/events/NotificationEventSubscribers.js";
 import { communitiesRouter } from "./features/community/presentation/routes.js";
 import { roomsRouter } from "./features/room/presentation/routes.js";
 import { messagesRouter } from "./features/message/presentation/routes.js";
@@ -115,6 +116,7 @@ app.use(errorMiddleware);
 // Register Event Subscribers
 registerAuthAuditSubscribers();
 registerEmailSubscribers();
+registerNotificationSubscribers();
 
 // Reset all users to offline on server startup to clean up stale states from previous restarts/crashes
 prisma.user

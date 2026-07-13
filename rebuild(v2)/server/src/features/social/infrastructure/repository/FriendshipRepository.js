@@ -21,14 +21,17 @@ export class FriendshipRepository extends BaseRepository {
   }
 
   /**
-   * Retrieves all accepted friendships for a user.
+   * Retrieves all accepted friendships for a user, filtering out deleted accounts.
    */
   async findFriends(userId, tx) {
     const delegate = this.getDelegate(tx);
     const friendships = await delegate.findMany({
       where: {
         status: "accepted",
-        OR: [{ userId }, { friendId: userId }],
+        OR: [
+          { userId, friend: { isDeleted: false } },
+          { friendId: userId, user: { isDeleted: false } },
+        ],
       },
       include: {
         user: {
@@ -58,14 +61,16 @@ export class FriendshipRepository extends BaseRepository {
       },
     });
 
-    // Map friendship models to target user profiles
-    return friendships.map((f) => {
-      return f.userId === userId ? f.friend : f.user;
-    });
+    // Map friendship models to target user profiles, ensuring we filter out deleted users
+    return friendships
+      .map((f) => {
+        return f.userId === userId ? f.friend : f.user;
+      })
+      .filter((u) => u && !u.isDeleted);
   }
 
   /**
-   * Retrieves pending incoming friend requests for a user (awaiting user acceptance).
+   * Retrieves pending incoming friend requests for a user (awaiting user acceptance), filtering out deleted accounts.
    */
   async findPendingRequests(userId, tx) {
     const delegate = this.getDelegate(tx);
@@ -73,6 +78,7 @@ export class FriendshipRepository extends BaseRepository {
       where: {
         friendId: userId,
         status: "pending",
+        user: { isDeleted: false },
       },
       include: {
         user: {

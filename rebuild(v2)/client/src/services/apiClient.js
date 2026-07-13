@@ -56,9 +56,18 @@ apiClient.interceptors.response.use(
 
     // Handle 401 Unauthorized errors (session expiration/invalid access token)
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // Avoid infinite loop if refreshing fails
-      if (originalRequest.url === "/auth/refresh") {
-        store.dispatch(logout());
+      const isAuthRoute =
+        originalRequest.url?.includes("/auth/login") ||
+        originalRequest.url?.includes("/auth/register") ||
+        originalRequest.url?.includes("/auth/refresh") ||
+        originalRequest.url?.includes("/auth/forgot-password") ||
+        originalRequest.url?.includes("/auth/reset-password");
+
+      // Avoid token refresh cycle for authentication endpoints
+      if (isAuthRoute) {
+        if (originalRequest.url?.includes("/auth/refresh")) {
+          store.dispatch(logout());
+        }
         return Promise.reject(error);
       }
 
