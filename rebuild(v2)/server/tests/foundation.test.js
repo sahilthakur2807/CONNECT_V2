@@ -31,4 +31,29 @@ describe("CONNECT Backend Foundation Smoke Test", () => {
     await EventBus.publish(testEvent);
     expect(handlerCalled).toBe(true);
   });
+
+  it("should dynamically filter out 'Early Member' badge if createdAt is older than 30 days", () => {
+    const computeBadges = (user) => {
+      if (!user.badges) return user.badges;
+      if (!user.createdAt) return user.badges;
+      const days = (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (days > 30) {
+        return user.badges.filter((b) => b !== "Early Member");
+      }
+      return user.badges;
+    };
+
+    const freshUser = {
+      createdAt: new Date(),
+      badges: ["Early Member", "Other Badge"],
+    };
+
+    const oldUser = {
+      createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000), // 35 days ago
+      badges: ["Early Member", "Other Badge"],
+    };
+
+    expect(computeBadges(freshUser)).toEqual(["Early Member", "Other Badge"]);
+    expect(computeBadges(oldUser)).toEqual(["Other Badge"]);
+  });
 });

@@ -34,6 +34,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
+import { ImageCropper } from "@/components/ui/ImageCropper";
 
 import { useAuth } from "@/hooks/useAuth";
 import { useAnalytics } from "@/hooks/useAnalytics";
@@ -286,6 +287,7 @@ export function UserProfile() {
   const [editBio, setEditBio] = useState("");
   const [editBanner, setEditBanner] = useState("");
   const [deleteMode, setDeleteMode] = useState(null);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -322,11 +324,16 @@ export function UserProfile() {
   }, [targetId]);
 
   /* ── Handlers ── */
-  const handlePhotoUpload = async (e) => {
+  const handlePhotoUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPendingAvatarFile(file);
+  };
+
+  const handleCroppedAvatarUpload = async (croppedFile) => {
+    setPendingAvatarFile(null);
     const fd = new FormData();
-    fd.append("avatar", file);
+    fd.append("avatar", croppedFile);
     const t = toast.loading("Uploading photo…");
     try {
       const up = await apiClient.post("/users/avatar", fd, { headers: { "Content-Type": "multipart/form-data" } });
@@ -334,7 +341,9 @@ export function UserProfile() {
       setResolvedUser(res.data.data);
       dispatch(setUser(res.data.data));
       toast.success("Photo updated", { id: t });
-    } catch (err) { toast.error(err.message || "Upload failed", { id: t }); }
+    } catch (err) {
+      toast.error(err.message || "Upload failed", { id: t });
+    }
   };
 
   const handleUpdateProfile = async (e) => {
@@ -1139,6 +1148,23 @@ export function UserProfile() {
           </div>
         )}
       </Modal>
+
+      {/* Image Crop Overlay for Avatar */}
+      {pendingAvatarFile && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[60] p-4 animate-in fade-in">
+          <div className="bg-card text-card-foreground rounded-[28px] max-w-md w-full p-6 space-y-4 relative shadow-2xl border border-border/50">
+            <h3 className="text-lg font-bold font-serif text-foreground">Adjust Profile Photo</h3>
+            <ImageCropper
+              file={pendingAvatarFile}
+              aspectRatio={1}
+              onCropComplete={handleCroppedAvatarUpload}
+              onCancel={() => {
+                setPendingAvatarFile(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

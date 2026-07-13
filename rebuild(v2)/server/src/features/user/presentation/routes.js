@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const filetypes = /jpeg|jpg|png|gif|webp/;
     const mimetype = filetypes.test(file.mimetype);
@@ -42,16 +42,28 @@ export function createUserRouter() {
   const router = Router();
 
   // 1. Upload avatar photo
-  router.post("/avatar", authenticateJWT, upload.single("avatar"), async (req, res, next) => {
-    try {
+  router.post("/avatar", authenticateJWT, (req, res, next) => {
+    upload.single("avatar")(req, res, (err) => {
+      if (err) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            success: false,
+            error: "File is too large. Maximum size allowed is 10MB."
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          error: err.message
+        });
+      }
+
       if (!req.file) {
         return res.status(400).json({ success: false, error: "No file uploaded" });
       }
+
       const fileUrl = `/uploads/${req.file.filename}`;
       res.json({ success: true, data: { url: fileUrl } });
-    } catch (err) {
-      next(err);
-    }
+    });
   });
 
   // Helper to decode HTML-escaped slashes from sanitization middleware

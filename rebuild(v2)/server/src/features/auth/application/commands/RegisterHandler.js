@@ -98,7 +98,7 @@ export class RegisterHandler {
       emailVerified: false,
       verificationToken,
       verificationTokenExpires,
-      reputation: 10, // Default reputation points
+      reputation: 0, // Default reputation points
       badges: ["Early Member"],
     });
 

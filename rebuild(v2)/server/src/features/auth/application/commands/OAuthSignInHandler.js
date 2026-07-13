@@ -130,7 +130,7 @@ export class OAuthSignInHandler {
       status: "online",
       verified: true, // Auto-verified since OAuth provider verified email
       emailVerified: true,
-      reputation: 10,
+      reputation: 0,
       badges: ["Early Member", "Google Linked"],
     });
 

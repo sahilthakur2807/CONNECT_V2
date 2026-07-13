@@ -8,4 +8,23 @@ const { Pool } = pg;
 const pool = new Pool({ connectionString: config.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 
-export const prisma = new PrismaClient({ adapter });
+const basePrisma = new PrismaClient({ adapter });
+
+export const prisma = basePrisma.$extends({
+  result: {
+    user: {
+      badges: {
+        needs: { badges: true, createdAt: true },
+        compute(user) {
+          if (!user.badges) return user.badges;
+          if (!user.createdAt) return user.badges;
+          const days = (Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+          if (days > 30) {
+            return user.badges.filter((b) => b !== "Early Member");
+          }
+          return user.badges;
+        },
+      },
+    },
+  },
+});
