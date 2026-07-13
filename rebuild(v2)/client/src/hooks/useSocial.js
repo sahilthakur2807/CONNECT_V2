@@ -3,24 +3,24 @@ import { apiClient } from "@/services/apiClient";
 
 // --- Standalone Queries ---
 
-export const useFriendsQuery = () =>
+export const useFriendsQuery = (options = {}) =>
   useQuery({
     queryKey: ["friends"],
     queryFn: async () => {
       const res = await apiClient.get("/friends");
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
-export const usePendingRequestsQuery = () =>
+export const usePendingRequestsQuery = (options = {}) =>
   useQuery({
     queryKey: ["friends", "pending"],
     queryFn: async () => {
       const res = await apiClient.get("/friends/pending");
       return res.data.data;
     },
-    refetchInterval: 10000,
+    ...options,
   });
 
 // --- Standalone Mutations ---
@@ -105,9 +105,16 @@ export const useBlockUserMutation = () => {
 };
 
 export const useUnblockUserMutation = () => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (userId) => {
       await apiClient.delete(`/blocks/${userId}`);
+    },
+    onSuccess: (_, userId) => {
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["friends", "pending"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+      queryClient.invalidateQueries({ queryKey: ["profiles"] });
     },
   });
 };

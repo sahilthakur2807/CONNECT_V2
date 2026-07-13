@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useAppDispatch, useAppSelector } from "@/store";
 import {
   setAccessToken,
@@ -18,7 +19,7 @@ export function useAuth() {
     (state) => state.auth,
   );
 
-  const login = async (identifier, password) => {
+  const login = useCallback(async (identifier, password) => {
     dispatch(setLoading(true));
     dispatch(setError(null));
     try {
@@ -37,9 +38,9 @@ export function useAuth() {
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
 
-  const register = async (username, email, password) => {
+  const register = useCallback(async (username, email, password) => {
     dispatch(setLoading(true));
     dispatch(setError(null));
     try {
@@ -59,9 +60,9 @@ export function useAuth() {
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     dispatch(setLoading(true));
     try {
       await apiClient.post("/auth/logout", { scope: "current" });
@@ -71,22 +72,16 @@ export function useAuth() {
       dispatch(logoutAction());
       disconnectSocket();
       dispatch(setLoading(false));
-      navigate("/auth");
+      navigate("/");
     }
-  };
+  }, [dispatch, navigate]);
 
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
     dispatch(setLoading(true));
     try {
       const refreshResponse = await apiClient.post("/auth/refresh");
       const token = refreshResponse.data.data.accessToken;
       dispatch(setAccessToken(token));
-      // Let's decode or fetch the user's details if we don't have them
-      if (!user) {
-        // We can get details by doing search or load user details if available
-        // But since we persist user details on login, if they exist in localStorage,
-        // they are loaded automatically by authSlice. Let's make sure we connect socket.
-      }
       connectSocket();
       return token;
     } catch (err) {
@@ -95,11 +90,11 @@ export function useAuth() {
     } finally {
       dispatch(setLoading(false));
     }
-  };
+  }, [dispatch]);
 
-  const clearError = () => {
+  const clearError = useCallback(() => {
     dispatch(clearErrorAction());
-  };
+  }, [dispatch]);
 
   return {
     user,
@@ -113,3 +108,4 @@ export function useAuth() {
     clearError,
   };
 }
+

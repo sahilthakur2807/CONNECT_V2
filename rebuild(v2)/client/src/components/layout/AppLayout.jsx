@@ -3,25 +3,22 @@ import {
   NavLink,
   Link,
   Outlet,
-  useNavigate,
   useLocation,
 } from "react-router-dom";
 import {
-  Home,
-  Compass,
-  MessageSquare,
-  Bell,
-  User as UserIcon,
-  Hash,
-  Activity,
-} from "lucide-react";
+  HomeIcon,
+  GlobeAltIcon,
+  ChatBubbleLeftRightIcon,
+  BellIcon,
+  UserCircleIcon,
+  HashtagIcon,
+} from "@heroicons/react/24/outline";
 import { Navbar } from "./Navbar";
-import { RoomCard } from "@/components/shared/RoomCard";
-import { useRooms } from "@/hooks/useRooms";
 import { useAppSelector, useAppDispatch } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { setUnreadNotificationsCount } from "@/store/slices/uiSlice";
 import { cn } from "@/utils/cn";
+import { useGlobalSocketEvents } from "@/hooks/useGlobalSocketEvents";
 
 const CATEGORIES = [
   "All Topics",
@@ -37,35 +34,27 @@ const CATEGORIES = [
 ];
 
 const sideNavLinks = [
-  { to: "/home", icon: <Home size={18} />, label: "Home" },
-  { to: "/discover", icon: <Compass size={18} />, label: "Discover" },
+  { to: "/home", icon: <HomeIcon className="w-[18px] h-[18px]" />, label: "Home" },
+  { to: "/discover", icon: <GlobeAltIcon className="w-[18px] h-[18px]" />, label: "Discover" },
   {
     to: "/discussions",
-    icon: <MessageSquare size={18} />,
+    icon: <ChatBubbleLeftRightIcon className="w-[18px] h-[18px]" />,
     label: "Discussions",
   },
-  { to: "/notifications", icon: <Bell size={18} />, label: "Notifications" },
-  { to: "/profile", icon: <UserIcon size={18} />, label: "Profile" },
+  { to: "/notifications", icon: <BellIcon className="w-[18px] h-[18px]" />, label: "Notifications" },
+  { to: "/profile", icon: <UserCircleIcon className="w-[18px] h-[18px]" />, label: "Profile" },
 ];
 
 function LeftSidebar() {
-  const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const activeCategory = searchParams.get("category");
+
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
   );
   const currentUser = useAppSelector((state) => state.auth.user);
-  const { useTrendingRoomsQuery } = useRooms();
-  const { data: trendingRooms = [], isLoading } = useTrendingRoomsQuery(5);
-
   const profilePath = currentUser ? `/profile/${currentUser.id}` : "/profile";
-
-  if (isLoading) {
-    return (
-      <aside className="hidden lg:flex flex-col w-56 shrink-0 py-5 justify-center items-center border-r border-border/50 pr-6 h-full">
-        <Activity className="animate-spin text-primary" size={24} />
-      </aside>
-    );
-  }
 
   return (
     <aside
@@ -114,20 +103,29 @@ function LeftSidebar() {
             </span>
           </div>
           <ul className="space-y-0.5">
-            {CATEGORIES.slice(0, 8).map((cat) => (
-              <li key={cat}>
-                <Link
-                  to={`/discover?category=${encodeURIComponent(cat)}`}
-                  className="flex items-center gap-3 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer"
-                >
-                  <Hash
-                    size={14}
-                    className="text-muted-foreground/50 shrink-0"
-                  />
-                  {cat}
-                </Link>
-              </li>
-            ))}
+            {CATEGORIES.slice(0, 8).map((cat) => {
+              const isActiveCategory =
+                location.pathname === "/discover" &&
+                ((!activeCategory && cat === "All Topics") ||
+                  (activeCategory && activeCategory.toLowerCase() === cat.toLowerCase()));
+              return (
+                <li key={cat}>
+                  <Link
+                    to={`/discover?category=${encodeURIComponent(cat)}`}
+                    className={`flex items-center gap-3 px-3 py-2 text-sm font-bold rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-pointer ${
+                      isActiveCategory
+                        ? "bg-primary/10 text-primary font-extrabold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    }`}
+                  >
+                    <HashtagIcon
+                      className={cn("w-3.5 h-3.5 shrink-0", isActiveCategory ? "text-primary" : "text-muted-foreground/50")}
+                    />
+                    {cat}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         </div>
 
@@ -137,20 +135,12 @@ function LeftSidebar() {
               className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
-              Trending
+              Recommended
             </span>
           </div>
-          <ul className="space-y-0.5">
-            {trendingRooms.map((room) => (
-              <li key={room.id}>
-                <RoomCard
-                  room={room}
-                  compact
-                  onClick={() => navigate(`/room/${room.id}`)}
-                />
-              </li>
-            ))}
-          </ul>
+          <div className="text-[11px] text-muted-foreground/80 italic px-3 font-semibold">
+            This option will be available soon
+          </div>
         </div>
       </div>
     </aside>
@@ -164,6 +154,9 @@ export function AppLayout() {
   const showSidebar = !isRoomPage;
 
   const dispatch = useAppDispatch();
+  
+  // Initialize global socket subscriptions
+  useGlobalSocketEvents();
 
   // Dynamically sync unread notification count globally
   const { useNotificationsQuery } = useNotifications();
@@ -178,14 +171,19 @@ export function AppLayout() {
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Navbar />
 
-      <div className="flex-1 w-full px-4 sm:px-6 overflow-hidden">
+      <div className={cn("flex-1 w-full overflow-hidden", 
+        location.pathname === "/world-chat" ? "pl-4 sm:pl-5 pr-0" : (showSidebar ? "px-4 sm:px-5" : "px-0"),
+        )}
+        >
         <div className="flex h-full">
           {showSidebar && <LeftSidebar />}
 
           <main
             className={cn(
-              "flex-1 h-full overflow-y-auto py-5 min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-              showSidebar && "pl-6",
+              "flex-1 h-full min-w-0 animate-in fade-in duration-300 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+              (isRoomPage || location.pathname === "/world-chat")
+                ? "overflow-hidden flex flex-col py-0 px-0 pl-0"
+                : "overflow-y-auto py-5 pl-6",
             )}
             id="main-content"
             tabIndex={-1}

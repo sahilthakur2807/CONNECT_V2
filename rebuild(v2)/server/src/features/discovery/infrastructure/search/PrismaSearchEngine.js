@@ -8,6 +8,7 @@ export class PrismaSearchEngine {
     const limit = options.limit || 20;
     const where = {
       role: { not: "banned" }, // Exclude banned user roles
+      isDeleted: false,
       OR: [
         { username: { contains: options.query, mode: "insensitive" } },
         { name: { contains: options.query, mode: "insensitive" } },

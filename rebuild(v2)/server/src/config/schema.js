@@ -12,4 +12,8 @@ export const configSchema = z.object({
     .string()
     .min(8, "JWT_SECRET must be at least 8 characters long"),
   CORS_ORIGIN: z.string().default("*"),
+  GMAIL_USER: z.string().email().default("13835.yps@gmail.com"),
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
+  GMAIL_REFRESH_TOKEN: z.string().optional(),
 });

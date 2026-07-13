@@ -183,12 +183,34 @@ export function createSocialRouter() {
     }
   });
 
+  // 7.5. Get Blocked Users List
+  router.get("/blocks", authenticateJWT, async (req, res, next) => {
+    try {
+      const result = await blockRepo.findBlockedUsers(req.user.id);
+      res.json({ success: true, data: result.map((b) => b.blocked) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 8. Get Friends List
   router.get("/friends", authenticateJWT, async (req, res, next) => {
     try {
       const query = new GetFriendsQuery(req.user.id);
       const result = await getFriendsHandler.execute(query);
-      res.json({ success: true, data: result });
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+
+      const sanitized = result.map((friend) => {
+        if (friend.isPaused && !isAdmin) {
+          return {
+            ...friend,
+            status: "offline",
+          };
+        }
+        return friend;
+      });
+
+      res.json({ success: true, data: sanitized });
     } catch (err) {
       next(err);
     }

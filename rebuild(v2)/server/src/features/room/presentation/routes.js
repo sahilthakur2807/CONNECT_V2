@@ -76,6 +76,7 @@ export function createRoomsRouter() {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const userId = req.user?.id;
+    const includeWorldChat = req.query.includeWorldChat === "true";
 
     try {
       const query = new GetRoomsQuery(
@@ -84,6 +85,7 @@ export function createRoomsRouter() {
         page,
         limit,
         userId,
+        includeWorldChat,
       );
       const result = await getRoomsHandler.execute(query);
       res.json({ success: true, data: result });
@@ -143,16 +145,21 @@ export function createRoomsRouter() {
     }
   });
 
+  const unescapeUrl = (str) => {
+    if (!str) return str;
+    return str.replace(/&#x2F;/g, "/");
+  };
+
   // 6. Create room
   router.post("/", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
-      title: z.string().min(3).max(100),
-      description: z.string().min(10).max(500),
+      title: z.string().min(10).max(100),
+      description: z.string().max(500),
       category: z.string().min(2).max(30),
       tags: z.array(z.string()).optional().default([]),
+      imageUrl: z.string().optional(),
       communityId: z.string().optional(),
       sourceUrl: z.string().url().optional(),
-      imageUrl: z.string().url().optional(),
     });
 
     try {
@@ -165,7 +172,7 @@ export function createRoomsRouter() {
         parsed.tags,
         parsed.communityId,
         parsed.sourceUrl,
-        parsed.imageUrl,
+        unescapeUrl(parsed.imageUrl),
       );
       const result = await createRoomHandler.execute(command);
       res.status(201).json({ success: true, data: result });
@@ -177,11 +184,11 @@ export function createRoomsRouter() {
   // 7. Update room
   router.patch("/:id", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
-      title: z.string().min(3).max(100).optional(),
-      description: z.string().min(10).max(500).optional(),
+      title: z.string().min(10).max(100).optional(),
+      description: z.string().max(500).optional(),
       category: z.string().min(2).max(30).optional(),
       tags: z.array(z.string()).optional(),
-      imageUrl: z.string().url().optional(),
+      imageUrl: z.string().optional(),
       isPrivate: z.boolean().optional(),
     });
 
@@ -194,7 +201,7 @@ export function createRoomsRouter() {
         parsed.description,
         parsed.category,
         parsed.tags,
-        parsed.imageUrl,
+        unescapeUrl(parsed.imageUrl),
         parsed.isPrivate,
       );
       const result = await updateRoomHandler.execute(command);
@@ -219,8 +226,8 @@ export function createRoomsRouter() {
   router.delete("/:id", authenticateJWT, async (req, res, next) => {
     try {
       const command = new DeleteRoomCommand(
-        req.params.id,
         req.user.id,
+        req.params.id,
         req.user.role,
       );
       await deleteRoomHandler.execute(command);
@@ -230,31 +237,33 @@ export function createRoomsRouter() {
     }
   });
 
-  // 10. Join room
+  // 10. Join room / Request access
   router.post("/:id/join", authenticateJWT, async (req, res, next) => {
     try {
       const roomId = req.params.id;
       const userId = req.user.id;
 
-      // Check if room exists
       const room = await roomRepo.findById(roomId);
-      if (!room || room.deleted) {
+      if (!room) {
         res.status(404).json({ success: false, error: "Room not found" });
         return;
       }
 
-      // Check if already a member
-      const existing = await prisma.roomMember.findUnique({
-        where: {
-          userId_roomId: { userId, roomId },
-        },
-      });
-
+      const existing = await roomRepo.findMembership(userId, roomId);
       if (!existing) {
         const status = room.isPrivate ? "pending" : "joined";
-        await prisma.roomMember.create({
-          data: { userId, roomId, status },
-        });
+        await roomRepo.createMembership(userId, roomId, status);
+        
+        if (status === "joined") {
+          await prisma.activityFeedItem.create({
+            data: {
+              type: "room.joined",
+              userId,
+              roomId,
+            },
+          });
+        }
+
         res.json({ success: true, data: { isJoined: !room.isPrivate, isPending: room.isPrivate } });
       } else {
         res.json({ success: true, data: { isJoined: existing.status === "joined", isPending: existing.status === "pending" } });
@@ -270,8 +279,15 @@ export function createRoomsRouter() {
       const roomId = req.params.id;
       const userId = req.user.id;
 
-      await prisma.roomMember.deleteMany({
-        where: { userId, roomId },
+      await roomRepo.deleteMembership(userId, roomId);
+
+      // Remove joined room message from activity feed
+      await prisma.activityFeedItem.deleteMany({
+        where: {
+          userId,
+          roomId,
+          type: "room.joined",
+        },
       });
 
       res.json({ success: true, data: { isJoined: false, isPending: false } });
@@ -292,17 +308,7 @@ export function createRoomsRouter() {
         return;
       }
 
-      const pending = await prisma.roomMember.findMany({
-        where: {
-          roomId,
-          status: "pending",
-        },
-        include: {
-          user: {
-            select: { id: true, username: true, name: true, avatar: true },
-          },
-        },
-      });
+      const pending = await roomRepo.findPendingMembers(roomId);
 
       res.json({ success: true, data: pending.map((p) => p.user) });
     } catch (err) {
@@ -323,14 +329,7 @@ export function createRoomsRouter() {
         return;
       }
 
-      await prisma.roomMember.update({
-        where: {
-          userId_roomId: { userId, roomId },
-        },
-        data: {
-          status: "joined",
-        },
-      });
+      await roomRepo.updateMembershipStatus(userId, roomId, "joined");
 
       res.json({ success: true });
     } catch (err) {

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { XIcon } from "lucide-react";
+import { XMarkIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/utils/cn";
 
 const DialogContext = React.createContext({});
@@ -74,7 +74,7 @@ export function DialogContent({ className, children, ...props }) {
           onClick={() => onOpenChange?.(false)}
           className="absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:outline-none text-muted-foreground focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
-          <XIcon size={16} />
+          <XMarkIcon className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </button>
       </div>

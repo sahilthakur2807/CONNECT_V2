@@ -6,9 +6,11 @@ let socket = null;
 export function getSocket() {
   if (!socket) {
     socket = io("/", {
-      auth: () => ({
-        token: store.getState().auth.accessToken,
-      }),
+      auth: (cb) => {
+        cb({
+          token: store.getState().auth.accessToken,
+        });
+      },
       autoConnect: false,
       transports: ["websocket", "polling"],
     });
@@ -22,7 +24,6 @@ export function connectSocket() {
     return;
   }
   const s = getSocket();
-  s.auth = { token };
   if (!s.connected) {
     s.connect();
   }

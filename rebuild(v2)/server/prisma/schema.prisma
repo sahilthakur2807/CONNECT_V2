@@ -1,11 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -16,6 +15,7 @@ model User {
   name            String?
   avatar          String?
   bio             String?
+  banner          String?           @default("from-red-600 via-red-500 to-red-800")
   role            String            @default("user")
   status          String            @default("offline")
   verified                  Boolean           @default(false)
@@ -28,6 +28,8 @@ model User {
   lockoutUntil              DateTime?
   badges                    String[]          @default([])
   reputation                Int               @default(0)
+  isPaused                  Boolean           @default(false)
+  isDeleted                 Boolean           @default(false)
   createdAt                 DateTime          @default(now())
   updatedAt                 DateTime          @updatedAt
   sessions                  Session[]
@@ -130,6 +132,7 @@ model Room {
   reports     Report[]
   activities  Activity[]
   activitiesFeed ActivityFeedItem[] @relation("RoomActivities")
+  hashtags    Hashtag[] @relation("RoomHashtags")
 
   @@index([communityId])
   @@index([articleId])
@@ -428,5 +431,14 @@ model ReputationLog {
 
   @@index([userId])
   @@map("reputation_logs")
+}
+
+model Hashtag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  rooms     Room[]   @relation("RoomHashtags")
+
+  @@map("hashtags")
 }
 

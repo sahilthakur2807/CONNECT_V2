@@ -1,10 +1,10 @@
-import { Loader2 } from "lucide-react";
+import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/utils/cn";
 
 export function Spinner({ className, size = 24, ...props }) {
   return (
-    <Loader2
-      size={size}
+    <ArrowPathIcon
+      style={{ width: size, height: size }}
       className={cn("animate-spin text-primary", className)}
       {...props}
     />

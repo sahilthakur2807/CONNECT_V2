@@ -12,12 +12,15 @@ import UserProfile from "@/pages/UserProfile";
 import NotificationCenter from "@/pages/NotificationCenter";
 import ModeratorDashboard from "@/pages/ModeratorDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
+import CommunitiesPage from "@/pages/CommunitiesPage";
+import WorldChatPage from "@/pages/WorldChatPage";
+import VerifyEmail from "@/pages/VerifyEmail";
 
 // Route protection wrapper for authenticated routes
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }
@@ -26,7 +29,7 @@ function ProtectedRoute({ children }) {
 function ModeratorRoute({ children }) {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   const isMod =
     user?.role === "moderator" ||
@@ -42,7 +45,7 @@ function ModeratorRoute({ children }) {
 function AdminRoute({ children }) {
   const { isAuthenticated, user } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/" replace />;
   }
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   if (!isAdmin) {
@@ -71,6 +74,7 @@ export function App() {
       }
     };
     initAuth();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!initialized && user) {
@@ -89,6 +93,7 @@ export function App() {
       {/* Public Pages */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
 
       {/* Standalone Protected Onboarding Flow */}
       <Route
@@ -111,6 +116,8 @@ export function App() {
         <Route path="/home" element={<HomeDashboard />} />
         <Route path="/discover" element={<RoomDiscovery />} />
         <Route path="/discussions" element={<DiscussionsDashboard />} />
+        <Route path="/communities" element={<CommunitiesPage />} />
+        <Route path="/world-chat" element={<WorldChatPage />} />
         <Route path="/room/:roomId" element={<DiscussionRoom />} />
         <Route path="/profile" element={<UserProfile />} />
         <Route path="/profile/:id" element={<UserProfile />} />

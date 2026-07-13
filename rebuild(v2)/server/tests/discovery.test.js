@@ -221,6 +221,7 @@ describe("CONNECT Phase 7 Discovery & Search Unit Tests", () => {
       expect(prisma.user.findMany).toHaveBeenCalledWith({
         where: {
           role: { not: "banned" },
+          isDeleted: false,
           OR: [
             { username: { contains: "user", mode: "insensitive" } },
             { name: { contains: "user", mode: "insensitive" } },

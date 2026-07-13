@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
+import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 
 // Handlers
 import {
@@ -13,11 +14,13 @@ import {
   GetUserStatsHandler,
   GetCommunityStatsHandler,
   GetPlatformMetricsHandler,
+  GetUserMonthlyContributionsHandler,
   GetUserActivityFeedQuery,
   GetCommunityActivityFeedQuery,
   GetUserStatsQuery,
   GetCommunityStatsQuery,
   GetPlatformMetricsQuery,
+  GetUserMonthlyContributionsQuery,
 } from "../application/queries/AnalyticsQueries.js";
 
 const awardReputationHandler = new AwardReputationHandler();
@@ -26,9 +29,64 @@ const getCommunityActivityFeedHandler = new GetCommunityActivityFeedHandler();
 const getUserStatsHandler = new GetUserStatsHandler();
 const getCommunityStatsHandler = new GetCommunityStatsHandler();
 const getPlatformMetricsHandler = new GetPlatformMetricsHandler();
+const getUserMonthlyContributionsHandler = new GetUserMonthlyContributionsHandler();
 
 export function createAnalyticsRouter() {
   const router = Router();
+
+  // Public stats endpoint for landing page
+  router.get("/stats", async (req, res, next) => {
+    try {
+      const [totalUsers, totalRooms, totalMessages, totalCommunities, activeUsers] = await Promise.all([
+        prisma.user.count({ where: { role: { not: "banned" } } }),
+        prisma.room.count({ where: { deleted: false } }),
+        prisma.message.count({ where: { deleted: false } }),
+        prisma.community.count({ where: { deleted: false } }),
+        prisma.user.count({ where: { status: "online" } }),
+      ]);
+      res.json({
+        totalUsers,
+        totalRooms,
+        totalMessages,
+        totalCommunities,
+        activeUsers
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Public trending messages endpoint for landing page
+  router.get("/messages/trending", async (req, res, next) => {
+    try {
+      const messages = await prisma.message.findMany({
+        where: {
+          deleted: false,
+          room: { deleted: false, isPrivate: false },
+        },
+        include: {
+          reactions: true,
+          room: { select: { id: true, title: true } },
+          user: { select: { id: true, username: true, name: true, avatar: true } },
+          replies: {
+            where: { deleted: false },
+            take: 4,
+            include: {
+              user: { select: { id: true, username: true, name: true, avatar: true } }
+            }
+          }
+        },
+        orderBy: [
+          { reactions: { _count: "desc" } },
+          { createdAt: "desc" }
+        ],
+        take: 10
+      });
+      res.json(messages);
+    } catch (err) {
+      next(err);
+    }
+  });
 
   // 1. Get User Activity Feed
   router.get("/users/:id/feed", authenticateJWT, async (req, res, next) => {
@@ -42,8 +100,40 @@ export function createAnalyticsRouter() {
 
     try {
       const parsed = schema.parse(req.query);
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
+      // Check if target user has paused their account
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { isPaused: true },
+      });
+
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+
+      if (targetUser?.isPaused && !isAdmin) {
+        return res.json({ success: true, data: [] });
+      }
+
       const query = new GetUserActivityFeedQuery(
-        req.params.id,
+        targetUserId,
         parsed.limit,
         parsed.cursor,
       );
@@ -85,8 +175,71 @@ export function createAnalyticsRouter() {
   // 3. Get User Statistics
   router.get("/users/:id/stats", authenticateJWT, async (req, res, next) => {
     try {
-      const query = new GetUserStatsQuery(req.params.id);
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
+      const query = new GetUserStatsQuery(targetUserId);
       const result = await getUserStatsHandler.execute(query);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Get User Monthly Contributions (Room pie chart)
+  router.get("/users/:id/contributions", authenticateJWT, async (req, res, next) => {
+    try {
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
+      // Check if target user has paused their account
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { isPaused: true },
+      });
+
+      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+
+      if (targetUser?.isPaused && !isAdmin) {
+        return res.json({ success: true, data: [] });
+      }
+
+      const query = new GetUserMonthlyContributionsQuery(targetUserId);
+      const result = await getUserMonthlyContributionsHandler.execute(query);
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);

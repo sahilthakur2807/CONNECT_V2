@@ -1,18 +1,19 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import {
-  Bell,
-  Search,
-  Menu,
-  LogOut,
-  User as UserIcon,
-  Settings,
-  Shield,
-  Home,
-  Sun,
-  Moon,
-  X,
-} from "lucide-react";
+  BellIcon,
+  MagnifyingGlassIcon,
+  Bars3Icon,
+  ArrowRightOnRectangleIcon,
+  UserCircleIcon,
+  Cog6ToothIcon,
+  ShieldCheckIcon,
+  HomeIcon,
+  SunIcon,
+  MoonIcon,
+  XMarkIcon,
+  ChevronDownIcon,
+} from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -29,6 +30,8 @@ import {
 import { cn } from "@/utils/cn";
 import { useTheme } from "@/context/ThemeContext";
 import { useAppSelector } from "@/store";
+import { useNotifications } from "@/hooks/useNotifications";
+import { toast } from "sonner";
 
 export function Navbar() {
   const [searchFocused, setSearchFocused] = useState(false);
@@ -41,10 +44,13 @@ export function Navbar() {
     (state) => state.ui.unreadNotificationsCount,
   );
 
+  const { useNotificationsQuery, markReadMutation, markAllReadMutation } = useNotifications();
+  const { data: notifications = [], isLoading: isLoadingNotifications } = useNotificationsQuery(40);
+
   const navLinks = [
     { to: "/home", label: "Home" },
-    { to: "/discover", label: "Discover" },
-    { to: "/discussions", label: "Discussions" },
+    { to: "/communities", label: "Communities" },
+    { to: "/world-chat", label: "World chat" },
   ];
 
   if (isLoading) {
@@ -135,10 +141,9 @@ export function Navbar() {
               searchFocused && "max-w-xl",
             )}
           >
-            <Search
-              size={18}
+            <MagnifyingGlassIcon
               className={cn(
-                "absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 pointer-events-none z-10",
+                "w-[18px] h-[18px] absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-300 pointer-events-none z-10",
                 searchFocused ? "text-primary" : "text-muted-foreground/50",
               )}
               aria-hidden="true"
@@ -164,22 +169,110 @@ export function Navbar() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            {/* Notifications */}
-            <Link
-              to="/notifications"
-              className="relative h-10 w-10 rounded-xl hover:bg-secondary transition-colors flex items-center justify-center"
-              aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
-            >
-              <Bell size={20} className="text-muted-foreground" />
-              {unreadCount > 0 && (
-                <span
-                  className="absolute top-2 right-2 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-card"
-                  aria-hidden="true"
+            {/* Notifications Dropdown Overlay */}
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <div
+                  className="relative h-10 w-10 rounded-xl hover:bg-secondary transition-colors flex items-center justify-center cursor-pointer"
+                  aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
                 >
-                  {unreadCount}
-                </span>
-              )}
-            </Link>
+                  <BellIcon className="w-5 h-5 text-muted-foreground" />
+                  {unreadCount > 0 && (
+                    <span
+                      className="absolute top-2 right-2 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-card"
+                      aria-hidden="true"
+                    >
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 sm:w-96 bg-card border border-border shadow-xl rounded-2xl p-4 z-50 text-left space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-wider font-serif">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await markAllReadMutation.mutateAsync();
+                          toast.success("All notifications marked as read!");
+                        } catch (err) {
+                          toast.error(err.message || "Failed to mark all as read");
+                        }
+                      }}
+                      className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider cursor-pointer"
+                    >
+                      Mark all read
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-[380px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-2 pr-1">
+                  {isLoadingNotifications ? (
+                    <div className="py-8 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
+                      Retrieving updates...
+                    </div>
+                  ) : notifications.length > 0 ? (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={async () => {
+                          try {
+                            if (!n.read) {
+                              await markReadMutation.mutateAsync(n.id);
+                            }
+                            if (n.roomId) {
+                              navigate(`/room/${n.roomId}`);
+                            }
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        className={cn(
+                          "flex gap-3 p-3 rounded-xl cursor-pointer hover:bg-muted/50 transition-all border border-transparent",
+                          !n.read && "bg-primary/[0.08] border-primary/20 hover:bg-primary/[0.12]"
+                        )}
+                      >
+                        <Avatar
+                          src={n.trigger?.avatar}
+                          name={n.title || "System"}
+                          size="sm"
+                          className="w-8 h-8 shrink-0"
+                          userId={n.trigger?.id}
+                        />
+                        <div className="space-y-0.5 flex-1 min-w-0">
+                          <p className={cn("text-xs leading-snug text-foreground", !n.read ? "font-bold" : "font-medium")}>
+                            {n.body || n.title}
+                          </p>
+                          <p className="text-[9px] text-muted-foreground font-mono uppercase">
+                            {(() => {
+                              if (!n.createdAt) return "";
+                              const d = new Date(n.createdAt);
+                              return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " - " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+                            })()}
+                          </p>
+                        </div>
+                        {!n.read && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 self-center" />
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-8 text-center text-xs text-muted-foreground italic font-medium">
+                      No notifications yet.
+                    </div>
+                  )}
+                </div>
+                <div className="pt-2 border-t border-border/40">
+                  <Button
+                    onClick={() => navigate("/notifications")}
+                    className="w-full rounded-xl font-bold uppercase text-[10px] tracking-widest h-9 bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border/40"
+                  >
+                    View All Notifications
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* Theme toggle */}
             <Button
@@ -189,9 +282,9 @@ export function Navbar() {
               className="h-10 w-10 rounded-xl hover:bg-secondary transition-colors cursor-pointer"
             >
               {theme === "dark" ? (
-                <Sun className="text-muted-foreground" />
+                <SunIcon className="w-[18px] h-[18px] text-muted-foreground" />
               ) : (
-                <Moon className="text-muted-foreground" />
+                <MoonIcon className="w-[18px] h-[18px] text-muted-foreground" />
               )}
             </Button>
 
@@ -216,21 +309,10 @@ export function Navbar() {
                       {user.role}
                     </span>
                   </div>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="lucide lucide-chevron-down hidden lg:block text-muted-foreground/50 transition-transform duration-200"
+                  <ChevronDownIcon
+                    className="w-3.5 h-3.5 hidden lg:block text-muted-foreground/50 transition-transform duration-200"
                     aria-hidden="true"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-64 p-2 rounded-2xl shadow-2xl border-border/50">
@@ -240,6 +322,7 @@ export function Navbar() {
                       src={user.avatar || undefined}
                       name={user.username}
                       size="md"
+                      userId={user.id}
                     />
                     <div className="min-w-0">
                       <p className="font-bold text-sm text-foreground truncate">
@@ -269,11 +352,11 @@ export function Navbar() {
                 <DropdownMenuItem
                   onClick={() => navigate(`/profile/${user.id}`)}
                 >
-                  <UserIcon size={16} className="text-muted-foreground" />
+                  <UserCircleIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Your Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate("/notifications")}>
-                  <Bell size={16} className="text-muted-foreground" />
+                  <BellIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Notifications</span>
                   {unreadCount > 0 && (
                     <span className="ml-auto text-[10px] font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
@@ -288,7 +371,7 @@ export function Navbar() {
                     onClick={() => navigate("/moderator")}
                     className="text-purple-600 dark:text-purple-400"
                   >
-                    <Shield size={16} />
+                    <ShieldCheckIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Moderator Panel</span>
                   </DropdownMenuItem>
                 )}
@@ -297,13 +380,13 @@ export function Navbar() {
                     onClick={() => navigate("/admin")}
                     className="text-blue-600 dark:text-blue-400"
                   >
-                    <Settings size={16} />
+                    <Cog6ToothIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Admin Settings</span>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => navigate("/home")}>
-                  <Home size={16} className="text-muted-foreground" />
+                  <HomeIcon className="w-4 h-4 text-muted-foreground" />
                   <span className="font-medium text-sm">Home</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -312,7 +395,7 @@ export function Navbar() {
                   }}
                   className="text-red-600 focus:bg-red-50 focus:text-red-600 dark:focus:bg-red-950/30"
                 >
-                  <LogOut size={16} />
+                  <ArrowRightOnRectangleIcon className="w-4 h-4" />
                   <span className="font-medium text-sm">Sign Out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -325,7 +408,7 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(true)}
               className="md:hidden rounded-xl h-10 w-10 cursor-pointer"
             >
-              <Menu size={20} />
+              <Bars3Icon className="w-5 h-5" />
             </Button>
           </div>
         </div>
@@ -350,14 +433,13 @@ export function Navbar() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="h-10 w-10 rounded-xl cursor-pointer"
               >
-                <X size={20} />
+                <XMarkIcon className="w-5 h-5" />
               </Button>
             </div>
             <div className="px-6 py-4 space-y-6">
               <div className="relative">
-                <Search
-                  size={18}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                <MagnifyingGlassIcon
+                  className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <Input
                   placeholder="Search..."
@@ -401,6 +483,7 @@ export function Navbar() {
                   src={user.avatar || undefined}
                   name={user.username}
                   size="lg"
+                  userId={user.id}
                 />
                 <div>
                   <p className="font-bold text-lg text-foreground truncate max-w-[150px]">
@@ -419,7 +502,7 @@ export function Navbar() {
                   logout();
                 }}
               >
-                <LogOut size={18} /> Sign Out
+                <ArrowRightOnRectangleIcon className="w-[18px] h-[18px]" /> Sign Out
               </Button>
             </div>
           </div>

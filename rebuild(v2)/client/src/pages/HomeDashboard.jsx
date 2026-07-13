@@ -1,16 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Home,
-  TrendingUp,
-  Sparkles,
-  Flame,
-  Activity,
-  X,
-  ChevronLeft,
-  ChevronRight,
-  Search,
-} from "lucide-react";
+  ArrowTrendingUpIcon,
+  SparklesIcon,
+  FireIcon,
+  ArrowPathIcon,
+  XMarkIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  ArrowUpTrayIcon,
+} from "@heroicons/react/24/outline";
 import { RoomCard } from "@/components/shared/RoomCard";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { Button } from "@/components/ui/button";
@@ -21,9 +21,10 @@ import { cn } from "@/utils/cn";
 import { useRooms } from "@/hooks/useRooms";
 import { useSocial } from "@/hooks/useSocial";
 import { useDiscovery } from "@/hooks/useDiscovery";
-import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { apiClient } from "@/services/apiClient";
+import { ImageCropper } from "@/components/ui/ImageCropper";
 
 const CATEGORIES = [
   "All Topics",
@@ -62,9 +63,19 @@ export function HomeDashboard() {
 
   const [activeTab, setActiveTab] = useState("trending");
   // Friend search states
+  const [friendSearchInput, setFriendSearchInput] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [addingFriendId, setAddingFriendId] = useState("");
+
+  // Debounce friend search input to query
+  useEffect(() => {
+    if (friendSearchInput.length < 2) return;
+    const timer = setTimeout(() => {
+      setFriendSearchQuery(friendSearchInput);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [friendSearchInput]);
 
   // Dialog states
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -76,6 +87,11 @@ export function HomeDashboard() {
     tags: "",
     sourceUrl: "",
   });
+  const [selectedBannerPreset, setSelectedBannerPreset] = useState("");
+  const [customBannerFile, setCustomBannerFile] = useState(null);
+  const [customBannerPreview, setCustomBannerPreview] = useState("");
+  const [pendingBannerFile, setPendingBannerFile] = useState(null);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [communityForm, setCommunityForm] = useState({
     name: "",
     description: "",
@@ -90,9 +106,9 @@ export function HomeDashboard() {
 
   // Fetch Room Feeds
   const { data: trendingRooms = [], isLoading: trendingLoading } =
-    useTrendingRoomsQuery(10);
-  const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10);
-  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10);
+    useTrendingRoomsQuery(10, { enabled: activeTab === "trending" });
+  const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10, { enabled: activeTab === "hot" });
+  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10, { enabled: activeTab === "new" });
 
   // Fetch Friends List (which returns status 'online' or 'offline')
   const { data: friendsList = [], isLoading: friendsLoading } =
@@ -115,9 +131,6 @@ export function HomeDashboard() {
   const searchResults = (searchResultsData?.items || []).filter(
     (u) => u.id !== currentUser?.id
   );
-
-  // Initialize Socket.IO subscriptions to listen to presence changes
-  useSocketEvents();
 
   const isLoading =
     trendingLoading || hotLoading || newLoading || friendsLoading;
@@ -145,11 +158,29 @@ export function HomeDashboard() {
   const handleCreateRoom = async (e) => {
     e.preventDefault();
     if (!roomForm.title || !roomForm.category) return;
+    setIsUploadingBanner(true);
     try {
+      let finalImageUrl = selectedBannerPreset;
+
+      if (customBannerFile) {
+        const formData = new FormData();
+        formData.append("avatar", customBannerFile);
+        const uploadRes = await apiClient.post("/users/avatar", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        finalImageUrl = uploadRes.data.data.url;
+      }
+
       const tagsArray = roomForm.tags
-        .split(",")
-        .map((t) => t.trim())
+        .replace(/#/g, " ")
+        .split(/[\s,]+/)
+        .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
+      let normalizedSourceUrl = roomForm.sourceUrl?.trim() || undefined;
+      if (normalizedSourceUrl && !/^https?:\/\//i.test(normalizedSourceUrl)) {
+        normalizedSourceUrl = `https://${normalizedSourceUrl}`;
+      }
+
       const newRoom = await createRoomMutation.mutateAsync({
         title: roomForm.title,
         description:
@@ -157,7 +188,8 @@ export function HomeDashboard() {
           "No description provided for this room.",
         category: roomForm.category,
         tags: tagsArray,
-        sourceUrl: roomForm.sourceUrl || undefined,
+        sourceUrl: normalizedSourceUrl,
+        imageUrl: finalImageUrl,
       });
       setShowCreateRoom(false);
       setRoomForm({
@@ -167,10 +199,20 @@ export function HomeDashboard() {
         tags: "",
         sourceUrl: "",
       });
+      setCustomBannerFile(null);
+      setCustomBannerPreview("");
+      setSelectedBannerPreset("");
       toast.success("Room proposed and launched!");
       navigate(`/room/${newRoom.id}`);
     } catch (err) {
-      toast.error(err.message || "Failed to create room");
+      if (err.details && Array.isArray(err.details)) {
+        const errorMsg = err.details.map((d) => `${d.path}: ${d.message}`).join(", ");
+        toast.error(`Validation Error: ${errorMsg}`);
+      } else {
+        toast.error(err.message || "Failed to create room");
+      }
+    } finally {
+      setIsUploadingBanner(false);
     }
   };
 
@@ -183,15 +225,21 @@ export function HomeDashboard() {
       setCommunityForm({ name: "", description: "", category: "Politics" });
       toast.success("Sphere established successfully!");
     } catch (err) {
-      toast.error(err.message || "Failed to create sphere");
+      if (err.details && Array.isArray(err.details)) {
+        const errorMsg = err.details.map((d) => `${d.path}: ${d.message}`).join(", ");
+        toast.error(`Validation Error: ${errorMsg}`);
+      } else {
+        toast.error(err.message || "Failed to create sphere");
+      }
     }
   };
 
   const handleFriendSearchChange = (val) => {
-    setFriendSearchQuery(val);
+    setFriendSearchInput(val);
     const isOpen = val.length >= 2;
     setShowSearch(isOpen);
     if (!isOpen) {
+      setFriendSearchQuery("");
       setSentFriendRequestIds([]);
     }
   };
@@ -250,7 +298,7 @@ export function HomeDashboard() {
   if (isLoading) {
     return (
       <div className="p-20 flex flex-col justify-center items-center h-64">
-        <Activity className="animate-spin text-primary" size={32} />
+        <ArrowPathIcon className="animate-spin text-primary w-8 h-8" />
         <p className="mt-4 text-sm font-bold text-muted-foreground uppercase tracking-widest">
           Loading network...
         </p>
@@ -314,26 +362,26 @@ export function HomeDashboard() {
               <div className="relative">
                 <Input
                   placeholder="Add friend by username..."
-                  value={friendSearchQuery}
+                  value={friendSearchInput}
                   onChange={(e) => handleFriendSearchChange(e.target.value)}
                   className="h-8 pr-8 bg-secondary/50 border-none focus-visible:ring-2 focus-visible:ring-primary/10 transition-all rounded-xl text-xs font-bold"
                 />
 
-                {friendSearchQuery ? (
+                {friendSearchInput ? (
                   <button
                     onClick={() => {
+                      setFriendSearchInput("");
                       setFriendSearchQuery("");
                       setShowSearch(false);
                       setSentFriendRequestIds([]);
                     }}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 hover:text-foreground cursor-pointer"
                   >
-                    <X size={12} />
+                    <XMarkIcon className="w-3 h-3" />
                   </button>
                 ) : (
-                  <Search
-                    size={12}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
+                  <MagnifyingGlassIcon
+                    className="w-3 h-3 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/50 pointer-events-none"
                   />
                 )}
               </div>
@@ -422,7 +470,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Left"
                 >
-                  <ChevronLeft size={16} />
+                   <ChevronLeftIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() =>
@@ -434,7 +482,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Right"
                 >
-                  <ChevronRight size={16} />
+                   <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -479,7 +527,7 @@ export function HomeDashboard() {
                     className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md scale-0 group-hover:scale-100 transition-all duration-200 cursor-pointer"
                     title="Remove Friend"
                   >
-                    <X size={10} />
+                    <XMarkIcon className="w-2.5 h-2.5" />
                   </button>
                 </div>
                 <div className="min-w-0 w-full font-sans">
@@ -516,7 +564,7 @@ export function HomeDashboard() {
                   fontWeight: 900,
                 }}
               >
-                <Flame size={14} className="animate-pulse text-primary" />
+                <FireIcon className="w-3.5 h-3.5 animate-pulse text-primary" />
                 DEBATE OF THE DAY
               </div>
 
@@ -589,13 +637,13 @@ export function HomeDashboard() {
               {
                 id: "trending",
                 label: "Trending Feed",
-                icon: <TrendingUp size={16} />,
+                icon: <ArrowTrendingUpIcon className="w-4 h-4" />,
               },
-              { id: "hot", label: "Hot Debates", icon: <Flame size={16} /> },
+              { id: "hot", label: "Hot Debates", icon: <FireIcon className="w-4 h-4" /> },
               {
                 id: "new",
                 label: "Newly Created",
-                icon: <Sparkles size={16} />,
+                icon: <SparklesIcon className="w-4 h-4" />,
               },
             ].map((tab) => (
               <button
@@ -618,14 +666,16 @@ export function HomeDashboard() {
 
         {/* Spacious Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {activeRooms.map((room) => (
+          {activeRooms.map((room, idx) => (
             <RoomCard
               key={room.id}
               room={room}
+              index={idx}
+              activeTab={activeTab}
               onClick={(id) => navigate(`/room/${id}`)}
               onJoin={handleJoinRoom}
               onLeave={handleLeaveRoom}
-              className="bg-card border border-border/50 rounded-3xl p-6 hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
+              className="bg-card border border-border/50 rounded-3xl hover:shadow-2xl hover:shadow-primary/5 transition-all duration-300"
             />
           ))}
           {activeRooms.length === 0 && (
@@ -675,7 +725,7 @@ export function HomeDashboard() {
               onClick={() => setShowCreateRoom(false)}
               className="absolute top-6 right-6 text-muted-foreground hover:text-foreground cursor-pointer"
             >
-              <X size={20} />
+              <XMarkIcon className="w-5 h-5" />
             </button>
             <div className="space-y-1">
               <h2
@@ -751,7 +801,7 @@ export function HomeDashboard() {
                     htmlFor="room-tags"
                     className="text-xs font-black uppercase tracking-widest text-muted-foreground"
                   >
-                    Tags (Comma separated)
+                    HASHTAGS (Comma or Space separated)
                   </label>
                   <Input
                     id="room-tags"
@@ -759,7 +809,7 @@ export function HomeDashboard() {
                     onChange={(e) =>
                       setRoomForm({ ...roomForm, tags: e.target.value })
                     }
-                    placeholder="e.g. AI, ethics, policy"
+                    placeholder="e.g. #war #fire #world"
                   />
                 </div>
               </div>
@@ -780,11 +830,81 @@ export function HomeDashboard() {
                   type="url"
                 />
               </div>
+
+              {/* Cover Banner Selection */}
+              <div className="space-y-3">
+                <label className="text-xs font-black uppercase tracking-widest text-muted-foreground block">
+                  Select Cover Banner (Optional)
+                </label>
+                
+                {/* Live Preview */}
+                <div className="h-20 w-full rounded-2xl overflow-hidden border border-border/50 relative bg-muted shrink-0 mb-3">
+                  {customBannerPreview ? (
+                    <img src={customBannerPreview} alt="Preview" className="w-full h-full object-cover" />
+                  ) : selectedBannerPreset ? (
+                    <div className={cn(selectedBannerPreset.replace("gradient:", ""), "bg-gradient-to-r w-full h-full")} />
+                  ) : (
+                    <img src="/room_banner.png" alt="Default Preview" className="w-full h-full object-cover" />
+                  )}
+                  <div className="absolute top-2 left-2 bg-black/40 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded backdrop-blur-xs">
+                    Live Preview
+                  </div>
+                </div>
+
+                {/* Preset Options & Upload Button Row */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {[
+                    { id: "", name: "Default Image", style: "border-border text-foreground hover:bg-secondary bg-secondary/50" },
+                    { id: "gradient:from-red-600 via-red-500 to-red-800", name: "Red Gradient", style: "from-red-600 via-red-500 to-red-800 text-white bg-gradient-to-r" },
+                    { id: "gradient:from-blue-600 via-indigo-600 to-purple-600", name: "Blue Gradient", style: "from-blue-600 via-indigo-600 to-purple-600 text-white bg-gradient-to-r" },
+                    { id: "gradient:from-emerald-600 to-teal-800", name: "Teal Gradient", style: "from-emerald-600 to-teal-800 text-white bg-gradient-to-r" },
+                    { id: "gradient:from-slate-700 via-slate-600 to-slate-800", name: "Slate Gradient", style: "from-slate-700 via-slate-600 to-slate-800 text-white bg-gradient-to-r" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBannerPreset(preset.id);
+                        setCustomBannerFile(null);
+                        setCustomBannerPreview("");
+                      }}
+                      className={cn(
+                        "h-8 px-3 rounded-xl text-xs font-bold cursor-pointer transition-all border-2",
+                        preset.style,
+                        !customBannerPreview && selectedBannerPreset === preset.id
+                          ? "border-primary ring-2 ring-primary/20 scale-105"
+                          : "border-transparent"
+                      )}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+
+                  {/* Upload Image Button */}
+                  <label className="h-8 px-3 rounded-xl border border-border bg-secondary hover:bg-secondary/80 flex items-center justify-center gap-1.5 text-xs font-bold text-foreground cursor-pointer transition-colors">
+                    <ArrowUpTrayIcon className="w-3 h-3" />
+                    <span>Upload custom banner</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setPendingBannerFile(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               <Button
                 type="submit"
+                disabled={isUploadingBanner}
                 className="w-full rounded-2xl h-12 font-black uppercase text-xs tracking-widest mt-2 cursor-pointer"
               >
-                Launch Room
+                {isUploadingBanner ? "Launching..." : "Launch Room"}
               </Button>
             </form>
           </div>
@@ -799,7 +919,7 @@ export function HomeDashboard() {
               onClick={() => setShowCreateCommunity(false)}
               className="absolute top-6 right-6 text-muted-foreground hover:text-foreground cursor-pointer"
             >
-              <X size={20} />
+              <XMarkIcon className="w-5 h-5" />
             </button>
             <div className="space-y-1">
               <h2
@@ -883,6 +1003,27 @@ export function HomeDashboard() {
                 Establish Sphere
               </Button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Image Crop Overlay */}
+      {pendingBannerFile && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-[60] p-4 animate-in fade-in">
+          <div className="bg-card text-card-foreground rounded-[28px] max-w-md w-full p-6 space-y-4 relative shadow-2xl border border-border/50">
+            <h3 className="text-lg font-bold font-serif text-foreground">Adjust Cover Image</h3>
+            <ImageCropper
+              file={pendingBannerFile}
+              aspectRatio={3}
+              onCropComplete={(croppedFile, croppedUrl) => {
+                setCustomBannerFile(croppedFile);
+                setCustomBannerPreview(croppedUrl);
+                setPendingBannerFile(null);
+              }}
+              onCancel={() => {
+                setPendingBannerFile(null);
+              }}
+            />
           </div>
         </div>
       )}

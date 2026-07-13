@@ -89,14 +89,22 @@ export function initializeSocketServer(app) {
 
       // 3. Update database presence if this is the user's first active tab
       if (connections.size === 1) {
-        prisma.user
-          .update({
+        prisma.user.findUnique({
+          where: { id: user.id },
+          select: { isPaused: true }
+        })
+        .then((dbUser) => {
+          const isPaused = dbUser?.isPaused || false;
+          return prisma.user.update({
             where: { id: user.id },
-            data: { status: "online" },
+            data: { status: isPaused ? "paused" : "online" },
           })
           .then(() => {
-            // Broadcast presence change globally AFTER database commit
-            io?.emit("presence.online", { userId: user.id });
+            if (isPaused) {
+              io?.to("moderators").emit("presence.online", { userId: user.id, isPaused: true });
+            } else {
+              io?.emit("presence.online", { userId: user.id });
+            }
 
             // Find friends to broadcast presence change
             return prisma.friendship.findMany({
@@ -107,37 +115,23 @@ export function initializeSocketServer(app) {
             });
           })
           .then((friendships) => {
-            if (!friendships) return;
+            if (!friendships || isPaused) return;
             const friendIds = friendships.map((f) =>
               f.userId === user.id ? f.friendId : f.userId,
             );
             for (const friendId of friendIds) {
               io?.to(friendId).emit("presence.online", { userId: user.id });
             }
-          })
-          .catch((err) =>
-            Logger.error(
-              `Failed to update user ${user.id} presence to online:`,
-              err,
-            ),
-          );
+          });
+        })
+        .catch((err) =>
+          Logger.error(
+            `Failed to update user ${user.id} presence to online:`,
+            err,
+          ),
+        );
       }
     }
-
-    // Track rooms user joins
-    socket.on("join_room", (roomId) => {
-      socket.join(roomId);
-      Logger.debug(
-        `Socket ${socket.id} (User: ${user?.id}) joined room: ${roomId}`,
-      );
-    });
-
-    socket.on("leave_room", (roomId) => {
-      socket.leave(roomId);
-      Logger.debug(
-        `Socket ${socket.id} (User: ${user?.id}) left room: ${roomId}`,
-      );
-    });
 
     // Dynamic registry dispatch
     const handlers = SocketEventRegistry.getHandlers();
@@ -156,7 +150,13 @@ export function initializeSocketServer(app) {
 
     socket.on("disconnecting", () => {
       for (const roomId of socket.rooms) {
-        if (roomId === user?.id) continue;
+        if (
+          roomId === user?.id ||
+          roomId === socket.id ||
+          roomId === "moderators"
+        ) {
+          continue;
+        }
         broadcastRoomActiveUsers(roomId, socket.id);
       }
     });
@@ -173,14 +173,22 @@ export function initializeSocketServer(app) {
           if (connections.size === 0) {
             activeUserConnections.delete(user.id);
 
-            prisma.user
-              .update({
+            prisma.user.findUnique({
+              where: { id: user.id },
+              select: { isPaused: true }
+            })
+            .then((dbUser) => {
+              const isPaused = dbUser?.isPaused || false;
+              return prisma.user.update({
                 where: { id: user.id },
                 data: { status: "offline", lastSeen: new Date() },
               })
               .then(() => {
-                // Broadcast presence change globally AFTER database commit
-                io?.emit("presence.offline", { userId: user.id });
+                if (isPaused) {
+                  io?.to("moderators").emit("presence.offline", { userId: user.id, isPaused: true });
+                } else {
+                  io?.emit("presence.offline", { userId: user.id });
+                }
 
                 // Find friends to broadcast presence change
                 return prisma.friendship.findMany({
@@ -191,7 +199,7 @@ export function initializeSocketServer(app) {
                 });
               })
               .then((friendships) => {
-                if (!friendships) return;
+                if (!friendships || isPaused) return;
                 const friendIds = friendships.map((f) =>
                   f.userId === user.id ? f.friendId : f.userId,
                 );
@@ -200,7 +208,8 @@ export function initializeSocketServer(app) {
                     userId: user.id,
                   });
                 }
-              })
+              });
+            })
               .catch((err) =>
                 Logger.error(
                   `Failed to update user ${user.id} presence to offline:`,

@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/utils/cn";
 
 export function EmptyState({ icon, title, description, action, className }) {
@@ -57,7 +57,7 @@ export function ErrorState({
       role="alert"
     >
       <div className="w-20 h-20 bg-red-50 dark:bg-red-950/20 rounded-3xl flex items-center justify-center mb-6 text-red-500 shadow-sm">
-        <AlertCircle size={40} />
+        <ExclamationCircleIcon className="w-10 h-10" />
       </div>
       <h3 className="text-xl font-black text-foreground mb-2 tracking-tight">
         System Error

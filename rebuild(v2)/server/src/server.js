@@ -19,6 +19,8 @@ import { errorMiddleware } from "./presentation/middlewares/ErrorMiddleware.js";
 // Features
 import { authRouter } from "./features/auth/presentation/routes.js";
 import { registerAuthAuditSubscribers } from "./features/auth/infrastructure/events/AuthAuditSubscribers.js";
+import { registerEmailSubscribers } from "./features/auth/infrastructure/events/EmailNotificationSubscribers.js";
+import { registerNotificationSubscribers } from "./features/social/infrastructure/events/NotificationEventSubscribers.js";
 import { communitiesRouter } from "./features/community/presentation/routes.js";
 import { roomsRouter } from "./features/room/presentation/routes.js";
 import { messagesRouter } from "./features/message/presentation/routes.js";
@@ -26,6 +28,8 @@ import { socialRouter } from "./features/social/presentation/routes.js";
 import { moderationRouter } from "./features/moderation/presentation/routes.js";
 import { discoveryRouter } from "./features/discovery/presentation/routes.js";
 import { analyticsRouter } from "./features/analytics/presentation/routes.js";
+import path from "path";
+import { userRouter } from "./features/user/presentation/routes.js";
 
 // Load dynamic event-driven analytics subscribers
 import "./features/analytics/infrastructure/events/AnalyticsEventSubscribers.js";
@@ -33,6 +37,7 @@ import "./features/analytics/infrastructure/events/AnalyticsEventSubscribers.js"
 // Load dynamic Socket.IO listeners
 import "./features/message/presentation/socket/RoomJoinHandler.js";
 import "./features/message/presentation/socket/TypingHandler.js";
+import "./features/message/presentation/socket/ReactionHandler.js";
 
 const app = express();
 
@@ -62,6 +67,9 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 app.use(sanitizeRequestMiddleware);
+
+// Serve static uploads
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // API Rate Limiting configuration
 const globalRateLimiter = rateLimit({
@@ -100,12 +108,15 @@ app.use("/api", socialRouter);
 app.use("/api", moderationRouter);
 app.use("/api", discoveryRouter);
 app.use("/api", analyticsRouter);
+app.use("/api/users", userRouter);
 
 // Standard global exception mappings
 app.use(errorMiddleware);
 
 // Register Event Subscribers
 registerAuthAuditSubscribers();
+registerEmailSubscribers();
+registerNotificationSubscribers();
 
 // Reset all users to offline on server startup to clean up stale states from previous restarts/crashes
 prisma.user
