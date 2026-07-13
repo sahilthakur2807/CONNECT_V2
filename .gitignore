@@ -12,3 +12,4 @@ walkthrough.md
 task.md
 ./prisma/migrations/
 .agents/
+rebuild(v2)/server/src/generated/
