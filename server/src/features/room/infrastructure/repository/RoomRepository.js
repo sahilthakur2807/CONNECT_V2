@@ -68,7 +68,7 @@ export class RoomRepository extends BaseRepository {
     if (!room) return null;
     const members = Array.isArray(room.members) ? room.members : [];
     const membership = userId ? members.find((m) => m.userId === userId) : null;
-    const isJoined = membership ? membership.status === "joined" : false;
+    const isJoined = membership ? ["joined", "ROOM_MOD"].includes(membership.status) : false;
     const isPending = membership ? membership.status === "pending" : false;
     const activeNow = members.filter((m) => m.user?.status === "online").length;
 
