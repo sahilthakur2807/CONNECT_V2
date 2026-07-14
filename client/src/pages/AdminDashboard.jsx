@@ -48,6 +48,31 @@ export function AdminDashboard() {
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [promoUserId, setPromoUserId] = useState("");
   const [promoRole, setPromoRole] = useState("MEMBER");
+  const [promoSuggestions, setPromoSuggestions] = useState([]);
+  const [isPromoFocused, setIsPromoFocused] = useState(false);
+  const [isSearchingPromoSuggestions, setIsSearchingPromoSuggestions] = useState(false);
+  const [promoUserResult, setPromoUserResult] = useState(null);
+
+  useEffect(() => {
+    if (promoUserId.trim().length < 2) {
+      setPromoSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingPromoSuggestions(true);
+      try {
+        const res = await apiClient.get(`/moderation/users/lookup?query=${encodeURIComponent(promoUserId)}&suggest=true`);
+        setPromoSuggestions(res.data.data || []);
+      } catch (err) {
+        console.error("Failed to fetch platform promotion suggestions:", err);
+      } finally {
+        setIsSearchingPromoSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [promoUserId]);
 
   // State: Rooms/Community Control
   const [newRoomTitle, setNewRoomTitle] = useState("");
@@ -60,6 +85,11 @@ export function AdminDashboard() {
   // State: Audit Logs
   const [auditLogs, setAuditLogs] = useState([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  // State: Platform Citizens List (SUPER_ADMIN only)
+  const [platformUsers, setPlatformUsers] = useState([]);
+  const [platformUsersFilter, setPlatformUsersFilter] = useState("ALL");
+  const [isLoadingPlatformUsers, setIsLoadingPlatformUsers] = useState(false);
 
   // State: Global Settings (Super Admin)
   const [globalSettings, setGlobalSettings] = useState({
@@ -80,7 +110,11 @@ export function AdminDashboard() {
       const list = res.data.data || [];
       setModeratedCommunities(list);
       if (list.length > 0 && !selectedCommunityId) {
-        setSelectedCommunityId(list[0].id);
+        if (isPlatformAdmin) {
+          setSelectedCommunityId("");
+        } else {
+          setSelectedCommunityId(list[0].id);
+        }
       }
     } catch (err) {
       toast.error("Failed to load moderated communities list");
@@ -160,11 +194,29 @@ export function AdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === "roles" && selectedCommunityId) {
-      fetchCommunityMembers();
+  // Load Platform Citizens (Platform assignment list, SUPER_ADMIN only)
+  const fetchPlatformUsers = async () => {
+    setIsLoadingPlatformUsers(true);
+    try {
+      const res = await apiClient.get(`/users?role=${platformUsersFilter}&limit=100`);
+      setPlatformUsers(res.data.data || []);
+    } catch (err) {
+      toast.error("Failed to load platform citizens list");
+    } finally {
+      setIsLoadingPlatformUsers(false);
     }
-  }, [activeTab, selectedCommunityId]);
+  };
+
+  useEffect(() => {
+    if (activeTab === "roles") {
+      if (selectedCommunityId) {
+        fetchCommunityMembers();
+      }
+      if (isSuperAdmin) {
+        fetchPlatformUsers();
+      }
+    }
+  }, [activeTab, selectedCommunityId, platformUsersFilter]);
 
   // Load Communities for Creation/Suspension management
   const fetchAllCommunities = async () => {
@@ -218,24 +270,50 @@ export function AdminDashboard() {
   };
 
   // Promotes platform role (SUPER_ADMIN only)
-  const handlePromotePlatformUser = async (userIdOrUsername, platformRole) => {
+  const handlePromotePlatformUser = async (targetUserId, platformRole) => {
     if (!isSuperAdmin) {
       toast.error("Only SUPER_ADMIN can alter platform-wide credentials");
       return;
     }
     try {
-      // Find the user ID first via user lookup
-      const lookup = await apiClient.get(`/moderation/users/lookup?query=${encodeURIComponent(userIdOrUsername)}`);
-      const targetUserId = lookup.data.data.user.id;
-
       // Execute promotion by executing moderation action or profile patch
       // Patch platform-wide user role via API
       await apiClient.put(`/users/${targetUserId}/role`, { role: platformRole });
       toast.success(`Platform role updated to ${platformRole}`);
       setPromoUserId("");
+      setPromoUserResult(null);
+      fetchStats();
+      if (isSuperAdmin) fetchPlatformUsers();
+    } catch (err) {
+      toast.error(err.message || "Platform promotion command failed");
+    }
+  };
+
+  // Searches for citizen by username, email, or ID
+  const handleSearchCitizen = async () => {
+    if (!promoUserId || !promoUserId.trim()) {
+      toast.error("Please enter a username, email, or user ID to search");
+      return;
+    }
+    try {
+      const lookup = await apiClient.get(`/moderation/users/lookup?query=${encodeURIComponent(promoUserId)}`);
+      setPromoUserResult(lookup.data.data.user);
+      toast.success("Citizen matched successfully");
+    } catch (err) {
+      toast.error(err.message || "Citizen not found");
+      setPromoUserResult(null);
+    }
+  };
+
+  // Updates platform citizen role directly (SUPER_ADMIN only)
+  const handleUpdatePlatformMemberRole = async (targetUserId, newRole) => {
+    try {
+      await apiClient.put(`/users/${targetUserId}/role`, { role: newRole });
+      toast.success("Platform citizen role updated successfully");
+      fetchPlatformUsers();
       fetchStats();
     } catch (err) {
-      toast.error(err.response?.data?.error || "Platform promotion command failed");
+      toast.error(err.message || "Failed to update platform role");
     }
   };
 
@@ -547,30 +625,172 @@ export function AdminDashboard() {
           {/* Platform promotions (SUPER_ADMIN only) */}
           {isSuperAdmin && (
             <div className="bg-card border border-border/50 rounded-2xl p-5 space-y-4">
-              <h3 className="text-sm font-black uppercase tracking-wider">Platform-Wide Promotions (Super Admin)</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input
-                  type="text"
-                  placeholder="Username, Email, or User ID"
-                  value={promoUserId}
-                  onChange={(e) => setPromoUserId(e.target.value)}
-                  className="bg-muted border border-border/50 rounded-xl py-2.5 px-3 text-xs font-semibold outline-hidden placeholder-muted-foreground"
-                />
-                <select
-                  value={promoRole}
-                  onChange={(e) => setPromoRole(e.target.value)}
-                  className="bg-muted border border-border/50 rounded-xl py-2.5 px-3 text-xs font-semibold outline-hidden cursor-pointer"
-                >
-                  <option value="MEMBER">Platform Member</option>
-                  <option value="PLATFORM_MOD">Platform Moderator</option>
-                  <option value="PLATFORM_ADMIN">Platform Admin</option>
-                </select>
+              <h3 className="text-sm font-black uppercase tracking-wider">Platform Citizens</h3>
+              <div className="flex gap-4 items-center">
+                <div className="relative flex-grow">
+                  <input
+                    type="text"
+                    placeholder="Username, Email, or User ID"
+                    value={promoUserId}
+                    onChange={(e) => {
+                      setPromoUserId(e.target.value);
+                      setIsPromoFocused(true);
+                    }}
+                    onFocus={() => setIsPromoFocused(true)}
+                    onBlur={() => setTimeout(() => setIsPromoFocused(false), 200)}
+                    className="w-full bg-muted border border-border/50 rounded-xl py-2.5 px-3 text-xs font-semibold outline-hidden placeholder-muted-foreground"
+                  />
+                  {isPromoFocused && promoUserId.trim().length >= 2 && (promoSuggestions.length > 0 || isSearchingPromoSuggestions) && (
+                    <div className="absolute left-0 right-0 mt-1 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-border/25 max-h-48 overflow-y-auto">
+                      {isSearchingPromoSuggestions ? (
+                        <div className="px-4 py-3 text-[10px] text-muted-foreground animate-pulse font-medium">
+                          Searching suggestions...
+                        </div>
+                      ) : (
+                        promoSuggestions.map((sug) => (
+                          <button
+                            key={sug.id}
+                            type="button"
+                            onClick={() => {
+                              setPromoUserId(sug.username);
+                              setPromoSuggestions([]);
+                              setPromoUserResult(sug);
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-secondary text-left transition-colors cursor-pointer border-none bg-transparent"
+                          >
+                            <div className="text-xs font-bold text-foreground">@{sug.username}</div>
+                            <div className="text-[10px] text-muted-foreground">({sug.name || sug.email})</div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
                 <button
-                  onClick={() => handlePromotePlatformUser(promoUserId, promoRole)}
-                  className="bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold text-xs uppercase cursor-pointer"
+                  onClick={handleSearchCitizen}
+                  className="bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold text-xs uppercase px-6 py-2.5 cursor-pointer shrink-0 border-none"
                 >
-                  Update Platform Credentials
+                  Search Citizen
                 </button>
+              </div>
+
+              {/* Matched Citizen Result Profile Card */}
+              {promoUserResult && (
+                <div className="bg-muted p-4 rounded-xl border border-border/40 flex items-center justify-between gap-4 animate-in fade-in">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-background border border-border/20 shrink-0">
+                      {promoUserResult.avatar ? (
+                        <img src={promoUserResult.avatar} alt={promoUserResult.username} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-indigo-500/10 text-indigo-500 font-black text-sm">
+                          {promoUserResult.username.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-xs">@{promoUserResult.username}</p>
+                      <p className="text-[10px] text-muted-foreground">{promoUserResult.email || "No email linked"}</p>
+                      <p className="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">Current Role: {promoUserResult.role}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={promoRole}
+                      onChange={(e) => setPromoRole(e.target.value)}
+                      className="bg-background text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
+                    >
+                      <option value="MEMBER">Platform Member</option>
+                      <option value="PLATFORM_MOD">Platform Moderator</option>
+                      <option value="PLATFORM_ADMIN">Platform Admin</option>
+                    </select>
+                    <button
+                      onClick={() => handlePromotePlatformUser(promoUserResult.id, promoRole)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-1.5 px-4 font-bold text-xs uppercase transition-all cursor-pointer border-none"
+                    >
+                      Update Role
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Platform Citizens Roster List */}
+              <div className="border-t border-border/40 pt-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <UsersIcon className="w-4 h-4 text-muted-foreground" />
+                    <h4 className="text-xs font-black uppercase tracking-wider">Citizen Directory</h4>
+                  </div>
+                  
+                  {/* Filter select */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">Filter Role:</span>
+                    <select
+                      value={platformUsersFilter}
+                      onChange={(e) => setPlatformUsersFilter(e.target.value)}
+                      className="bg-muted text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1 px-2.5 outline-hidden cursor-pointer"
+                    >
+                      <option value="ALL">ALL CITIZENS</option>
+                      <option value="MEMBER">MEMBER</option>
+                      <option value="PLATFORM_MOD">MODERATOR</option>
+                      <option value="PLATFORM_ADMIN">ADMIN</option>
+                      <option value="SUPER_ADMIN">SUPER ADMIN</option>
+                    </select>
+                  </div>
+                </div>
+
+                {isLoadingPlatformUsers ? (
+                  <div className="py-8 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
+                    Loading citizens directory...
+                  </div>
+                ) : platformUsers.length > 0 ? (
+                  <div className="divide-y divide-border/20 max-h-[300px] overflow-y-auto pr-1">
+                    {platformUsers.map((cit) => (
+                      <div key={cit.id} className="py-3 flex items-center justify-between gap-4 text-xs">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border/30 shrink-0">
+                            {cit.avatar ? (
+                              <img src={cit.avatar} alt={cit.username} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-indigo-500/10 text-indigo-500 font-black text-xs">
+                                {cit.username.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold">@{cit.username}</p>
+                            <p className="text-[10px] text-muted-foreground">{cit.email || "No email linked"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-md ${
+                            cit.role === "SUPER_ADMIN" ? "bg-indigo-500/10 text-indigo-500" :
+                            cit.role === "PLATFORM_ADMIN" ? "bg-amber-500/10 text-amber-500" :
+                            cit.role === "PLATFORM_MOD" ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
+                          }`}>
+                            {cit.role}
+                          </span>
+                          
+                          {cit.role !== "SUPER_ADMIN" ? (
+                            <select
+                              value={cit.role}
+                              onChange={(e) => handleUpdatePlatformMemberRole(cit.id, e.target.value)}
+                              className="bg-muted text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1 px-2 outline-hidden cursor-pointer"
+                            >
+                              <option value="MEMBER">MEMBER</option>
+                              <option value="PLATFORM_MOD">MODERATOR</option>
+                              <option value="PLATFORM_ADMIN">ADMIN</option>
+                            </select>
+                          ) : (
+                            <span className="text-[10px] text-muted-foreground italic font-medium px-2">Protected</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-6 text-center text-xs text-muted-foreground italic">No citizens matching filter found.</p>
+                )}
               </div>
             </div>
           )}

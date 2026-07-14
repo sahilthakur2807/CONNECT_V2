@@ -84,6 +84,16 @@ export const useNewRoomsQuery = (limit = 20, options = {}) =>
     ...options,
   });
 
+export const useCategoriesQuery = () =>
+  useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const res = await apiClient.get("/rooms/categories");
+      return res.data.data;
+    },
+    staleTime: 60000,
+  });
+
 // --- Standalone Mutations ---
 
 export const useCreateCommunityMutation = () => {
@@ -317,6 +327,7 @@ export function useRooms() {
     useTrendingRoomsQuery,
     useHotRoomsQuery,
     useNewRoomsQuery,
+    useCategoriesQuery,
     createCommunityMutation: useCreateCommunityMutation(),
     joinCommunityMutation: useJoinCommunityMutation(),
     leaveCommunityMutation: useLeaveCommunityMutation(),

@@ -51,6 +51,7 @@ export function HomeDashboard() {
     createCommunityMutation,
     joinRoomMutation,
     leaveRoomMutation,
+    useCategoriesQuery,
   } = useRooms();
   const {
     useFriendsQuery,
@@ -92,6 +93,60 @@ export function HomeDashboard() {
   const [customBannerPreview, setCustomBannerPreview] = useState("");
   const [pendingBannerFile, setPendingBannerFile] = useState(null);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+
+  const [categorySearch, setCategorySearch] = useState("");
+  const [showCatSuggestions, setShowCatSuggestions] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState([]);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+
+  const catRef = useRef(null);
+  const tagRef = useRef(null);
+
+  const { data: serverCategories } = useCategoriesQuery();
+  const categories = serverCategories || CATEGORIES.filter(c => c !== "All Topics");
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (catRef.current && !catRef.current.contains(e.target)) {
+        setShowCatSuggestions(false);
+      }
+      if (tagRef.current && !tagRef.current.contains(e.target)) {
+        setShowTagSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    const words = roomForm.tags.split(/[\s,]+/);
+    const lastWord = words[words.length - 1] || "";
+    const prefix = lastWord.startsWith("#") ? lastWord.slice(1) : lastWord;
+
+    if (!prefix) {
+      setTagSuggestions([]);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/rooms/hashtags/suggest?q=${prefix}`);
+        setTagSuggestions(res.data.data);
+      } catch (err) {
+        console.error("Error fetching tag suggestions", err);
+      }
+    }, 200);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [roomForm.tags]);
+
+  const handleSelectTagSuggestion = (tag) => {
+    const words = roomForm.tags.split(/[\s,]+/);
+    words[words.length - 1] = `#${tag}`;
+    const newTagsValue = words.join(" ") + " ";
+    setRoomForm({ ...roomForm, tags: newTagsValue });
+    setShowTagSuggestions(false);
+  };
   const [communityForm, setCommunityForm] = useState({
     name: "",
     description: "",
@@ -157,7 +212,38 @@ export function HomeDashboard() {
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
-    if (!roomForm.title || !roomForm.category) return;
+
+    if (!roomForm.title.trim()) {
+      toast.error("Room title is required");
+      return;
+    }
+    if (roomForm.title.trim().length < 10) {
+      toast.error("Room title must be at least 10 characters long");
+      return;
+    }
+    if (!categorySearch.trim()) {
+      toast.error("Category is required");
+      return;
+    }
+    const isCategoryValid = categories.some(
+      (c) => c.toLowerCase() === categorySearch.trim().toLowerCase()
+    );
+    if (!isCategoryValid) {
+      toast.error("You must select a valid category from the suggestions dropdown");
+      return;
+    }
+    
+    // Validate hashtags
+    const tagsArray = roomForm.tags
+      .replace(/#/g, " ")
+      .split(/[\s,]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (tagsArray.length === 0) {
+      toast.error("At least one hashtag is required");
+      return;
+    }
+
     setIsUploadingBanner(true);
     try {
       let finalImageUrl = selectedBannerPreset;
@@ -171,11 +257,6 @@ export function HomeDashboard() {
         finalImageUrl = uploadRes.data.data.url;
       }
 
-      const tagsArray = roomForm.tags
-        .replace(/#/g, " ")
-        .split(/[\s,]+/)
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
       let normalizedSourceUrl = roomForm.sourceUrl?.trim() || undefined;
       if (normalizedSourceUrl && !/^https?:\/\//i.test(normalizedSourceUrl)) {
         normalizedSourceUrl = `https://${normalizedSourceUrl}`;
@@ -195,10 +276,11 @@ export function HomeDashboard() {
       setRoomForm({
         title: "",
         description: "",
-        category: "Politics",
+        category: "",
         tags: "",
         sourceUrl: "",
       });
+      setCategorySearch("");
       setCustomBannerFile(null);
       setCustomBannerPreview("");
       setSelectedBannerPreset("");
@@ -775,30 +857,57 @@ export function HomeDashboard() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative" ref={catRef}>
                   <label
-                    htmlFor="room-cat"
+                    htmlFor="room-cat-input"
                     className="text-xs font-black uppercase tracking-widest text-muted-foreground"
                   >
                     Category
                   </label>
-                  <Select
-                    value={roomForm.category}
-                    onValueChange={(val) =>
-                      setRoomForm({ ...roomForm, category: val })
-                    }
-                  >
-                    <SelectTrigger id="room-cat" />
-                    <SelectContent>
-                      {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id="room-cat-input"
+                    value={categorySearch}
+                    onChange={(e) => {
+                      setCategorySearch(e.target.value);
+                      setShowCatSuggestions(true);
+                      const match = categories.find(c => c.toLowerCase() === e.target.value.trim().toLowerCase());
+                      setRoomForm({ ...roomForm, category: match || "" });
+                    }}
+                    onFocus={() => setShowCatSuggestions(true)}
+                    placeholder="Type to search category..."
+                    className="h-10 px-3 rounded-xl border border-border"
+                  />
+                  {showCatSuggestions && (
+                    <div className="absolute left-0 right-0 mt-1 bg-card border border-border/80 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto divide-y divide-border/20">
+                      {categories
+                        .filter((c) =>
+                          c.toLowerCase().includes(categorySearch.toLowerCase())
+                        )
+                        .map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              setCategorySearch(cat);
+                              setRoomForm({ ...roomForm, category: cat });
+                              setShowCatSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-secondary transition-colors text-foreground cursor-pointer border-none"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      {categories.filter((c) =>
+                        c.toLowerCase().includes(categorySearch.toLowerCase())
+                      ).length === 0 && (
+                        <div className="px-4 py-2.5 text-xs text-muted-foreground font-medium">
+                          No matching categories found
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative" ref={tagRef}>
                   <label
                     htmlFor="room-tags"
                     className="text-xs font-black uppercase tracking-widest text-muted-foreground"
@@ -808,11 +917,28 @@ export function HomeDashboard() {
                   <Input
                     id="room-tags"
                     value={roomForm.tags}
-                    onChange={(e) =>
-                      setRoomForm({ ...roomForm, tags: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setRoomForm({ ...roomForm, tags: e.target.value });
+                      setShowTagSuggestions(true);
+                    }}
+                    onFocus={() => setShowTagSuggestions(true)}
                     placeholder="e.g. #war #fire #world"
+                    className="h-10 px-3 rounded-xl border border-border"
                   />
+                  {showTagSuggestions && tagSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 mt-1 bg-card border border-border/80 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto divide-y divide-border/20">
+                      {tagSuggestions.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => handleSelectTagSuggestion(tag)}
+                          className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-secondary transition-colors text-foreground cursor-pointer border-none"
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-1.5">

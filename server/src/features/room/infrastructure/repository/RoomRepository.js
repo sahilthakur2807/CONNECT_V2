@@ -90,6 +90,36 @@ export class RoomRepository extends BaseRepository {
   /**
    * Finds visible rooms filtered by optional community or category, ignoring soft-deleted rooms.
    */
+  async getPrivateRoomFilter(userId) {
+    if (!userId) {
+      return {
+        OR: [
+          { isPrivate: false },
+          { isPrivate: null }
+        ]
+      };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+
+    const isPlatformStaff = user && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role?.toUpperCase());
+    if (isPlatformStaff) {
+      return {};
+    }
+
+    return {
+      OR: [
+        { isPrivate: false },
+        { isPrivate: null },
+        { createdById: userId },
+        { members: { some: { userId, status: { in: ["joined", "ROOM_MOD"] } } } }
+      ]
+    };
+  }
+
   async findVisibleRooms(
     communityId,
     category,
@@ -102,6 +132,7 @@ export class RoomRepository extends BaseRepository {
     const delegate = this.getDelegate(tx);
     const skip = (page - 1) * limit;
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
 
     const where = {
       deleted: false,
@@ -109,6 +140,7 @@ export class RoomRepository extends BaseRepository {
         { archived: false },
         ...(userId ? [{ createdById: userId }] : []),
       ],
+      ...privateFilter,
     };
     if (!includeWorldChat) {
       where.title = { not: "World Chat" };
@@ -143,6 +175,7 @@ export class RoomRepository extends BaseRepository {
   async findTrending(limit = 20, userId, tx) {
     const delegate = this.getDelegate(tx);
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
@@ -151,6 +184,7 @@ export class RoomRepository extends BaseRepository {
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
         ],
+        ...privateFilter,
       },
       include: {
         members: this.getMembersInclude(userId),
@@ -175,6 +209,7 @@ export class RoomRepository extends BaseRepository {
   async findHot(limit = 20, userId, tx) {
     const delegate = this.getDelegate(tx);
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
@@ -183,6 +218,7 @@ export class RoomRepository extends BaseRepository {
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
         ],
+        ...privateFilter,
       },
       include: {
         members: this.getMembersInclude(userId),
@@ -206,6 +242,7 @@ export class RoomRepository extends BaseRepository {
    */
   async findNewest(limit = 20, userId, tx) {
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
     const rooms = await this.getDelegate(tx).findMany({
       where: {
         deleted: false,
@@ -214,6 +251,7 @@ export class RoomRepository extends BaseRepository {
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
         ],
+        ...privateFilter,
       },
       include: {
         members: this.getMembersInclude(userId),

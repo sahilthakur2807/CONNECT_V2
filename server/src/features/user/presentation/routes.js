@@ -179,6 +179,49 @@ export function createUserRouter() {
     }
   });
 
+  // GET / - List all users on the platform with pagination and optional role filter (Platform staff only)
+  router.get("/", authenticateJWT, async (req, res, next) => {
+    const actorRole = req.user.role?.toUpperCase();
+    if (!["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole)) {
+      return next(new ForbiddenError("Only platform administrators/staff can list all users"));
+    }
+
+    const schema = z.object({
+      role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD", "MEMBER", "ALL"]).default("ALL"),
+      limit: z.preprocess((val) => parseInt(val) || 100, z.number().min(1).max(100)),
+      page: z.preprocess((val) => parseInt(val) || 1, z.number().min(1)),
+    });
+
+    try {
+      const parsed = schema.parse(req.query);
+      const where = {};
+      if (parsed.role !== "ALL") {
+        where.role = parsed.role;
+      }
+
+      const users = await prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          avatar: true,
+          role: true,
+          status: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (parsed.page - 1) * parsed.limit,
+        take: parsed.limit,
+      });
+
+      res.json({ success: true, data: users });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 3. Get profile details (Friendship status, block status, etc.)
   router.get("/:id", authenticateJWT, async (req, res, next) => {
     try {

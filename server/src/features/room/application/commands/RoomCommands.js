@@ -6,6 +6,7 @@ import {
   NotFoundError,
 } from "../../../../shared/errors/AppError.js";
 import { EventBus } from "../../../../shared/event-bus/EventBus.js";
+import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 
 // --- Commands ---
 
@@ -100,6 +101,62 @@ export class CreateRoomHandler {
   }
 
   async execute(command) {
+    // 1. Validation checks
+    if (!command.title || command.title.trim().length < 10) {
+      throw new BadRequestError("Room title must be at least 10 characters long");
+    }
+    const existingRoom = await prisma.room.findFirst({
+      where: {
+        title: { equals: command.title.trim(), mode: "insensitive" },
+        deleted: false
+      }
+    });
+    if (existingRoom) {
+      throw new BadRequestError("Room title already exists");
+    }
+
+    if (!command.category || !command.category.trim()) {
+      throw new BadRequestError("Category is required");
+    }
+
+    const coreCategories = [
+      "politics",
+      "technology",
+      "economy",
+      "environment",
+      "world affairs",
+      "science",
+      "health",
+      "culture",
+      "sports",
+      "all topics"
+    ];
+
+    const hashtags = await prisma.hashtag.findMany({
+      include: {
+        _count: {
+          select: { rooms: true }
+        }
+      }
+    });
+
+    const promoted = hashtags
+      .filter((h) => h._count.rooms > 50)
+      .map((h) => h.name.toLowerCase());
+
+    const allowedCategories = new Set([...coreCategories, ...promoted]);
+    if (!allowedCategories.has(command.category.trim().toLowerCase())) {
+      throw new BadRequestError("Invalid category selected. You must select an existing category.");
+    }
+
+    const normalizedTags = (command.tags || [])
+      .map((t) => t.trim().replace(/^#/, "").toLowerCase())
+      .filter(Boolean);
+
+    if (normalizedTags.length === 0) {
+      throw new BadRequestError("At least one hashtag is required");
+    }
+
     let communityOwnerId = null;
     let membership = null;
 
@@ -129,10 +186,6 @@ export class CreateRoomHandler {
         "You do not have permission to create rooms in this community",
       );
 
-    const normalizedTags = (command.tags || [])
-      .map((t) => t.trim().replace(/^#/, "").toLowerCase())
-      .filter(Boolean);
-
     const room = await this.roomRepo.create({
       title: command.title,
       description: command.description,
@@ -154,6 +207,15 @@ export class CreateRoomHandler {
             },
           }
         : {}),
+    });
+
+    // Automatically join creator as ROOM_MOD
+    await prisma.roomMember.create({
+      data: {
+        userId: command.userId,
+        roomId: room.id,
+        status: "ROOM_MOD"
+      }
     });
 
     await EventBus.publish(new RoomCreatedEvent(room.id, command.userId));

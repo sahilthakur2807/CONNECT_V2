@@ -133,6 +133,59 @@ export function createRoomsRouter() {
     }
   });
 
+  // Get active categories (core + promoted hashtags with count > 50)
+  router.get("/categories", async (req, res, next) => {
+    try {
+      const coreCategories = [
+        "Politics",
+        "Technology",
+        "Economy",
+        "Environment",
+        "World Affairs",
+        "Science",
+        "Health",
+        "Culture",
+        "Sports",
+      ];
+
+      const hashtags = await prisma.hashtag.findMany({
+        include: {
+          _count: {
+            select: { rooms: true }
+          }
+        }
+      });
+
+      const promoted = hashtags
+        .filter((h) => h._count.rooms > 50)
+        .map((h) => h.name.charAt(0).toUpperCase() + h.name.slice(1).toLowerCase());
+
+      const allCategories = Array.from(new Set([...coreCategories, ...promoted]));
+      res.json({ success: true, data: allCategories });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Suggest hashtags based on alphabetical prefix query
+  router.get("/hashtags/suggest", async (req, res, next) => {
+    const q = req.query.q || "";
+    try {
+      const prefix = q.trim().replace(/^#/, "").toLowerCase();
+      const hashtags = await prisma.hashtag.findMany({
+        where: prefix
+          ? { name: { startsWith: prefix, mode: "insensitive" } }
+          : {},
+        select: { name: true },
+        take: 10,
+        orderBy: { name: "asc" }
+      });
+      res.json({ success: true, data: hashtags.map(h => h.name) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 5. Get room details
   router.get("/:id", optionalJWT, async (req, res, next) => {
     const userId = req.user?.id;
@@ -280,6 +333,14 @@ export function createRoomsRouter() {
     try {
       const roomId = req.params.id;
       const userId = req.user.id;
+
+      const room = await roomRepo.findById(roomId);
+      if (room && room.createdById === userId) {
+        return res.status(400).json({
+          success: false,
+          error: "You cannot leave a discussion room you created."
+        });
+      }
 
       await roomRepo.deleteMembership(userId, roomId);
 

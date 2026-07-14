@@ -100,6 +100,26 @@ export class SendMessageHandler {
     if (room.archived)
       throw new BadRequestError("Room is archived and read-only");
 
+    if (room.isPrivate) {
+      const userRole = command.userRole?.toUpperCase();
+      const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(userRole);
+      const isRoomCreator = room.createdById === command.userId;
+
+      const roomMember = await prisma.roomMember.findUnique({
+        where: {
+          userId_roomId: {
+            userId: command.userId,
+            roomId: room.id
+          }
+        }
+      });
+      const isRoomMod = roomMember && roomMember.status === "ROOM_MOD";
+
+      if (!isPlatformStaff && !isRoomCreator && !isRoomMod) {
+        throw new ForbiddenError("This room is private and you do not have permission to send messages in it");
+      }
+    }
+
     // 1. Idempotency Check
     if (command.clientMessageId) {
       const existing = await this.messageRepo.findByClientMessageId(

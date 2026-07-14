@@ -736,7 +736,7 @@ export function DiscussionRoom() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-lg rounded-xl">
-                    {isJoined && (
+                    {isJoined && !isCreator && (
                       <DropdownMenuItem
                         onClick={handleJoinLeaveRoom}
                         className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-medium"
