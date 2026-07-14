@@ -1,11 +1,14 @@
 import { ModerationPolicy } from "../ModerationPolicy.js";
+import { CommunityPolicy } from "../../../community/application/CommunityPolicy.js";
+import { RoomPolicy } from "../../../room/application/RoomPolicy.js";
+import { MessagePolicy } from "../../../message/application/MessagePolicy.js";
 import {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
 } from "../../../../shared/errors/AppError.js";
 import { EventBus } from "../../../../shared/event-bus/EventBus.js";
-import { io } from "../../../../infrastructure/socket/SocketServer.js";
+import { io, activeUserConnections } from "../../../../infrastructure/socket/SocketServer.js";
 import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 
 // --- Commands ---
@@ -290,10 +293,11 @@ export class ExecuteModerationActionHandler {
         membership || undefined,
       );
     } else {
-      allowed = ModerationPolicy.canExecutePlatformAction({
-        id: command.actorId,
-        role: command.actorRole,
-      });
+      allowed = ModerationPolicy.canExecutePlatformModeration(
+        { id: command.actorId, role: command.actorRole },
+        command.type,
+        command.expiresAt,
+      );
     }
 
     if (!allowed)
@@ -327,6 +331,19 @@ export class ExecuteModerationActionHandler {
           where: { id: command.targetUserId },
           data: { status: "offline" }, // locks out active sessions
         });
+
+        // Immediately disconnect all active sockets of the banned/suspended user
+        if (io && activeUserConnections) {
+          const socketIds = activeUserConnections.get(command.targetUserId);
+          if (socketIds) {
+            for (const socketId of socketIds) {
+              const socket = io.sockets.sockets.get(socketId);
+              if (socket) {
+                socket.disconnect(true);
+              }
+            }
+          }
+        }
       }
 
       // Log to immutable Audit trail
@@ -505,20 +522,69 @@ export class RemoveContentHandler {
     }
 
     let allowed = false;
-    if (communityId) {
-      const membership = await this.membershipRepo.findMember(
-        command.actorId,
-        communityId,
-      );
-      allowed = ModerationPolicy.canExecuteCommunityAction(
+
+    if (command.contentType === "message") {
+      const message = await this.messageRepo.findById(command.contentId);
+      if (!message) throw new NotFoundError("Message not found");
+      const room = await this.roomRepo.findById(message.roomId);
+      
+      let actorCommunityRole = null;
+      if (room?.communityId) {
+        const membership = await this.membershipRepo.findMember(
+          command.actorId,
+          room.communityId,
+        );
+        if (membership && !membership.banned) {
+          actorCommunityRole = membership.role;
+        }
+      }
+
+      let actorRoomStatus = null;
+      if (message.roomId) {
+        const roomMember = await prisma.roomMember.findUnique({
+          where: {
+            userId_roomId: {
+              userId: command.actorId,
+              roomId: message.roomId,
+            },
+          },
+        });
+        if (roomMember) {
+          actorRoomStatus = roomMember.status;
+        }
+      }
+
+      allowed = MessagePolicy.canDelete(
         { id: command.actorId, role: command.actorRole },
-        membership || undefined,
+        message.userId,
+        actorCommunityRole,
+        actorRoomStatus,
       );
-    } else {
-      allowed = ModerationPolicy.canExecutePlatformAction({
-        id: command.actorId,
-        role: command.actorRole,
-      });
+    } else if (command.contentType === "room") {
+      const room = await this.roomRepo.findById(command.contentId);
+      if (!room) throw new NotFoundError("Room not found");
+      
+      let communityMembership = null;
+      if (room.communityId) {
+        communityMembership = await this.membershipRepo.findMember(
+          command.actorId,
+          room.communityId,
+        );
+      }
+      allowed = RoomPolicy.canDeleteRoom(
+        { id: command.actorId, role: command.actorRole },
+        room.createdById,
+        undefined,
+        communityMembership || undefined,
+      );
+    } else if (command.contentType === "community") {
+      const community = await this.communityRepo.findById(command.contentId);
+      if (!community) throw new NotFoundError("Community not found");
+      
+      allowed = CommunityPolicy.canDelete(
+        { id: command.actorId, role: command.actorRole },
+        community.createdById
+      );
     }
 
     if (!allowed)
@@ -609,20 +675,69 @@ export class RestoreContentHandler {
     }
 
     let allowed = false;
-    if (communityId) {
-      const membership = await this.membershipRepo.findMember(
-        command.actorId,
-        communityId,
-      );
-      allowed = ModerationPolicy.canExecuteCommunityAction(
+
+    if (command.contentType === "message") {
+      const message = await this.messageRepo.findById(command.contentId);
+      if (!message) throw new NotFoundError("Message not found");
+      const room = await this.roomRepo.findById(message.roomId);
+      
+      let actorCommunityRole = null;
+      if (room?.communityId) {
+        const membership = await this.membershipRepo.findMember(
+          command.actorId,
+          room.communityId,
+        );
+        if (membership && !membership.banned) {
+          actorCommunityRole = membership.role;
+        }
+      }
+
+      let actorRoomStatus = null;
+      if (message.roomId) {
+        const roomMember = await prisma.roomMember.findUnique({
+          where: {
+            userId_roomId: {
+              userId: command.actorId,
+              roomId: message.roomId,
+            },
+          },
+        });
+        if (roomMember) {
+          actorRoomStatus = roomMember.status;
+        }
+      }
+
+      allowed = MessagePolicy.canDelete(
         { id: command.actorId, role: command.actorRole },
-        membership || undefined,
+        message.userId,
+        actorCommunityRole,
+        actorRoomStatus,
       );
-    } else {
-      allowed = ModerationPolicy.canExecutePlatformAction({
-        id: command.actorId,
-        role: command.actorRole,
-      });
+    } else if (command.contentType === "room") {
+      const room = await this.roomRepo.findById(command.contentId);
+      if (!room) throw new NotFoundError("Room not found");
+      
+      let communityMembership = null;
+      if (room.communityId) {
+        communityMembership = await this.membershipRepo.findMember(
+          command.actorId,
+          room.communityId,
+        );
+      }
+      allowed = RoomPolicy.canDeleteRoom(
+        { id: command.actorId, role: command.actorRole },
+        room.createdById,
+        undefined,
+        communityMembership || undefined,
+      );
+    } else if (command.contentType === "community") {
+      const community = await this.communityRepo.findById(command.contentId);
+      if (!community) throw new NotFoundError("Community not found");
+      
+      allowed = CommunityPolicy.canDelete(
+        { id: command.actorId, role: command.actorRole },
+        community.createdById
+      );
     }
 
     if (!allowed)
@@ -677,6 +792,76 @@ export class RestoreContentHandler {
           },
         });
       }
+    });
+  }
+}
+
+export class EscalateReportCommand {
+  constructor(userId, userRole, reportId, reason) {
+    this.userId = userId;
+    this.userRole = userRole;
+    this.reportId = reportId;
+    this.reason = reason;
+  }
+}
+
+export class EscalateReportHandler {
+  constructor(reportRepo, auditRepo) {
+    this.reportRepo = reportRepo;
+    this.auditRepo = auditRepo;
+  }
+
+  async execute(command) {
+    const report = await this.reportRepo.findById(command.reportId);
+    if (!report) throw new NotFoundError("Report not found");
+
+    let allowed = false;
+    if (["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(command.userRole)) {
+      allowed = true;
+    } else if (report.reportedCommunityId) {
+      const membership = await prisma.communityMember.findUnique({
+        where: {
+          userId_communityId: { userId: command.userId, communityId: report.reportedCommunityId },
+        },
+      });
+      if (membership && !membership.banned) {
+        allowed = ["OWNER", "ADMIN", "MODERATOR"].includes(membership.role);
+      }
+    }
+
+    if (!allowed) {
+      throw new ForbiddenError("You do not have permission to escalate this report");
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await this.reportRepo.update(
+        command.reportId,
+        {
+          status: "escalated",
+          resolutionReason: `Escalated: ${command.reason}`,
+        },
+        tx,
+      );
+
+      await this.auditRepo.create(
+        {
+          action: "report.escalated",
+          targetId: command.reportId,
+          targetType: "Report",
+          details: `Report ${command.reportId} escalated. Reason: ${command.reason}`,
+          actor: { connect: { id: command.userId } },
+        },
+        tx,
+      );
+
+      if (io) {
+        io.to("moderators").emit("report.escalated", {
+          success: true,
+          data: updated,
+        });
+      }
+
+      return updated;
     });
   }
 }

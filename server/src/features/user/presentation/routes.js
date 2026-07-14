@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 import { Hash } from "../../../shared/utils/Hash.js";
+import { ForbiddenError } from "../../../shared/errors/AppError.js";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
 
 // Ensure uploads directory exists at server root
@@ -45,6 +46,7 @@ export function createUserRouter() {
   router.post("/avatar", authenticateJWT, (req, res, next) => {
     upload.single("avatar")(req, res, (err) => {
       if (err) {
+        console.error("Avatar upload library error:", err);
         if (err.code === "LIMIT_FILE_SIZE") {
           return res.status(400).json({
             success: false,
@@ -58,6 +60,7 @@ export function createUserRouter() {
       }
 
       if (!req.file) {
+        console.error("Avatar upload error: No file in request");
         return res.status(400).json({ success: false, error: "No file uploaded" });
       }
 
@@ -203,7 +206,7 @@ export function createUserRouter() {
             isDeleted: true
           }
         });
-        if (!user || user.role === "banned") {
+        if (!user || user.isDeleted) {
           return res.status(404).json({ success: false, error: "User not found" });
         }
         return res.json({
@@ -238,7 +241,17 @@ export function createUserRouter() {
         }
       });
 
-      if (!user || user.role === "banned") {
+      const activeBan = await prisma.moderationAction.findFirst({
+        where: {
+          userId: targetUserId,
+          communityId: null,
+          type: "ban",
+          active: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
+
+      if (!user || user.isDeleted || activeBan) {
         return res.status(404).json({ success: false, error: "User not found" });
       }
 
@@ -291,7 +304,7 @@ export function createUserRouter() {
         }
       }
 
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
       const userPaused = user.isPaused;
       res.json({
         success: true,
@@ -491,6 +504,70 @@ export function createUserRouter() {
 
         res.json({ success: true, message: "Account profile deleted. Data preserved." });
       }
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 8. PUT /:id/role - Promote/demote user platform role (SUPER_ADMIN only)
+  router.put("/:id/role", authenticateJWT, async (req, res, next) => {
+    const targetUserId = req.params.id;
+    const actorUserId = req.user.id;
+    const actorRole = req.user.role;
+
+    if (actorRole !== "SUPER_ADMIN") {
+      return next(new ForbiddenError("Only SUPER_ADMIN can promote or demote platform roles"));
+    }
+
+    const schema = z.object({
+      role: z.enum(["PLATFORM_ADMIN", "PLATFORM_MOD", "MEMBER"])
+    });
+
+    try {
+      const parsed = schema.parse(req.body);
+      const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+      if (!targetUser) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      if (targetUser.role === "SUPER_ADMIN") {
+        return res.status(400).json({ success: false, error: "SUPER_ADMIN accounts cannot be altered" });
+      }
+
+      const updatedUser = await prisma.$transaction(async (tx) => {
+        const u = await tx.user.update({
+          where: { id: targetUserId },
+          data: { role: parsed.role },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            avatar: true,
+            bio: true,
+            banner: true,
+            verified: true,
+            badges: true,
+            reputation: true,
+            role: true,
+            createdAt: true
+          }
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: "user.role_change",
+            targetId: targetUserId,
+            targetType: "User",
+            details: `Promoted/demoted User ${targetUserId} (@${u.username}) from ${targetUser.role} to ${parsed.role}`,
+            actorId: actorUserId
+          }
+        });
+
+        return u;
+      });
+
+      res.json({ success: true, data: updatedUser, message: `User role successfully updated to ${parsed.role}` });
     } catch (err) {
       next(err);
     }

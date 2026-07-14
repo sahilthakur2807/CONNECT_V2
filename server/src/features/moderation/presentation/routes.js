@@ -26,6 +26,8 @@ import {
   RemoveContentHandler,
   RestoreContentCommand,
   RestoreContentHandler,
+  EscalateReportCommand,
+  EscalateReportHandler,
 } from "../application/commands/ModerationCommands.js";
 import {
   GetReportsQuery,
@@ -60,6 +62,7 @@ const executeModerationActionHandler = new ExecuteModerationActionHandler(
   auditRepo,
   membershipRepo,
 );
+const escalateReportHandler = new EscalateReportHandler(reportRepo, auditRepo);
 const submitAppealHandler = new SubmitAppealHandler(appealRepo);
 const resolveAppealHandler = new ResolveAppealHandler(
   appealRepo,
@@ -159,6 +162,31 @@ export function createModerationRouter() {
         );
 
         const result = await resolveReportHandler.execute(command);
+        res.json({ success: true, data: result });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
+  // 3b. Escalate Report
+  router.post(
+    "/reports/:id/escalate",
+    authenticateJWT,
+    async (req, res, next) => {
+      const schema = z.object({
+        reason: z.string().min(5).max(1000),
+      });
+      try {
+        const parsed = schema.parse(req.body);
+        const command = new EscalateReportCommand(
+          req.user.id,
+          req.user.role,
+          req.params.id,
+          parsed.reason,
+        );
+
+        const result = await escalateReportHandler.execute(command);
         res.json({ success: true, data: result });
       } catch (err) {
         next(err);

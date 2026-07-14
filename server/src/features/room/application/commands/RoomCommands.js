@@ -19,6 +19,7 @@ export class CreateRoomCommand {
     communityId,
     sourceUrl,
     imageUrl,
+    userRole,
   ) {
     this.userId = userId;
     this.title = title;
@@ -28,11 +29,12 @@ export class CreateRoomCommand {
     this.communityId = communityId;
     this.sourceUrl = sourceUrl;
     this.imageUrl = imageUrl;
+    this.userRole = userRole;
   }
 }
 
 export class UpdateRoomCommand {
-  constructor(userId, roomId, title, description, category, tags, imageUrl, isPrivate) {
+  constructor(userId, roomId, title, description, category, tags, imageUrl, isPrivate, userRole) {
     this.userId = userId;
     this.roomId = roomId;
     this.title = title;
@@ -41,13 +43,15 @@ export class UpdateRoomCommand {
     this.tags = tags;
     this.imageUrl = imageUrl;
     this.isPrivate = isPrivate;
+    this.userRole = userRole;
   }
 }
 
 export class ArchiveRoomCommand {
-  constructor(userId, roomId) {
+  constructor(userId, roomId, userRole) {
     this.userId = userId;
     this.roomId = roomId;
+    this.userRole = userRole;
   }
 }
 
@@ -115,7 +119,7 @@ export class CreateRoomHandler {
 
     // Policy check
     const allowed = RoomPolicy.canCreateRoom(
-      { id: command.userId, role: "" },
+      { id: command.userId, role: command.userRole },
       command.communityId,
       membership || undefined,
     );
@@ -183,8 +187,8 @@ export class UpdateRoomHandler {
     }
 
     // Policy check
-    const allowed = RoomPolicy.canMutateRoom(
-      { id: command.userId, role: "" },
+    const allowed = RoomPolicy.canEditOrArchiveRoom(
+      { id: command.userId, role: command.userRole },
       room.createdById,
       communityOwnerId,
       membership || undefined,
@@ -234,8 +238,8 @@ export class ArchiveRoomHandler {
     }
 
     // Policy check
-    const allowed = RoomPolicy.canMutateRoom(
-      { id: command.userId, role: "" },
+    const allowed = RoomPolicy.canEditOrArchiveRoom(
+      { id: command.userId, role: command.userRole },
       room.createdById,
       communityOwnerId,
       membership || undefined,
@@ -280,7 +284,7 @@ export class DeleteRoomHandler {
     }
 
     // Policy check
-    const allowed = RoomPolicy.canMutateRoom(
+    const allowed = RoomPolicy.canDeleteRoom(
       { id: command.userId, role: command.userRole },
       room.createdById,
       communityOwnerId,

@@ -198,7 +198,7 @@ export function createSocialRouter() {
     try {
       const query = new GetFriendsQuery(req.user.id);
       const result = await getFriendsHandler.execute(query);
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
 
       const sanitized = result.map((friend) => {
         if (friend.isPaused && !isAdmin) {

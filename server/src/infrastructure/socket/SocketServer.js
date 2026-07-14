@@ -37,7 +37,7 @@ export function initializeSocketServer(app) {
   });
 
   // Authentication handshake middleware
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token) {
       Logger.warn(
@@ -47,6 +47,25 @@ export function initializeSocketServer(app) {
     }
     try {
       const decoded = jwt.verify(token, config.JWT_SECRET);
+
+      // Check active platform bans/suspensions
+      const activeBan = await prisma.moderationAction.findFirst({
+        where: {
+          userId: decoded.id,
+          communityId: null,
+          type: { in: ["ban", "suspend"] },
+          active: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
+
+      if (activeBan) {
+        Logger.warn(
+          `Socket connection rejected: User ${decoded.id} is platform-${activeBan.type}ed. Socket ID: ${socket.id}`,
+        );
+        return next(new Error(`Authentication failed: User is platform-${activeBan.type}ed`));
+      }
+
       socket.user = decoded;
       Logger.debug(
         `Socket connection authenticated: User ID ${decoded.id}, Socket ID: ${socket.id}`,
@@ -72,9 +91,7 @@ export function initializeSocketServer(app) {
 
       // 1b. Join moderators dashboard channel if authorized admin/moderator
       if (
-        user.role === "admin" ||
-        user.role === "superadmin" ||
-        user.role === "moderator"
+        ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role)
       ) {
         socket.join("moderators");
       }

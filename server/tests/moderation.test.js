@@ -18,17 +18,25 @@ import { prisma } from "../src/infrastructure/db/PrismaClient.js";
 import { ForbiddenError } from "../src/shared/errors/AppError.js";
 
 // Mock Prisma
-vi.mock("../src/infrastructure/db/PrismaClient.js", () => ({
-  prisma: {
-    $transaction: vi.fn((cb) => cb(prisma)),
+vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
+  const mockPrisma = {
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
     user: {
       update: vi.fn().mockResolvedValue({}),
     },
     auditLog: {
       findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
     },
-  },
-}));
+    roomMember: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    moderationAction: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+  };
+  return { prisma: mockPrisma };
+});
 
 // Mock Socket.IO
 vi.mock("../src/infrastructure/socket/SocketServer.js", () => {

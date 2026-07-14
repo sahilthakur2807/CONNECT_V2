@@ -7,16 +7,18 @@ import {
 } from "../../../../shared/errors/AppError.js";
 import { EventBus } from "../../../../shared/event-bus/EventBus.js";
 import { io } from "../../../../infrastructure/socket/SocketServer.js";
+import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 
 // --- Commands ---
 
 export class SendMessageCommand {
-  constructor(userId, roomId, content, clientMessageId, parentId) {
+  constructor(userId, roomId, content, clientMessageId, parentId, userRole) {
     this.userId = userId;
     this.roomId = roomId;
     this.content = content;
     this.clientMessageId = clientMessageId;
     this.parentId = parentId;
+    this.userRole = userRole;
   }
 }
 
@@ -37,9 +39,10 @@ export class DeleteMessageCommand {
 }
 
 export class RestoreMessageCommand {
-  constructor(userId, messageId) {
+  constructor(userId, messageId, userRole) {
     this.userId = userId;
     this.messageId = messageId;
+    this.userRole = userRole;
   }
 }
 
@@ -116,13 +119,57 @@ export class SendMessageHandler {
       );
     }
 
+    // Check for platform-wide ban/suspension
+    const activePlatformBan = await prisma.moderationAction.findFirst({
+      where: {
+        userId: command.userId,
+        communityId: null,
+        type: { in: ["ban", "suspend"] },
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+
+    // Check for platform-wide mute
+    const activePlatformMute = await prisma.moderationAction.findFirst({
+      where: {
+        userId: command.userId,
+        communityId: null,
+        type: "mute",
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+
+    // Check room-specific mutes/bans
+    let isRoomMuted = false;
+    if (command.roomId) {
+      const roomMember = await prisma.roomMember.findUnique({
+        where: {
+          userId_roomId: {
+            userId: command.userId,
+            roomId: command.roomId,
+          },
+        },
+      });
+      if (
+        roomMember &&
+        ["muted", "kicked", "banned"].includes(roomMember.status)
+      ) {
+        isRoomMuted = true;
+      }
+    }
+
     // 3. Policy Authorization
     const allowed = MessagePolicy.canSend(
-      { id: command.userId, role: "" },
+      { id: command.userId, role: command.userRole },
       membership || undefined,
+      !!activePlatformBan,
+      !!activePlatformMute,
+      isRoomMuted,
     );
     if (!allowed)
-      throw new ForbiddenError("You are banned or muted in this community");
+      throw new ForbiddenError("You are banned or muted in this room/community");
 
     // 4. Persistence
     const message = await this.messageRepo.create({
@@ -169,7 +216,7 @@ export class EditMessageHandler {
     if (!message || message.deleted)
       throw new NotFoundError("Message not found");
 
-    const allowed = MessagePolicy.canMutate(
+    const allowed = MessagePolicy.canEdit(
       { id: command.userId, role: "" },
       message.userId,
     );
@@ -206,9 +253,45 @@ export class DeleteMessageHandler {
     if (!message || message.deleted)
       throw new NotFoundError("Message not found");
 
-    const allowed = MessagePolicy.canMutate(
+    const room = await prisma.room.findUnique({
+      where: { id: message.roomId },
+      select: { communityId: true },
+    });
+    const communityId = room?.communityId;
+
+    let actorCommunityRole = null;
+    if (communityId) {
+      const membership = await prisma.communityMember.findFirst({
+        where: {
+          userId: command.userId,
+          communityId: communityId,
+        },
+      });
+      if (membership && !membership.banned) {
+        actorCommunityRole = membership.role;
+      }
+    }
+
+    let actorRoomStatus = null;
+    if (message.roomId) {
+      const roomMember = await prisma.roomMember.findUnique({
+        where: {
+          userId_roomId: {
+            userId: command.userId,
+            roomId: message.roomId,
+          },
+        },
+      });
+      if (roomMember) {
+        actorRoomStatus = roomMember.status;
+      }
+    }
+
+    const allowed = MessagePolicy.canDelete(
       { id: command.userId, role: command.userRole },
       message.userId,
+      actorCommunityRole,
+      actorRoomStatus,
     );
     if (!allowed)
       throw new ForbiddenError(
@@ -238,9 +321,45 @@ export class RestoreMessageHandler {
     const message = await this.messageRepo.findById(command.messageId);
     if (!message) throw new NotFoundError("Message not found");
 
-    const allowed = MessagePolicy.canMutate(
-      { id: command.userId, role: "" },
+    const room = await prisma.room.findUnique({
+      where: { id: message.roomId },
+      select: { communityId: true },
+    });
+    const communityId = room?.communityId;
+
+    let actorCommunityRole = null;
+    if (communityId) {
+      const membership = await prisma.communityMember.findFirst({
+        where: {
+          userId: command.userId,
+          communityId: communityId,
+        },
+      });
+      if (membership && !membership.banned) {
+        actorCommunityRole = membership.role;
+      }
+    }
+
+    let actorRoomStatus = null;
+    if (message.roomId) {
+      const roomMember = await prisma.roomMember.findUnique({
+        where: {
+          userId_roomId: {
+            userId: command.userId,
+            roomId: message.roomId,
+          },
+        },
+      });
+      if (roomMember) {
+        actorRoomStatus = roomMember.status;
+      }
+    }
+
+    const allowed = MessagePolicy.canDelete(
+      { id: command.userId, role: command.userRole },
       message.userId,
+      actorCommunityRole,
+      actorRoomStatus,
     );
     if (!allowed)
       throw new ForbiddenError(

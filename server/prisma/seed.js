@@ -56,7 +56,7 @@ async function main() {
       name: "Site Administrator",
       avatar:
         "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&auto=format",
-      role: "superadmin",
+      role: "SUPER_ADMIN",
       status: "online",
       verified: true,
       bio: "System Administrator for NewsConnect. Contact for technical or community support.",

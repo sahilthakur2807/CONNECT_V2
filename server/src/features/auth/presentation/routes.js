@@ -206,13 +206,14 @@ export function createAuthRouter() {
         req.ip,
       );
 
-      const tokens = await refreshTokenHandler.execute(command);
-      setRefreshTokenCookie(res, tokens.refreshToken);
+      const result = await refreshTokenHandler.execute(command);
+      setRefreshTokenCookie(res, result.refreshToken);
 
       res.json({
         success: true,
         data: {
-          accessToken: tokens.accessToken,
+          accessToken: result.accessToken,
+          user: result.user,
         },
       });
     } catch (err) {

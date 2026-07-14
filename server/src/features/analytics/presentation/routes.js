@@ -126,7 +126,7 @@ export function createAnalyticsRouter() {
         select: { isPaused: true },
       });
 
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
 
       if (targetUser?.isPaused && !isAdmin) {
         return res.json({ success: true, data: [] });
@@ -232,7 +232,7 @@ export function createAnalyticsRouter() {
         select: { isPaused: true },
       });
 
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
 
       if (targetUser?.isPaused && !isAdmin) {
         return res.json({ success: true, data: [] });

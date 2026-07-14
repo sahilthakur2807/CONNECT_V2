@@ -232,8 +232,7 @@ export function MessageCard({
               </span>
             )}
 
-            {/* Role badge like Elena Rodriguez DESIGN */}
-            {user.role && user.role !== "user" && (
+            {user.role && user.role !== "MEMBER" && (
               <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest font-mono">
                 {user.role}
               </span>

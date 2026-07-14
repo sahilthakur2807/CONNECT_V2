@@ -185,11 +185,17 @@ export class SendFriendRequestHandler {
       );
 
       // Create notification
+      const actor = await tx.user.findUnique({
+        where: { id: command.userId },
+        select: { name: true, username: true },
+      });
+      const actorName = actor?.name || (actor?.username ? `@${actor.username}` : "Someone");
+
       const notification = await this.notificationRepo.create(
         {
           type: "friend.request.sent",
           title: "New Friend Request",
-          body: `You received a friend request from User A`, // trigger will be linked below
+          body: `You received a friend request from ${actorName}`,
           referenceId: friendship.id,
           user: { connect: { id: command.targetUserId } },
           trigger: { connect: { id: command.userId } },
@@ -263,11 +269,17 @@ export class AcceptFriendRequestHandler {
         },
       });
 
+      const actor = await tx.user.findUnique({
+        where: { id: command.userId },
+        select: { name: true, username: true },
+      });
+      const actorName = actor?.name || (actor?.username ? `@${actor.username}` : "Someone");
+
       const notification = await this.notificationRepo.create(
         {
           type: "friend.request.accepted",
           title: "Friend Request Accepted",
-          body: `Your friend request was accepted`,
+          body: `${actorName} accepted your friend request`,
           referenceId: friendship.id,
           user: { connect: { id: friendship.userId } },
           trigger: { connect: { id: command.userId } },

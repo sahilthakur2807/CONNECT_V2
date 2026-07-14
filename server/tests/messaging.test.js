@@ -28,6 +28,23 @@ vi.mock("../src/infrastructure/socket/SocketServer.js", () => {
   };
 });
 
+// Mock Prisma
+vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
+  const mockPrisma = {
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
+    user: {
+      update: vi.fn().mockResolvedValue({}),
+    },
+    roomMember: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    moderationAction: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+  };
+  return { prisma: mockPrisma };
+});
+
 describe("CONNECT Phase 4 Messaging Unit Tests", () => {
   let mockMessageRepo;
   let mockRoomRepo;

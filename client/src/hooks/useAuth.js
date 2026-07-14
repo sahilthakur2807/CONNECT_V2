@@ -80,8 +80,11 @@ export function useAuth() {
     dispatch(setLoading(true));
     try {
       const refreshResponse = await apiClient.post("/auth/refresh");
-      const token = refreshResponse.data.data.accessToken;
+      const { accessToken: token, user: userData } = refreshResponse.data.data;
       dispatch(setAccessToken(token));
+      if (userData) {
+        dispatch(setUser(userData));
+      }
       connectSocket();
       return token;
     } catch (err) {

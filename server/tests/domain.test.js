@@ -113,7 +113,7 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
       expect(mockCommunityRepo.create).toHaveBeenCalled();
       expect(mockMembershipRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          role: "owner",
+          role: "OWNER",
           user: { connect: { id: "usr_1" } },
         }),
         expect.any(Object),
@@ -158,12 +158,12 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
       );
       expect(mockMembershipRepo.update).toHaveBeenCalledWith(
         "memb_target",
-        { role: "owner" },
+        { role: "OWNER" },
         expect.any(Object),
       );
       expect(mockMembershipRepo.update).toHaveBeenCalledWith(
         "memb_owner",
-        { role: "admin" },
+        { role: "ADMIN" },
         expect.any(Object),
       );
     });

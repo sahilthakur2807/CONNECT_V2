@@ -17,17 +17,19 @@ import {
 import { prisma } from "../src/infrastructure/db/PrismaClient.js";
 
 // Mock Prisma
-vi.mock("../src/infrastructure/db/PrismaClient.js", () => ({
-  prisma: {
-    $transaction: vi.fn((cb) => cb(prisma)),
+vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
+  const mockPrisma = {
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
     friendship: {
       findMany: vi.fn().mockResolvedValue([]),
     },
     user: {
       update: vi.fn().mockResolvedValue({}),
+      findUnique: vi.fn().mockResolvedValue({ id: "usr_1", name: "User A", username: "usera" }),
     },
-  },
-}));
+  };
+  return { prisma: mockPrisma };
+});
 
 // Mock Socket.IO
 vi.mock("../src/infrastructure/socket/SocketServer.js", () => {

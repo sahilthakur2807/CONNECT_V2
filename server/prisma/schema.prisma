@@ -16,7 +16,7 @@ model User {
   avatar          String?
   bio             String?
   banner          String?           @default("from-red-600 via-red-500 to-red-800")
-  role            String            @default("user")
+  role            String            @default("MEMBER")
   status          String            @default("offline")
   verified                  Boolean           @default(false)
   emailVerified             Boolean           @default(false)
@@ -91,7 +91,7 @@ model CommunityMember {
   id          String   @id @default(cuid())
   userId      String
   communityId String
-  role        String   @default("member")
+  role        String   @default("MEMBER")
   joinedAt    DateTime @default(now())
   nickname    String?
   muted       Boolean  @default(false)

@@ -15,6 +15,7 @@ const initialState = {
   isLoading: false,
   error: null,
   isAuthenticated: getPersistedUser() !== null,
+  userRestriction: null,
 };
 
 const authSlice = createSlice({
@@ -34,7 +35,11 @@ const authSlice = createSlice({
         );
       } else {
         localStorage.removeItem("newsconnect_user");
+        state.userRestriction = null;
       }
+    },
+    setUserRestriction: (state, action) => {
+      state.userRestriction = action.payload;
     },
     setLoading: (state, action) => {
       state.isLoading = action.payload;
@@ -48,6 +53,7 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.isLoading = false;
       state.error = null;
+      state.userRestriction = null;
       localStorage.removeItem("newsconnect_user");
     },
     clearError: (state) => {
@@ -59,6 +65,7 @@ const authSlice = createSlice({
 export const {
   setAccessToken,
   setUser,
+  setUserRestriction,
   setLoading,
   setError,
   logout,

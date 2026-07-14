@@ -62,7 +62,10 @@ export class GetAuditLogsHandler {
     if (!allowed)
       throw new ForbiddenError("You do not have permission to view audit logs");
 
-    return this.auditRepo.findAuditRecords(query.limit, query.cursor);
+    // Platform moderators can only view audit logs tied to their own actions
+    const actorId = query.userRole === "PLATFORM_MOD" ? query.userId : undefined;
+
+    return this.auditRepo.findAuditRecords(query.limit, query.cursor, actorId);
   }
 }
 

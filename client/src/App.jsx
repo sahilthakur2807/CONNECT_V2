@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router";
 import { useAppSelector } from "@/store";
 import { AppLayout } from "@/components/layout/AppLayout";
+import AppealsView from "@/components/shared/AppealsView";
 import LandingPage from "@/pages/LandingPage";
 import AuthPage from "@/pages/AuthPage";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -32,9 +33,7 @@ function ModeratorRoute({ children }) {
     return <Navigate to="/" replace />;
   }
   const isMod =
-    user?.role === "moderator" ||
-    user?.role === "admin" ||
-    user?.role === "superadmin";
+    user && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role);
   if (!isMod) {
     return <Navigate to="/home" replace />;
   }
@@ -47,7 +46,7 @@ function AdminRoute({ children }) {
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
   }
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isAdmin = user && ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(user.role);
   if (!isAdmin) {
     return <Navigate to="/home" replace />;
   }
@@ -60,6 +59,7 @@ import { useAuth } from "@/hooks/useAuth";
 export function App() {
   const { refreshSession, user } = useAuth();
   const [initialized, setInitialized] = useState(false);
+  const { userRestriction } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -86,6 +86,10 @@ export function App() {
         </p>
       </div>
     );
+  }
+
+  if (userRestriction) {
+    return <AppealsView />;
   }
 
   return (

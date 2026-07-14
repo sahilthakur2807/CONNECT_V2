@@ -121,9 +121,8 @@ export function DiscussionRoom() {
 
 
   const isActualModeratorOrAdmin =
-    currentUser?.role === "moderator" ||
-    currentUser?.role === "admin" ||
-    currentUser?.role === "superadmin";
+    currentUser &&
+    ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(currentUser.role);
 
   const { data: messages = [], isLoading: messagesLoading } =
     useMessagesQuery(roomId);
@@ -448,8 +447,7 @@ export function DiscussionRoom() {
 
   const isCreator =
     room?.createdBy?.id === currentUser?.id ||
-    currentUser?.role === "superadmin" ||
-    currentUser?.role === "admin";
+    (currentUser && ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(currentUser.role));
   const showPrivateBarrier = room.isPrivate && !isJoined && !isCreator;
 
   if (showPrivateBarrier) {

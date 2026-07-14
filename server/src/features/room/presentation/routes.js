@@ -173,6 +173,7 @@ export function createRoomsRouter() {
         parsed.communityId,
         parsed.sourceUrl,
         unescapeUrl(parsed.imageUrl),
+        req.user.role,
       );
       const result = await createRoomHandler.execute(command);
       res.status(201).json({ success: true, data: result });
@@ -203,6 +204,7 @@ export function createRoomsRouter() {
         parsed.tags,
         unescapeUrl(parsed.imageUrl),
         parsed.isPrivate,
+        req.user.role,
       );
       const result = await updateRoomHandler.execute(command);
       res.json({ success: true, data: result });
@@ -214,7 +216,7 @@ export function createRoomsRouter() {
   // 8. Archive room
   router.post("/:id/archive", authenticateJWT, async (req, res, next) => {
     try {
-      const command = new ArchiveRoomCommand(req.user.id, req.params.id);
+      const command = new ArchiveRoomCommand(req.user.id, req.user.role, req.params.id);
       const result = await archiveRoomHandler.execute(command);
       res.json({ success: true, data: result });
     } catch (err) {

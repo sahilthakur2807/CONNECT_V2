@@ -337,13 +337,13 @@ export function Navbar() {
                     {user.verified && (
                       <Badge variant="verified" size="sm" className="h-5" />
                     )}
-                    {user.role === "superadmin" && (
+                    {user.role === "SUPER_ADMIN" && (
                       <Badge variant="superadmin" size="sm" className="h-5" />
                     )}
-                    {user.role === "admin" && (
+                    {user.role === "PLATFORM_ADMIN" && (
                       <Badge variant="admin" size="sm" className="h-5" />
                     )}
-                    {user.role === "moderator" && (
+                    {user.role === "PLATFORM_MOD" && (
                       <Badge variant="moderator" size="sm" className="h-5" />
                     )}
                   </div>
@@ -364,9 +364,7 @@ export function Navbar() {
                     </span>
                   )}
                 </DropdownMenuItem>
-                {(user.role === "moderator" ||
-                  user.role === "admin" ||
-                  user.role === "superadmin") && (
+                {["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/moderator")}
                     className="text-purple-600 dark:text-purple-400"
@@ -375,7 +373,7 @@ export function Navbar() {
                     <span className="font-medium text-sm">Moderator Panel</span>
                   </DropdownMenuItem>
                 )}
-                {(user.role === "admin" || user.role === "superadmin") && (
+                {["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(user.role) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/admin")}
                     className="text-blue-600 dark:text-blue-400"
