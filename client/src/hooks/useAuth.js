@@ -33,7 +33,8 @@ export function useAuth() {
       connectSocket();
       return userData;
     } catch (err) {
-      dispatch(setError(err.message || "Login failed"));
+      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message || "Login failed";
+      dispatch(setError(errMsg));
       throw err;
     } finally {
       dispatch(setLoading(false));
@@ -55,7 +56,8 @@ export function useAuth() {
       connectSocket();
       return userData;
     } catch (err) {
-      dispatch(setError(err.message || "Registration failed"));
+      const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message || "Registration failed";
+      dispatch(setError(errMsg));
       throw err;
     } finally {
       dispatch(setLoading(false));

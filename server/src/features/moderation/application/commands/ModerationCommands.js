@@ -121,6 +121,7 @@ export class ExecuteModerationActionCommand {
     reason,
     expiresAt,
     communityId,
+    roomId,
   ) {
     this.actorId = actorId;
     this.actorRole = actorRole;
@@ -129,6 +130,7 @@ export class ExecuteModerationActionCommand {
     this.reason = reason;
     this.expiresAt = expiresAt;
     this.communityId = communityId;
+    this.roomId = roomId;
   }
 }
 
@@ -377,6 +379,9 @@ export class ExecuteModerationActionHandler {
           actor: { connect: { id: command.actorId } },
           ...(command.communityId
             ? { community: { connect: { id: command.communityId } } }
+            : {}),
+          ...(command.roomId
+            ? { room: { connect: { id: command.roomId } } }
             : {}),
         },
         tx,

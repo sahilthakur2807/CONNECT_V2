@@ -39,7 +39,7 @@ export function AuthPage() {
   const [forgotSent, setForgotSent] = useState(false);
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({ username: "", email: "", password: "" });
+  const [form, setForm] = useState({ username: "", email: "", identifier: "", password: "" });
 
   const [justRegistered, setJustRegistered] = useState(false);
 
@@ -65,7 +65,7 @@ export function AuthPage() {
     await new Promise((r) => setTimeout(r, 400));
 
     if (mode === "login") {
-      const loginIdentifier = form.email || form.username;
+      const loginIdentifier = form.identifier || form.email || form.username;
       if (!loginIdentifier || !form.password) {
         setError("Please enter your credentials.");
       } else {
@@ -79,7 +79,8 @@ export function AuthPage() {
             navigate("/home");
           }
         } catch (err) {
-          setError(err.message || "Login failed.");
+          const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message || "Login failed.";
+          setError(errMsg);
         }
       }
     } else if (mode === "register") {
@@ -102,7 +103,8 @@ export function AuthPage() {
           setJustRegistered(true);
           navigate("/onboarding");
         } catch (err) {
-          setError(err.message || "Registration failed.");
+          const errMsg = err.response?.data?.error?.message || err.response?.data?.message || err.message || "Registration failed.";
+          setError(errMsg);
         }
       }
     } else {
@@ -270,14 +272,14 @@ export function AuthPage() {
 
                 <div className="space-y-1.5">
                   <label
-                    htmlFor="email"
+                    htmlFor={mode === "login" ? "identifier" : "email"}
                     className="font-medium text-sm text-foreground"
                   >
                     {mode === "login" ? "Username or Email" : "Email"}
                   </label>
                   <Input
-                    id="email"
-                    name="email"
+                    id={mode === "login" ? "identifier" : "email"}
+                    name={mode === "login" ? "identifier" : "email"}
                     type={mode === "login" ? "text" : "email"}
                     placeholder={
                       mode === "login"
@@ -285,7 +287,7 @@ export function AuthPage() {
                         : "name@example.com"
                     }
                     required
-                    value={form.email}
+                    value={mode === "login" ? form.identifier : form.email}
                     onChange={handleChange}
                     className="h-[42px] px-3 rounded-[10px]"
                   />

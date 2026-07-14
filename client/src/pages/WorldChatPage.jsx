@@ -33,6 +33,7 @@ export function WorldChatPage() {
   const [messageText, setMessageText] = useState("");
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [activeUsers, setActiveUsers] = useState([]);
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
 
   const feedRef = useRef(null);
   const inputRef = useRef(null);
@@ -193,7 +194,11 @@ export function WorldChatPage() {
       }, 100);
     } catch (err) {
       setMessageText(text);
-      toast.error(err.message || "Failed to publish message");
+      if (err.message?.includes("restricted from sending messages to this room")) {
+        setShowRestrictionModal(true);
+      } else {
+        toast.error(err.message || "Failed to publish message");
+      }
     }
   };
 
@@ -408,6 +413,28 @@ export function WorldChatPage() {
             </div>
           </div>
         </div>
+        {/* Room Restriction Alert Modal */}
+        {showRestrictionModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+            <div className="bg-card text-card-foreground rounded-[32px] max-w-sm w-full p-8 text-center space-y-6 relative shadow-2xl border border-border/50">
+              <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mx-auto">
+                <LockClosedIcon className="w-8 h-8" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-black font-serif">Room Access Restricted</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Your account has been restricted from sending messages to this room by a platform moderator or administrator due to reported behavior.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowRestrictionModal(false)}
+                className="w-full py-3 text-xs font-bold uppercase tracking-wider bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-all cursor-pointer border-none"
+              >
+                Acknowledge
+              </button>
+            </div>
+          </div>
+        )}
       </div>
   );
 }

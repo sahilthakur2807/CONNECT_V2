@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
+import { prisma } from "../../../infrastructure/db/PrismaClient.js";
+import { ForbiddenError } from "../../../shared/errors/AppError.js";
 
 // Repositories
 import { ReportRepository } from "../infrastructure/repository/ReportRepository.js";
@@ -208,6 +210,7 @@ export function createModerationRouter() {
           z.date().optional(),
         ),
         communityId: z.string().optional(),
+        roomId: z.string().optional(),
       });
 
       try {
@@ -220,6 +223,7 @@ export function createModerationRouter() {
           parsed.reason,
           parsed.expiresAt,
           parsed.communityId,
+          parsed.roomId,
         );
 
         const result = await executeModerationActionHandler.execute(command);
@@ -407,6 +411,7 @@ export function createModerationRouter() {
       const schema = z.object({
         query: z.string().min(1),
         communityId: z.string().optional(),
+        suggest: z.preprocess((val) => val === "true" || val === true, z.boolean()).optional(),
       });
 
       try {
@@ -414,7 +419,80 @@ export function createModerationRouter() {
         const actorRole = req.user.role?.toUpperCase();
         const actorId = req.user.id;
 
-        const targetUser = await prisma.user.findFirst({
+        if (parsed.suggest) {
+          const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole);
+          const actorMemberships = await prisma.communityMember.findMany({
+            where: {
+              userId: actorId,
+              role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+              banned: false,
+            }
+          });
+          const actorCommunityIds = actorMemberships.map(m => m.communityId);
+
+          const roomMemberships = await prisma.roomMember.findMany({
+            where: {
+              userId: actorId,
+              status: "ROOM_MOD"
+            }
+          });
+          const actorRoomIds = roomMemberships.map(rm => rm.roomId);
+
+          if (!isPlatformStaff && actorCommunityIds.length === 0 && actorRoomIds.length === 0) {
+            throw new ForbiddenError("You do not have permission to access user suggestions");
+          }
+
+          // Build suggestion where clause
+          const suggestWhere = {
+            OR: [
+              { username: { contains: parsed.query, mode: "insensitive" } },
+              { name: { contains: parsed.query, mode: "insensitive" } },
+              { email: { contains: parsed.query, mode: "insensitive" } },
+              { id: { contains: parsed.query } }
+            ]
+          };
+
+          // If not platform staff, restrict suggestions to users in the same communities or rooms
+          if (!isPlatformStaff) {
+            suggestWhere.AND = [
+              {
+                OR: [
+                  {
+                    communities: {
+                      some: {
+                        communityId: { in: actorCommunityIds }
+                      }
+                    }
+                  },
+                  {
+                    rooms: {
+                      some: {
+                        roomId: { in: actorRoomIds }
+                      }
+                    }
+                  }
+                ]
+              }
+            ];
+          }
+
+          const users = await prisma.user.findMany({
+            where: suggestWhere,
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              email: true,
+              avatar: true,
+              role: true
+            },
+            take: 10
+          });
+
+          return res.json({ success: true, data: users });
+        }
+
+        let targetUser = await prisma.user.findFirst({
           where: {
             OR: [
               { username: { equals: parsed.query, mode: "insensitive" } },
@@ -437,6 +515,34 @@ export function createModerationRouter() {
             createdAt: true,
           }
         });
+
+        if (!targetUser) {
+          // Fallback to partial match if no exact match is found
+          targetUser = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { username: { contains: parsed.query, mode: "insensitive" } },
+                { name: { contains: parsed.query, mode: "insensitive" } },
+                { email: { contains: parsed.query, mode: "insensitive" } },
+                { id: { contains: parsed.query } }
+              ]
+            },
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              name: true,
+              avatar: true,
+              bio: true,
+              verified: true,
+              badges: true,
+              reputation: true,
+              role: true,
+              status: true,
+              createdAt: true,
+            }
+          });
+        }
 
         if (!targetUser) {
           return res.status(404).json({ success: false, error: "User not found" });

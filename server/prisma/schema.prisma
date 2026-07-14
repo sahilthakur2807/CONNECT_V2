@@ -133,6 +133,7 @@ model Room {
   activities  Activity[]
   activitiesFeed ActivityFeedItem[] @relation("RoomActivities")
   hashtags    Hashtag[] @relation("RoomHashtags")
+  moderationActions ModerationAction[]
 
   @@index([communityId])
   @@index([articleId])
@@ -361,11 +362,14 @@ model ModerationAction {
   actor       User     @relation("ModeratorActions", fields: [actorId], references: [id], onDelete: Cascade)
   communityId String?
   community   Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  roomId      String?
+  room        Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
   appeals     Appeal[]
 
   @@index([userId])
   @@index([actorId])
   @@index([communityId])
+  @@index([roomId])
   @@map("moderation_actions")
 }
 

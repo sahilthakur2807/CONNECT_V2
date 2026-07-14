@@ -45,6 +45,30 @@ export function ModeratorDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [lookupResult, setLookupResult] = useState(null);
   const [isSearchingUser, setIsSearchingUser] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
+
+  useEffect(() => {
+    if (searchQuery.trim().length < 2) {
+      setSuggestions([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingSuggestions(true);
+      try {
+        const res = await apiClient.get(`/moderation/users/lookup?query=${encodeURIComponent(searchQuery)}&suggest=true`);
+        setSuggestions(res.data.data || []);
+      } catch (err) {
+        console.error("Failed to fetch suggestions:", err);
+      } finally {
+        setIsSearchingSuggestions(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // State for Action History
   const [actionHistory, setActionHistory] = useState([]);
@@ -289,7 +313,8 @@ export function ModeratorDashboard() {
         type,
         reason,
         expiresAt,
-        communityId: modActionTarget.communityId || undefined
+        communityId: modActionTarget.communityId || undefined,
+        roomId: modActionTarget.roomId || undefined
       });
       toast.success(`User successfully ${type}ed`);
       setShowModActionModal(false);
@@ -615,7 +640,8 @@ export function ModeratorDashboard() {
                           setModActionTarget({
                             userId: selectedReport.reportedUserId,
                             username: selectedReport.reportedUser?.username || "user",
-                            communityId: selectedReport.reportedCommunityId || selectedReport.room?.communityId || undefined
+                            communityId: selectedReport.reportedCommunityId || selectedReport.room?.communityId || undefined,
+                            roomId: selectedReport.roomId || undefined
                           });
                           setShowModActionModal(true);
                         }}
@@ -678,9 +704,59 @@ export function ModeratorDashboard() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleUserLookup()}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setTimeout(() => setIsFocused(false), 200)}
                 className="w-full bg-muted border border-border/50 rounded-xl py-3 pl-11 pr-4 text-xs font-semibold outline-hidden placeholder-muted-foreground"
               />
               <MagnifyingGlassIcon className="w-4 h-4 text-muted-foreground absolute left-4 top-3.5" />
+
+              {/* Suggestions Popover */}
+              {isFocused && searchQuery.trim().length >= 2 && (suggestions.length > 0 || isSearchingSuggestions) && (
+                <div className="absolute top-full left-0 right-0 z-50 mt-2 bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl overflow-hidden p-2.5 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                  {isSearchingSuggestions ? (
+                    <div className="py-3 text-center text-[10px] font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
+                      Searching matches...
+                    </div>
+                  ) : (
+                    <>
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest font-mono pl-2 block">
+                        Suggested Users
+                      </span>
+                      <div className="max-h-[220px] overflow-y-auto space-y-0.5 pr-1 scrollbar-thin">
+                        {suggestions.map((sug) => (
+                          <div
+                            key={sug.id}
+                            onMouseDown={() => {
+                              setSearchQuery(sug.username);
+                              handleUserLookup(sug.username);
+                            }}
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-secondary cursor-pointer transition-colors"
+                          >
+                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary border border-primary/20 shrink-0 font-serif font-black text-xs uppercase">
+                              {sug.avatar ? (
+                                <img src={sug.avatar} alt="" className="w-7 h-7 rounded-full object-cover" />
+                              ) : (
+                                sug.username.substring(0, 2)
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-grow">
+                              <p className="text-xs font-bold text-foreground truncate">
+                                {sug.name || sug.username}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                @{sug.username} • {sug.email}
+                              </p>
+                            </div>
+                            <span className="text-[9px] font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                              {sug.role}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <p className="text-[10px] text-muted-foreground font-medium">Press Enter to lookup across all authorized namespaces.</p>
           </div>

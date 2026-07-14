@@ -160,6 +160,20 @@ export class SendMessageHandler {
       }
     }
 
+    // Check for room-specific moderation restriction
+    const activeRoomRestriction = await prisma.moderationAction.findFirst({
+      where: {
+        userId: command.userId,
+        roomId: command.roomId,
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+
+    if (activeRoomRestriction) {
+      throw new ForbiddenError("Your account has been restricted from sending messages to this room");
+    }
+
     // 3. Policy Authorization
     const allowed = MessagePolicy.canSend(
       { id: command.userId, role: command.userRole },

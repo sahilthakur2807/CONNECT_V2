@@ -54,7 +54,7 @@ export class LoginHandler {
           command.ipAddress,
         ),
       );
-      throw new UnauthorizedError("Invalid credentials");
+      throw new UnauthorizedError("Account with this username or email does not exist");
     }
 
     // 1. Lockout check
@@ -91,7 +91,7 @@ export class LoginHandler {
         ),
       );
 
-      throw new UnauthorizedError("Invalid credentials");
+      throw new UnauthorizedError("Incorrect password");
     }
 
     // 3. Clear failed attempts on successful login
