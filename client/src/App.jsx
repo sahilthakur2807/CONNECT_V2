@@ -59,7 +59,9 @@ export function App() {
           await refreshSession();
         }
       } catch (err) {
-        console.error("Failed to refresh session on startup:", err);
+        if (err.response?.status !== 401) {
+          console.error("Failed to refresh session on startup:", err);
+        }
       } finally {
         setInitialized(true);
       }

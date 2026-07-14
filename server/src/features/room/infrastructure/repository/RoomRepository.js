@@ -93,10 +93,7 @@ export class RoomRepository extends BaseRepository {
   async getPrivateRoomFilter(userId) {
     if (!userId) {
       return {
-        OR: [
-          { isPrivate: false },
-          { isPrivate: null }
-        ]
+        isPrivate: false
       };
     }
 
@@ -113,7 +110,6 @@ export class RoomRepository extends BaseRepository {
     return {
       OR: [
         { isPrivate: false },
-        { isPrivate: null },
         { createdById: userId },
         { members: { some: { userId, status: { in: ["joined", "ROOM_MOD"] } } } }
       ]
