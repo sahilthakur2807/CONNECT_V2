@@ -20,6 +20,7 @@ import {
   PhotoIcon,
   ArrowUpTrayIcon,
   BoltIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -507,6 +508,24 @@ export function DiscussionRoom() {
   // Right sidebar widgets markup (reused on desktop sidebar & mobile popup dialog)
   const sidebarWidgetsContent = (
     <>
+      {isActualCreator && (
+        <div className="p-4 bg-purple-950/5 dark:bg-purple-950/20 border border-purple-200/30 dark:border-purple-900/30 rounded-[20px] space-y-3">
+          <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
+            <ShieldCheckIcon className="w-4 h-4" />
+            <h4 className="text-[10px] font-black uppercase tracking-wider font-mono">Room Control</h4>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            You own this discussion room. You can review user reports and enforce room policy.
+          </p>
+          <button
+            onClick={() => navigate("/moderator")}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-1.5 font-bold text-xs uppercase transition-all cursor-pointer border-none"
+          >
+            Moderate Room
+          </button>
+        </div>
+      )}
+
       {isActualModeratorOrAdmin && (
         <div className="p-4 bg-zinc-900 text-white rounded-[20px] border border-neutral-800 space-y-3 relative overflow-hidden dark:bg-[#151515]">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />

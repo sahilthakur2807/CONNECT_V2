@@ -81,6 +81,8 @@ export function ModeratorDashboard() {
 
   // Scoped Communities (for filtering or actions)
   const [moderatedCommunities, setModeratedCommunities] = useState([]);
+  const [ownedRooms, setOwnedRooms] = useState([]);
+  const [selectedScope, setSelectedScope] = useState("all");
 
   // Modals for actions
   const [showModActionModal, setShowModActionModal] = useState(false);
@@ -99,28 +101,34 @@ export function ModeratorDashboard() {
   // Check roles permitted to see appeals (SUPER_ADMIN, PLATFORM_ADMIN, Community OWNER, Community ADMIN)
   const canSeeAppeals = ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(userRole) || moderatedCommunities.some(c => ["OWNER", "ADMIN"].includes(c.myRole?.toUpperCase()));
 
-  // Fetch Moderated Communities on mount and verify credentials
+  // Fetch Moderated Communities and Owned Rooms on mount and verify credentials
   useEffect(() => {
     if (user) {
       const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(userRole);
-      if (isPlatformStaff) {
-        setIsAuthorized(true);
-        setIsLoadingAuth(false);
-        // Also fetch moderated communities for stats scoping
-        apiClient.get("/communities/moderated")
-          .then(res => setModeratedCommunities(res.data.data || []))
-          .catch(err => console.error("Failed to load moderated communities:", err));
-        return;
-      }
+      
+      const checkCredentials = async () => {
+        try {
+          // Fetch moderated communities
+          const commRes = await apiClient.get("/communities/moderated");
+          const commList = commRes.data.data || [];
+          setModeratedCommunities(commList);
 
-      apiClient.get("/communities/moderated")
-        .then(res => {
-          const list = res.data.data || [];
-          setModeratedCommunities(list);
-          setIsAuthorized(list.length > 0);
-        })
-        .catch(() => setIsAuthorized(false))
-        .finally(() => setIsLoadingAuth(false));
+          // Fetch owned rooms
+          const roomsRes = await apiClient.get(`/users/${user.id}/rooms-owned`);
+          const roomsList = roomsRes.data.data || [];
+          setOwnedRooms(roomsList);
+
+          const hasAccess = isPlatformStaff || commList.length > 0 || roomsList.length > 0;
+          setIsAuthorized(hasAccess);
+        } catch (err) {
+          console.error("Failed to load moderator credentials:", err);
+          setIsAuthorized(isPlatformStaff);
+        } finally {
+          setIsLoadingAuth(false);
+        }
+      };
+
+      checkCredentials();
     }
   }, [user, userRole]);
 
@@ -230,6 +238,32 @@ export function ModeratorDashboard() {
       socket.off("report.escalated", handleReportEscalated);
     };
   }, [activeTab, reportFilter, selectedReport]);
+
+  const filteredReports = reports.filter((report) => {
+    if (selectedScope === "all") return true;
+    if (selectedScope.startsWith("room_")) {
+      const roomId = selectedScope.substring(5);
+      return report.roomId === roomId;
+    }
+    if (selectedScope.startsWith("community_")) {
+      const communityId = selectedScope.substring(10);
+      return report.reportedCommunityId === communityId || report.room?.communityId === communityId;
+    }
+    return true;
+  });
+
+  const filteredActionHistory = actionHistory.filter((item) => {
+    if (selectedScope === "all") return true;
+    if (selectedScope.startsWith("room_")) {
+      const roomId = selectedScope.substring(5);
+      return item.targetId === roomId || item.details?.includes(roomId);
+    }
+    if (selectedScope.startsWith("community_")) {
+      const communityId = selectedScope.substring(10);
+      return item.communityId === communityId || item.details?.includes(communityId);
+    }
+    return true;
+  });
 
   // Action: Assign report to self
   const handleAssignToSelf = async (reportId) => {
@@ -450,8 +484,35 @@ export function ModeratorDashboard() {
           >
             My Activity
           </button>
-        </div>
       </div>
+    </div>
+
+    {/* Active Scope Selector */}
+      {(moderatedCommunities.length > 0 || ownedRooms.length > 0) && (
+        <div className="bg-card border border-border/40 p-4 rounded-xl flex items-center gap-3 animate-in fade-in">
+          <span className="text-xs font-black uppercase text-muted-foreground">Scope Moderation View:</span>
+          <select
+            value={selectedScope}
+            onChange={(e) => {
+              setSelectedScope(e.target.value);
+              setSelectedReport(null);
+            }}
+            className="bg-muted text-foreground text-xs font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
+          >
+            <option value="all">-- All Authorized Scopes --</option>
+            {moderatedCommunities.map((c) => (
+              <option key={c.id} value={`community_${c.id}`}>
+                Community: {c.name} ({c.myRole})
+              </option>
+            ))}
+            {ownedRooms.map((r) => (
+              <option key={r.id} value={`room_${r.id}`}>
+                Discussion Room: {r.title} (Owner)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Main Panel Sections */}
       {activeTab === "reports" && (
@@ -489,9 +550,9 @@ export function ModeratorDashboard() {
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                 <p className="mt-4 text-xs font-bold text-muted-foreground uppercase tracking-widest">Loading queue...</p>
               </div>
-            ) : reports.length > 0 ? (
+            ) : filteredReports.length > 0 ? (
               <div className="space-y-2 overflow-y-auto max-h-[600px] pr-1 scrollbar-thin">
-                {reports.map((report) => (
+                {filteredReports.map((report) => (
                   <div
                     key={report.id}
                     onClick={() => setSelectedReport(report)}
@@ -1011,9 +1072,9 @@ export function ModeratorDashboard() {
             <div className="py-12 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
               Retrieving action logs...
             </div>
-          ) : actionHistory.length > 0 ? (
+          ) : filteredActionHistory.length > 0 ? (
             <div className="space-y-2 overflow-y-auto max-h-[500px] pr-1 scrollbar-thin">
-              {actionHistory.map((item) => (
+              {filteredActionHistory.map((item) => (
                 <div key={item.id} className="p-4 rounded-xl border border-border/30 hover:bg-muted/10 space-y-1.5 text-xs">
                   <div className="flex justify-between items-start">
                     <span className="font-bold text-primary">{item.action}</span>

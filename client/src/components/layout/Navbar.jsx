@@ -43,6 +43,7 @@ export function Navbar() {
 
   const [hasModeratedCommunities, setHasModeratedCommunities] = useState(false);
   const [hasAdminCommunities, setHasAdminCommunities] = useState(false);
+  const [hasOwnedRooms, setHasOwnedRooms] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -53,6 +54,13 @@ export function Navbar() {
           setHasAdminCommunities(list.some(c => ["OWNER", "ADMIN"].includes(c.myRole?.toUpperCase())));
         })
         .catch(err => console.error("Failed to load moderated communities in navbar:", err));
+
+      apiClient.get(`/users/${user.id}/rooms-owned`)
+        .then(res => {
+          const list = res.data.data || [];
+          setHasOwnedRooms(list.length > 0);
+        })
+        .catch(err => console.error("Failed to load owned rooms in navbar:", err));
     }
   }, [user]);
 
@@ -380,7 +388,7 @@ export function Navbar() {
                     </span>
                   )}
                 </DropdownMenuItem>
-                {(["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role) || hasModeratedCommunities) && (
+                {(["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role) || hasModeratedCommunities || hasOwnedRooms) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/moderator")}
                     className="text-purple-600 dark:text-purple-400 font-bold"

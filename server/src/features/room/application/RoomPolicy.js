@@ -24,7 +24,7 @@ export class RoomPolicy {
     communityMembership,
   ) {
     if (this.isSiteAdmin(user)) return true;
-    if (roomCreatorId && user.id === roomCreatorId && communityMembership && !communityMembership.banned) return true;
+    if (roomCreatorId && user.id === roomCreatorId) return true;
     
     if (communityMembership && !communityMembership.banned) {
       // Community OWNER or Community ADMIN can edit/archive rooms
@@ -43,7 +43,7 @@ export class RoomPolicy {
     communityMembership,
   ) {
     if (this.isSiteAdmin(user)) return true;
-    if (roomCreatorId && user.id === roomCreatorId && communityMembership && !communityMembership.banned) return true;
+    if (roomCreatorId && user.id === roomCreatorId) return true;
 
     if (communityMembership && !communityMembership.banned) {
       // Only Community OWNER can delete rooms (Community ADMIN/MODERATOR cannot delete)
