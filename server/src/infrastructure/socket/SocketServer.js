@@ -96,6 +96,37 @@ export function initializeSocketServer(app) {
         socket.join("moderators");
       }
 
+      // Join community-specific moderator rooms
+      prisma.communityMember.findMany({
+        where: {
+          userId: user.id,
+          role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+          banned: false
+        },
+        select: { communityId: true }
+      }).then(memberships => {
+        for (const membership of memberships) {
+          socket.join(`community_moderators_${membership.communityId}`);
+        }
+      }).catch(err => {
+        console.error("Failed to join community moderator rooms:", err);
+      });
+
+      // Join room-specific moderator rooms
+      prisma.roomMember.findMany({
+        where: {
+          userId: user.id,
+          status: "ROOM_MOD"
+        },
+        select: { roomId: true }
+      }).then(roomMemberships => {
+        for (const rm of roomMemberships) {
+          socket.join(`room_moderators_${rm.roomId}`);
+        }
+      }).catch(err => {
+        console.error("Failed to join room moderator rooms:", err);
+      });
+
       // 2. Track connection set
       let connections = activeUserConnections.get(user.id);
       if (!connections) {

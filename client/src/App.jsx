@@ -28,27 +28,18 @@ function ProtectedRoute({ children }) {
 
 // Route protection wrapper for moderator actions
 function ModeratorRoute({ children }) {
-  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
-  }
-  const isMod =
-    user && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role);
-  if (!isMod) {
-    return <Navigate to="/home" replace />;
   }
   return <>{children}</>;
 }
 
 // Route protection wrapper for admin controls
 function AdminRoute({ children }) {
-  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
-  }
-  const isAdmin = user && ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(user.role);
-  if (!isAdmin) {
-    return <Navigate to="/home" replace />;
   }
   return <>{children}</>;
 }

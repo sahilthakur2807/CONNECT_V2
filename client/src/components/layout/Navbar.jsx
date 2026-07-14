@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { apiClient } from "@/services/apiClient";
 import {
   BellIcon,
   MagnifyingGlassIcon,
@@ -39,6 +40,21 @@ export function Navbar() {
   const navigate = useNavigate();
   const { user, accessToken, isLoading, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const [hasModeratedCommunities, setHasModeratedCommunities] = useState(false);
+  const [hasAdminCommunities, setHasAdminCommunities] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      apiClient.get("/communities/moderated")
+        .then(res => {
+          const list = res.data.data || [];
+          setHasModeratedCommunities(list.length > 0);
+          setHasAdminCommunities(list.some(c => ["OWNER", "ADMIN"].includes(c.myRole?.toUpperCase())));
+        })
+        .catch(err => console.error("Failed to load moderated communities in navbar:", err));
+    }
+  }, [user]);
 
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
@@ -364,19 +380,19 @@ export function Navbar() {
                     </span>
                   )}
                 </DropdownMenuItem>
-                {["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role) && (
+                {(["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role) || hasModeratedCommunities) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/moderator")}
-                    className="text-purple-600 dark:text-purple-400"
+                    className="text-purple-600 dark:text-purple-400 font-bold"
                   >
                     <ShieldCheckIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Moderator Panel</span>
                   </DropdownMenuItem>
                 )}
-                {["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(user.role) && (
+                {(["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(user.role) || hasAdminCommunities) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/admin")}
-                    className="text-blue-600 dark:text-blue-400"
+                    className="text-blue-600 dark:text-blue-400 font-bold"
                   >
                     <Cog6ToothIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Admin Settings</span>

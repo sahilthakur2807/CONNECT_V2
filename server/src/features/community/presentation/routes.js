@@ -81,6 +81,30 @@ export function createCommunitiesRouter() {
     }
   });
 
+  // 1b. Get moderated communities
+  router.get("/moderated", authenticateJWT, async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const memberships = await prisma.communityMember.findMany({
+        where: {
+          userId,
+          role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+          banned: false,
+        },
+        include: {
+          community: true
+        }
+      });
+      const communities = memberships.map(m => ({
+        ...m.community,
+        myRole: m.role
+      }));
+      res.json({ success: true, data: communities });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 2. Get community by ID
   router.get("/:id", async (req, res, next) => {
     try {

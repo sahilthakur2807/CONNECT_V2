@@ -11,6 +11,67 @@ import { EventBus } from "../../../../shared/event-bus/EventBus.js";
 import { io, activeUserConnections } from "../../../../infrastructure/socket/SocketServer.js";
 import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 
+// --- Socket Broadcast Helper ---
+async function broadcastModerationEvent(eventName, payload, reportId, communityId, roomId) {
+  if (!io) return;
+
+  // Always emit to global platform moderators
+  io.to("moderators").emit(eventName, payload);
+
+  // If communityId is provided
+  if (communityId) {
+    io.to(`community_moderators_${communityId}`).emit(eventName, payload);
+  }
+
+  // If roomId is provided
+  if (roomId) {
+    io.to(`room_moderators_${roomId}`).emit(eventName, payload);
+    // Find room communityId if not provided
+    if (!communityId && prisma.room?.findUnique) {
+      try {
+        const roomObj = await prisma.room.findUnique({
+          where: { id: roomId },
+          select: { communityId: true }
+        });
+        if (roomObj?.communityId) {
+          io.to(`community_moderators_${roomObj.communityId}`).emit(eventName, payload);
+        }
+      } catch (err) {
+        console.error("Failed to lookup room community during socket broadcast:", err);
+      }
+    }
+  }
+
+  // If reportId is provided, we can look up its communityId/roomId if they weren't passed
+  if (reportId && !communityId && !roomId && prisma.report?.findUnique) {
+    try {
+      const rep = await prisma.report.findUnique({
+        where: { id: reportId },
+        select: { reportedCommunityId: true, roomId: true }
+      });
+      if (rep) {
+        if (rep.reportedCommunityId) {
+          io.to(`community_moderators_${rep.reportedCommunityId}`).emit(eventName, payload);
+        }
+        if (rep.roomId) {
+          io.to(`room_moderators_${rep.roomId}`).emit(eventName, payload);
+          if (prisma.room?.findUnique) {
+            const roomObj = await prisma.room.findUnique({
+              where: { id: rep.roomId },
+              select: { communityId: true }
+            });
+            if (roomObj?.communityId && roomObj.communityId !== rep.reportedCommunityId) {
+              io.to(`community_moderators_${roomObj.communityId}`).emit(eventName, payload);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to lookup report context during socket broadcast:", err);
+    }
+  }
+}
+
 // --- Commands ---
 
 export class CreateReportCommand {
@@ -156,10 +217,10 @@ export class CreateReportHandler {
 
     // Realtime broadcast to moderators dashboard channel
     if (io) {
-      io.to("moderators").emit("report.created", {
+      await broadcastModerationEvent("report.created", {
         success: true,
         data: report,
-      });
+      }, null, report.reportedCommunityId, report.roomId);
     }
 
     return report;
@@ -206,10 +267,10 @@ export class AssignReportHandler {
       );
 
       if (io) {
-        io.to("moderators").emit("report.assigned", {
+        await broadcastModerationEvent("report.assigned", {
           success: true,
           data: updated,
-        });
+        }, command.reportId);
       }
 
       return updated;
@@ -262,10 +323,10 @@ export class ResolveReportHandler {
       );
 
       if (io) {
-        io.to("moderators").emit("report.resolved", {
+        await broadcastModerationEvent("report.resolved", {
           success: true,
           data: updated,
-        });
+        }, command.reportId);
       }
 
       return updated;
@@ -363,10 +424,10 @@ export class ExecuteModerationActionHandler {
       );
 
       if (io) {
-        io.to("moderators").emit("moderation.action.executed", {
+        await broadcastModerationEvent("moderation.action.executed", {
           success: true,
           data: action,
-        });
+        }, null, command.communityId);
       }
 
       return action;
@@ -625,15 +686,32 @@ export class RemoveContentHandler {
         ),
       );
 
+      let communityId = null;
+      let roomId = null;
+      if (command.contentType === "message") {
+        const msg = await this.messageRepo.findById(command.contentId);
+        roomId = msg?.roomId;
+        if (roomId) {
+          const rm = await this.roomRepo.findById(roomId);
+          communityId = rm?.communityId;
+        }
+      } else if (command.contentType === "room") {
+        roomId = command.contentId;
+        const rm = await this.roomRepo.findById(roomId);
+        communityId = rm?.communityId;
+      } else if (command.contentType === "community") {
+        communityId = command.contentId;
+      }
+
       if (io) {
-        io.to("moderators").emit("content.removed", {
+        await broadcastModerationEvent("content.removed", {
           success: true,
           data: {
             contentId: command.contentId,
             contentType: command.contentType,
             reason: command.reason,
           },
-        });
+        }, null, communityId, roomId);
       }
     });
   }
@@ -782,15 +860,32 @@ export class RestoreContentHandler {
         ),
       );
 
+      let communityId = null;
+      let roomId = null;
+      if (command.contentType === "message") {
+        const msg = await this.messageRepo.findById(command.contentId);
+        roomId = msg?.roomId;
+        if (roomId) {
+          const rm = await this.roomRepo.findById(roomId);
+          communityId = rm?.communityId;
+        }
+      } else if (command.contentType === "room") {
+        roomId = command.contentId;
+        const rm = await this.roomRepo.findById(roomId);
+        communityId = rm?.communityId;
+      } else if (command.contentType === "community") {
+        communityId = command.contentId;
+      }
+
       if (io) {
-        io.to("moderators").emit("content.restored", {
+        await broadcastModerationEvent("content.restored", {
           success: true,
           data: {
             contentId: command.contentId,
             contentType: command.contentType,
             reason: command.reason,
           },
-        });
+        }, null, communityId, roomId);
       }
     });
   }
@@ -855,10 +950,10 @@ export class EscalateReportHandler {
       );
 
       if (io) {
-        io.to("moderators").emit("report.escalated", {
+        await broadcastModerationEvent("report.escalated", {
           success: true,
           data: updated,
-        });
+        }, command.reportId);
       }
 
       return updated;
