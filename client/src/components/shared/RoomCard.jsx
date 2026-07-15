@@ -11,6 +11,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 export function RoomCard({
   room,
@@ -22,7 +23,7 @@ export function RoomCard({
   index,
   activeTab,
 }) {
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const memberCount = room.memberCount ?? room._count?.members ?? 0;
   const messageCount = room.messageCount ?? room._count?.messages ?? 0;
   const activeNow = room.activeNow ?? 0;

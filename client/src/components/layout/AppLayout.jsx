@@ -20,6 +20,7 @@ import { setUnreadNotificationsCount } from "@/store/slices/uiSlice";
 import { cn } from "@/utils/cn";
 import { useRooms } from "@/hooks/useRooms";
 import { useGlobalSocketEvents } from "@/hooks/useGlobalSocketEvents";
+import { useAuth } from "@/hooks/useAuth";
 
 const CATEGORIES = [
   "All Topics",
@@ -58,7 +59,7 @@ function LeftSidebar() {
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
   );
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const profilePath = currentUser ? `/profile/${currentUser.id}` : "/profile";
 
   return (
