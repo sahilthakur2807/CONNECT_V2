@@ -5,6 +5,7 @@ import {
   optionalJWT,
 } from "../../../presentation/middlewares/AuthMiddleware.js";
 import { prisma } from "../../../infrastructure/db/PrismaClient.js";
+import { io } from "../../../infrastructure/socket/SocketServer.js";
 
 // Repositories
 import { RoomRepository } from "../infrastructure/repository/RoomRepository.js";
@@ -420,7 +421,7 @@ export function createRoomsRouter() {
       if (!existing) {
         const status = room.isPrivate ? "pending" : "joined";
         await roomRepo.createMembership(userId, roomId, status);
-        
+
         if (status === "joined") {
           await prisma.activityFeedItem.create({
             data: {
@@ -430,6 +431,12 @@ export function createRoomsRouter() {
             },
           });
         }
+
+        // Broadcast the updated member count globally
+        const memberCount = await prisma.roomMember.count({
+          where: { roomId }
+        });
+        io.emit("room.member.count.updated", { roomId, memberCount });
 
         res.json({ success: true, data: { isJoined: !room.isPrivate, isPending: room.isPrivate } });
       } else {
@@ -464,6 +471,12 @@ export function createRoomsRouter() {
           type: "room.joined",
         },
       });
+
+      // Broadcast the updated member count globally
+      const memberCount = await prisma.roomMember.count({
+        where: { roomId }
+      });
+      io.emit("room.member.count.updated", { roomId, memberCount });
 
       res.json({ success: true, data: { isJoined: false, isPending: false } });
     } catch (err) {
@@ -505,6 +518,12 @@ export function createRoomsRouter() {
       }
 
       await roomRepo.updateMembershipStatus(userId, roomId, "joined");
+
+      // Broadcast the updated member count globally
+      const memberCount = await prisma.roomMember.count({
+        where: { roomId }
+      });
+      io.emit("room.member.count.updated", { roomId, memberCount });
 
       res.json({ success: true });
     } catch (err) {

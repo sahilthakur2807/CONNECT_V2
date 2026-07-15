@@ -234,6 +234,18 @@ export class SendMessageHandler {
         success: true,
         data: fullMessage,
       });
+
+      // Calculate and broadcast updated message count globally
+      prisma.message.count({
+        where: { roomId: command.roomId, deleted: false }
+      }).then(messageCount => {
+        io.emit("room.message.count.updated", {
+          roomId: command.roomId,
+          messageCount,
+        });
+      }).catch(err => {
+        console.error("Failed to broadcast message count update:", err);
+      });
     }
 
     return fullMessage;
@@ -341,6 +353,18 @@ export class DeleteMessageHandler {
         success: true,
         data: { id: message.id },
       });
+
+      // Calculate and broadcast updated message count globally
+      prisma.message.count({
+        where: { roomId: message.roomId, deleted: false }
+      }).then(messageCount => {
+        io.emit("room.message.count.updated", {
+          roomId: message.roomId,
+          messageCount,
+        });
+      }).catch(err => {
+        console.error("Failed to broadcast message count update:", err);
+      });
     }
   }
 }
@@ -412,6 +436,18 @@ export class RestoreMessageHandler {
       io.to(message.roomId).emit("chat.message.restored", {
         success: true,
         data: updated,
+      });
+
+      // Calculate and broadcast updated message count globally
+      prisma.message.count({
+        where: { roomId: message.roomId, deleted: false }
+      }).then(messageCount => {
+        io.emit("room.message.count.updated", {
+          roomId: message.roomId,
+          messageCount,
+        });
+      }).catch(err => {
+        console.error("Failed to broadcast message count update:", err);
       });
     }
 

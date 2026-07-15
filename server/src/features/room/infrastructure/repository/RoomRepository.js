@@ -1,5 +1,6 @@
 import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 import { BaseRepository } from "../../../../infrastructure/repository/BaseRepository.js";
+import { getActiveRoomUsersCount } from "../../../../infrastructure/socket/SocketServer.js";
 
 export class RoomRepository extends BaseRepository {
   constructor() {
@@ -70,7 +71,7 @@ export class RoomRepository extends BaseRepository {
     const membership = userId ? members.find((m) => m.userId === userId) : null;
     const isJoined = membership ? ["joined", "ROOM_MOD"].includes(membership.status) : false;
     const isPending = membership ? membership.status === "pending" : false;
-    const activeNow = members.filter((m) => m.user?.status === "online").length;
+    const activeNow = getActiveRoomUsersCount(room.id);
 
     const isNew = badgeInfo ? badgeInfo.newIds.has(room.id) : (room.isNew ?? false);
     const trending = badgeInfo ? badgeInfo.trendingIds.has(room.id) : (room.trending ?? false);
@@ -152,7 +153,10 @@ export class RoomRepository extends BaseRepository {
         },
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       skip,
@@ -185,7 +189,10 @@ export class RoomRepository extends BaseRepository {
       include: {
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       orderBy: {
@@ -235,7 +242,10 @@ export class RoomRepository extends BaseRepository {
       include: {
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       orderBy: {
@@ -268,7 +278,10 @@ export class RoomRepository extends BaseRepository {
       include: {
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       orderBy: {
@@ -294,7 +307,10 @@ export class RoomRepository extends BaseRepository {
         },
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
     });

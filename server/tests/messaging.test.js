@@ -41,6 +41,9 @@ vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
     moderationAction: {
       findFirst: vi.fn().mockResolvedValue(null),
     },
+    message: {
+      count: () => Promise.resolve(0),
+    },
   };
   return { prisma: mockPrisma };
 });
