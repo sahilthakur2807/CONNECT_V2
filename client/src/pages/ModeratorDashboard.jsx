@@ -28,6 +28,11 @@ export function ModeratorDashboard() {
   const userRole = user?.role?.toUpperCase();
   const navigate = useNavigate();
 
+  const queryParams = new URLSearchParams(window.location.search);
+  const queryRoomId = queryParams.get("roomId");
+  const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(userRole);
+  const isMemberLock = !isPlatformStaff && !!queryRoomId;
+
   // Scoped authorization states
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -82,7 +87,7 @@ export function ModeratorDashboard() {
   // Scoped Communities (for filtering or actions)
   const [moderatedCommunities, setModeratedCommunities] = useState([]);
   const [ownedRooms, setOwnedRooms] = useState([]);
-  const [selectedScope, setSelectedScope] = useState("all");
+  const [selectedScope, setSelectedScope] = useState(isMemberLock ? `room_${queryRoomId}` : "all");
 
   // Modals for actions
   const [showModActionModal, setShowModActionModal] = useState(false);
@@ -98,8 +103,8 @@ export function ModeratorDashboard() {
   const [confirmText, setConfirmText] = useState("");
   const [stepUpPassword, setStepUpPassword] = useState("");
 
-  // Check roles permitted to see appeals (SUPER_ADMIN, PLATFORM_ADMIN, Community OWNER, Community ADMIN)
-  const canSeeAppeals = ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(userRole) || moderatedCommunities.some(c => ["OWNER", "ADMIN"].includes(c.myRole?.toUpperCase()));
+  // Check roles permitted to see appeals (SUPER_ADMIN, PLATFORM_ADMIN, ADMIN, SUPERADMIN)
+  const canSeeAppeals = ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(userRole);
 
   // Fetch Moderated Communities and Owned Rooms on mount and verify credentials
   useEffect(() => {
@@ -240,7 +245,18 @@ export function ModeratorDashboard() {
   }, [activeTab, reportFilter, selectedReport]);
 
   const filteredReports = reports.filter((report) => {
-    if (selectedScope === "all") return true;
+    if (selectedScope === "all") {
+      if (["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN", "MEMBER"].includes(userRole)) {
+        const ownedRoomIds = ownedRooms.map(r => r.id);
+        const modCommunityIds = moderatedCommunities.map(c => c.id);
+        return ownedRoomIds.includes(report.roomId) || modCommunityIds.includes(report.reportedCommunityId) || modCommunityIds.includes(report.room?.communityId);
+      }
+      return true;
+    }
+    if (selectedScope === "owned_all") {
+      const ownedRoomIds = ownedRooms.map(r => r.id);
+      return ownedRoomIds.includes(report.roomId);
+    }
     if (selectedScope.startsWith("room_")) {
       const roomId = selectedScope.substring(5);
       return report.roomId === roomId;
@@ -253,7 +269,18 @@ export function ModeratorDashboard() {
   });
 
   const filteredActionHistory = actionHistory.filter((item) => {
-    if (selectedScope === "all") return true;
+    if (selectedScope === "all") {
+      if (["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN", "MEMBER"].includes(userRole)) {
+        const ownedRoomIds = ownedRooms.map(r => r.id);
+        const modCommunityIds = moderatedCommunities.map(c => c.id);
+        return ownedRoomIds.includes(item.targetId) || ownedRoomIds.some(rid => item.details?.includes(rid)) || modCommunityIds.includes(item.communityId) || modCommunityIds.some(cid => item.details?.includes(cid));
+      }
+      return true;
+    }
+    if (selectedScope === "owned_all") {
+      const ownedRoomIds = ownedRooms.map(r => r.id);
+      return ownedRoomIds.includes(item.targetId) || ownedRoomIds.some(rid => item.details?.includes(rid));
+    }
     if (selectedScope.startsWith("room_")) {
       const roomId = selectedScope.substring(5);
       return item.targetId === roomId || item.details?.includes(roomId);
@@ -451,7 +478,7 @@ export function ModeratorDashboard() {
           <div>
             <h1 className="text-2xl font-black font-serif tracking-tight">Moderator Control Desk</h1>
             <p className="text-xs text-muted-foreground uppercase font-mono tracking-widest mt-0.5">
-              Active Authorization: <span className="text-primary font-bold">{userRole}</span>
+              Active Authorization: <span className="text-primary font-bold">{userRole === "MEMBER" ? "ROOM OWNER" : userRole}</span>
             </p>
           </div>
         </div>
@@ -488,29 +515,81 @@ export function ModeratorDashboard() {
     </div>
 
     {/* Active Scope Selector */}
-      {(moderatedCommunities.length > 0 || ownedRooms.length > 0) && (
-        <div className="bg-card border border-border/40 p-4 rounded-xl flex items-center gap-3 animate-in fade-in">
-          <span className="text-xs font-black uppercase text-muted-foreground">Scope Moderation View:</span>
-          <select
-            value={selectedScope}
-            onChange={(e) => {
-              setSelectedScope(e.target.value);
-              setSelectedReport(null);
-            }}
-            className="bg-muted text-foreground text-xs font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
-          >
-            <option value="all">-- All Authorized Scopes --</option>
-            {moderatedCommunities.map((c) => (
-              <option key={c.id} value={`community_${c.id}`}>
-                Community: {c.name} ({c.myRole})
-              </option>
-            ))}
-            {ownedRooms.map((r) => (
-              <option key={r.id} value={`room_${r.id}`}>
-                Discussion Room: {r.title} (Owner)
-              </option>
-            ))}
-          </select>
+      {!isMemberLock && (moderatedCommunities.length > 0 || ownedRooms.length > 0) && (
+        <div className="bg-card border border-border/40 p-4 rounded-xl flex flex-col md:flex-row md:items-center gap-4 animate-in fade-in">
+          {userRole === "PLATFORM_MOD" ? (
+            <>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-black uppercase text-muted-foreground">Scope Mode:</span>
+                <select
+                  value={selectedScope === "all" ? "platform" : "owned_rooms"}
+                  onChange={(e) => {
+                    if (e.target.value === "platform") {
+                      setSelectedScope("all");
+                    } else {
+                      setSelectedScope("owned_all");
+                    }
+                    setSelectedReport(null);
+                  }}
+                  className="bg-muted text-foreground text-xs font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
+                >
+                  <option value="platform">Platform Wide</option>
+                  <option value="owned_rooms">My Owned Rooms</option>
+                </select>
+              </div>
+
+              {/* If "My Owned Rooms" mode is active, show secondary selection */}
+              {selectedScope !== "all" && (
+                <div className="flex items-center gap-3 animate-in slide-in-from-left-2 duration-200">
+                  <span className="text-xs font-black uppercase text-muted-foreground">Select Room:</span>
+                  <select
+                    value={selectedScope === "owned_all" ? "all" : selectedScope.replace("room_", "")}
+                    onChange={(e) => {
+                      if (e.target.value === "all") {
+                        setSelectedScope("owned_all");
+                      } else {
+                        setSelectedScope(`room_${e.target.value}`);
+                      }
+                      setSelectedReport(null);
+                    }}
+                    className="bg-muted text-foreground text-xs font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
+                  >
+                    <option value="all">All Owned Rooms</option>
+                    {ownedRooms.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          ) : (
+            // Non-platform staff (e.g. regular community mod/owner) shows the classic selector
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-black uppercase text-muted-foreground">Scope Moderation View:</span>
+              <select
+                value={selectedScope}
+                onChange={(e) => {
+                  setSelectedScope(e.target.value);
+                  setSelectedReport(null);
+                }}
+                className="bg-muted text-foreground text-xs font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
+              >
+                <option value="all">All Authorized Scopes</option>
+                {moderatedCommunities.map((c) => (
+                  <option key={c.id} value={`community_${c.id}`}>
+                    Community: {c.name} ({c.myRole})
+                  </option>
+                ))}
+                {ownedRooms.map((r) => (
+                  <option key={r.id} value={`room_${r.id}`}>
+                    Discussion Room: {r.title} (Owner)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
       )}
 
@@ -693,8 +772,12 @@ export function ModeratorDashboard() {
                     </button>
                   )}
 
-                  {/* Actions visible only when assigned to self or Platform Mod/Admin */}
-                  {(selectedReport.assignedId === user.id || ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(userRole)) && (
+                  {/* Actions visible only when assigned to self or authorized mod/admin/owner */}
+                  {(selectedReport.assignedId === user.id || 
+                    ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(userRole) ||
+                    selectedReport.room?.createdById === user.id ||
+                    moderatedCommunities.some(c => c.id === selectedReport.reportedCommunityId || c.id === selectedReport.room?.communityId)
+                  ) && (
                     <>
                       <button
                         onClick={() => {

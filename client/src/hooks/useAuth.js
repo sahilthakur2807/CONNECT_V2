@@ -7,6 +7,7 @@ import {
   setError,
   logout as logoutAction,
   clearError as clearErrorAction,
+  setUserRestriction,
 } from "@/store/slices/authSlice";
 import { apiClient } from "@/services/apiClient";
 import { connectSocket, disconnectSocket } from "@/services/socketService";
@@ -27,9 +28,10 @@ export function useAuth() {
         identifier,
         password,
       });
-      const { accessToken: token, user: userData } = response.data.data;
+      const { accessToken: token, user: userData, userRestriction } = response.data.data;
       dispatch(setAccessToken(token));
       dispatch(setUser(userData));
+      dispatch(setUserRestriction(userRestriction || null));
       connectSocket();
       return userData;
     } catch (err) {
@@ -50,9 +52,10 @@ export function useAuth() {
         email,
         password,
       });
-      const { accessToken: token, user: userData } = response.data.data;
+      const { accessToken: token, user: userData, userRestriction } = response.data.data;
       dispatch(setAccessToken(token));
       dispatch(setUser(userData));
+      dispatch(setUserRestriction(userRestriction || null));
       connectSocket();
       return userData;
     } catch (err) {
@@ -82,11 +85,12 @@ export function useAuth() {
     dispatch(setLoading(true));
     try {
       const refreshResponse = await apiClient.post("/auth/refresh");
-      const { accessToken: token, user: userData } = refreshResponse.data.data;
+      const { accessToken: token, user: userData, userRestriction } = refreshResponse.data.data;
       dispatch(setAccessToken(token));
       if (userData) {
         dispatch(setUser(userData));
       }
+      dispatch(setUserRestriction(userRestriction || null));
       connectSocket();
       return token;
     } catch (err) {

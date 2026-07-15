@@ -287,7 +287,7 @@ export function createModerationRouter() {
   // 7. Get Reports (Open / Assigned)
   router.get("/reports", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
-      type: z.enum(["open", "assigned"]).default("open"),
+      type: z.enum(["open", "assigned", "escalated"]).default("open"),
     });
 
     try {

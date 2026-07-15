@@ -199,6 +199,22 @@ export class RoomRepository extends BaseRepository {
     return rooms.map((room) => this.mapRoom(room, userId, badgeInfo));
   }
 
+  async countVisibleRooms(userId, tx) {
+    const delegate = this.getDelegate(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
+    return delegate.count({
+      where: {
+        deleted: false,
+        title: { not: "World Chat" },
+        OR: [
+          { archived: false },
+          ...(userId ? [{ createdById: userId }] : []),
+        ],
+        ...privateFilter,
+      }
+    });
+  }
+
   /**
    * Database-level hot rooms query, sorted by total message count.
    */

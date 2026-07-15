@@ -123,7 +123,12 @@ export function NotificationCenter() {
       if (!n.read) {
         await markReadMutation.mutateAsync(n.id);
       }
-      if (n.roomId) {
+      
+      const isModAction = ["staff_reported", "report_created", "report_assigned", "report_resolved", "appeal_submitted", "appeal_approved", "appeal_rejected"].includes(n.type) || n.type?.startsWith("appeal") || n.type === "moderation";
+      
+      if (isModAction) {
+        navigate(`/moderator${n.roomId ? `?roomId=${n.roomId}` : ""}`);
+      } else if (n.roomId) {
         navigate(`/room/${n.roomId}`);
       }
     } catch (e) {

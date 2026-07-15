@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
 
 // --- Standalone Queries ---
@@ -59,8 +59,12 @@ export const useTrendingRoomsQuery = (limit = 20, options = {}) =>
     queryKey: ["rooms", "trending", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/trending?limit=${limit}`);
-      return res.data.data;
+      return {
+        rooms: res.data.data,
+        total: parseInt(res.headers["x-total-count"] || "0", 10),
+      };
     },
+    placeholderData: keepPreviousData,
     ...options,
   });
 
@@ -69,8 +73,12 @@ export const useHotRoomsQuery = (limit = 20, options = {}) =>
     queryKey: ["rooms", "hot", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/hot?limit=${limit}`);
-      return res.data.data;
+      return {
+        rooms: res.data.data,
+        total: parseInt(res.headers["x-total-count"] || "0", 10),
+      };
     },
+    placeholderData: keepPreviousData,
     ...options,
   });
 
@@ -79,8 +87,12 @@ export const useNewRoomsQuery = (limit = 20, options = {}) =>
     queryKey: ["rooms", "new", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/new?limit=${limit}`);
-      return res.data.data;
+      return {
+        rooms: res.data.data,
+        total: parseInt(res.headers["x-total-count"] || "0", 10),
+      };
     },
+    placeholderData: keepPreviousData,
     ...options,
   });
 

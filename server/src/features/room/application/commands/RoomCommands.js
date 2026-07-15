@@ -261,8 +261,41 @@ export class UpdateRoomHandler {
         "You do not have permission to update this room",
       );
 
+    const isSiteAdmin = RoomPolicy.isSiteAdmin({ id: command.userId, role: command.userRole });
+
+    // Enforce that only the room owner (creator) or a site admin can edit the title (room name)
+    if (command.title !== undefined && room.createdById !== command.userId && !isSiteAdmin) {
+      throw new ForbiddenError(
+        "Only the owner can edit the name of the room",
+      );
+    }
+
     const data = {};
-    if (command.title !== undefined) data.title = command.title;
+    if (command.title !== undefined) {
+      const trimmedTitle = command.title.trim();
+      if (trimmedTitle.length < 10) {
+        throw new BadRequestError("Room title must be at least 10 characters long");
+      }
+      if (trimmedTitle.toLowerCase() !== room.title.toLowerCase()) {
+        const existingRoom = await prisma.room.findFirst({
+          where: {
+            title: { equals: trimmedTitle, mode: "insensitive" },
+            deleted: false
+          }
+        });
+        if (existingRoom) {
+          throw new BadRequestError("Room title already exists");
+        }
+      }
+      if (isSiteAdmin) {
+        data.title = trimmedTitle;
+      } else {
+        if (room.pendingNameRequest) {
+          throw new BadRequestError("You already have a pending rename request for this room. Please wait for administrator approval.");
+        }
+        data.pendingNameRequest = trimmedTitle;
+      }
+    }
     if (command.description !== undefined)
       data.description = command.description;
     if (command.category !== undefined) data.category = command.category;

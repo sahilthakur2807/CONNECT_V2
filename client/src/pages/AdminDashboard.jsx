@@ -43,36 +43,11 @@ export function AdminDashboard() {
   const [communityMetrics, setCommunityMetrics] = useState(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
 
-  // State: Role Management
-  const [membersList, setMembersList] = useState([]);
-  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
-  const [promoUserId, setPromoUserId] = useState("");
-  const [promoRole, setPromoRole] = useState("MEMBER");
-  const [promoSuggestions, setPromoSuggestions] = useState([]);
-  const [isPromoFocused, setIsPromoFocused] = useState(false);
-  const [isSearchingPromoSuggestions, setIsSearchingPromoSuggestions] = useState(false);
-  const [promoUserResult, setPromoUserResult] = useState(null);
-
-  useEffect(() => {
-    if (promoUserId.trim().length < 2) {
-      setPromoSuggestions([]);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setIsSearchingPromoSuggestions(true);
-      try {
-        const res = await apiClient.get(`/moderation/users/lookup?query=${encodeURIComponent(promoUserId)}&suggest=true`);
-        setPromoSuggestions(res.data.data || []);
-      } catch (err) {
-        console.error("Failed to fetch platform promotion suggestions:", err);
-      } finally {
-        setIsSearchingPromoSuggestions(false);
-      }
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [promoUserId]);
+  // State: Escalated Issues
+  const [escalatedReports, setEscalatedReports] = useState([]);
+  const [isLoadingEscalated, setIsLoadingEscalated] = useState(false);
+  const [resolvingReportId, setResolvingReportId] = useState(null);
+  const [resolutionReason, setResolutionReason] = useState("");
 
   // State: Rooms/Community Control
   const [newRoomTitle, setNewRoomTitle] = useState("");
@@ -180,43 +155,24 @@ export function AdminDashboard() {
     }
   }, [activeTab, selectedCommunityId]);
 
-  // Load Members for selected community (Role assignment list)
-  const fetchCommunityMembers = async () => {
-    if (!selectedCommunityId) return;
-    setIsLoadingMembers(true);
+  // Fetch Escalated Reports
+  const fetchEscalatedReports = async () => {
+    setIsLoadingEscalated(true);
     try {
-      const res = await apiClient.get(`/communities/${selectedCommunityId}/members?limit=100`);
-      setMembersList(res.data.data?.members || []);
+      const res = await apiClient.get("/reports?type=escalated");
+      setEscalatedReports(res.data.data || []);
     } catch (err) {
-      toast.error("Failed to load community member roster");
+      toast.error("Failed to load escalated issues");
     } finally {
-      setIsLoadingMembers(false);
-    }
-  };
-
-  // Load Platform Citizens (Platform assignment list, SUPER_ADMIN only)
-  const fetchPlatformUsers = async () => {
-    setIsLoadingPlatformUsers(true);
-    try {
-      const res = await apiClient.get(`/users?role=${platformUsersFilter}&limit=100`);
-      setPlatformUsers(res.data.data || []);
-    } catch (err) {
-      toast.error("Failed to load platform citizens list");
-    } finally {
-      setIsLoadingPlatformUsers(false);
+      setIsLoadingEscalated(false);
     }
   };
 
   useEffect(() => {
-    if (activeTab === "roles") {
-      if (selectedCommunityId) {
-        fetchCommunityMembers();
-      }
-      if (isSuperAdmin) {
-        fetchPlatformUsers();
-      }
+    if (activeTab === "escalated") {
+      fetchEscalatedReports();
     }
-  }, [activeTab, selectedCommunityId, platformUsersFilter]);
+  }, [activeTab]);
 
   // Load Communities for Creation/Suspension management
   const fetchAllCommunities = async () => {
@@ -257,63 +213,21 @@ export function AdminDashboard() {
     }
   }, [activeTab, selectedCommunityId]);
 
-  // Promotes / Demotes community user role
-  const handleUpdateMemberRole = async (targetUserId, newRole) => {
-    if (!selectedCommunityId) return;
-    try {
-      await apiClient.put(`/communities/${selectedCommunityId}/members/${targetUserId}/role`, { role: newRole });
-      toast.success("Community member role updated successfully");
-      fetchCommunityMembers();
-    } catch (err) {
-      toast.error(err.response?.data?.error || "Promotion failed");
-    }
-  };
-
-  // Promotes platform role (SUPER_ADMIN only)
-  const handlePromotePlatformUser = async (targetUserId, platformRole) => {
-    if (!isSuperAdmin) {
-      toast.error("Only SUPER_ADMIN can alter platform-wide credentials");
+  const handleResolveReport = async (reportId) => {
+    if (!resolutionReason.trim()) {
+      toast.error("Resolution reason is required");
       return;
     }
     try {
-      // Execute promotion by executing moderation action or profile patch
-      // Patch platform-wide user role via API
-      await apiClient.put(`/users/${targetUserId}/role`, { role: platformRole });
-      toast.success(`Platform role updated to ${platformRole}`);
-      setPromoUserId("");
-      setPromoUserResult(null);
-      fetchStats();
-      if (isSuperAdmin) fetchPlatformUsers();
+      await apiClient.post(`/reports/${reportId}/resolve`, {
+        resolutionReason: resolutionReason.trim(),
+      });
+      toast.success("Issue resolved successfully");
+      setResolvingReportId(null);
+      setResolutionReason("");
+      fetchEscalatedReports();
     } catch (err) {
-      toast.error(err.message || "Platform promotion command failed");
-    }
-  };
-
-  // Searches for citizen by username, email, or ID
-  const handleSearchCitizen = async () => {
-    if (!promoUserId || !promoUserId.trim()) {
-      toast.error("Please enter a username, email, or user ID to search");
-      return;
-    }
-    try {
-      const lookup = await apiClient.get(`/moderation/users/lookup?query=${encodeURIComponent(promoUserId)}`);
-      setPromoUserResult(lookup.data.data.user);
-      toast.success("Citizen matched successfully");
-    } catch (err) {
-      toast.error(err.message || "Citizen not found");
-      setPromoUserResult(null);
-    }
-  };
-
-  // Updates platform citizen role directly (SUPER_ADMIN only)
-  const handleUpdatePlatformMemberRole = async (targetUserId, newRole) => {
-    try {
-      await apiClient.put(`/users/${targetUserId}/role`, { role: newRole });
-      toast.success("Platform citizen role updated successfully");
-      fetchPlatformUsers();
-      fetchStats();
-    } catch (err) {
-      toast.error(err.message || "Failed to update platform role");
+      toast.error(err.response?.data?.error || err.message || "Failed to resolve report");
     }
   };
 
@@ -449,7 +363,7 @@ export function AdminDashboard() {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex bg-muted/60 p-1 rounded-xl gap-1 self-start md:self-auto">
+        <div className="flex bg-muted/60 p-1 rounded-xl gap-1 self-start md:self-auto flex-wrap">
           <button
             onClick={() => setActiveTab("overview")}
             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeTab === "overview" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
@@ -457,11 +371,19 @@ export function AdminDashboard() {
             Overview
           </button>
           <button
-            onClick={() => setActiveTab("roles")}
-            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeTab === "roles" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setActiveTab("escalated")}
+            className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeTab === "escalated" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
           >
-            Role Assignment
+            Escalated Issues
           </button>
+          {isPlatformAdmin && (
+            <button
+              onClick={() => setActiveTab("rename-requests")}
+              className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeTab === "rename-requests" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Rename Requests
+            </button>
+          )}
           <button
             onClick={() => setActiveTab("rooms")}
             className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer ${activeTab === "rooms" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"}`}
@@ -563,237 +485,151 @@ export function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === "roles" && (
+      {activeTab === "escalated" && (
         <div className="space-y-6 animate-in slide-in-from-bottom-2">
-          {/* Scoped Community Member Promotion Panel */}
-          {selectedCommunityId ? (
-            <div className="bg-card border border-border/50 rounded-2xl p-5 space-y-4">
-              <div className="flex items-center justify-between border-b border-border/40 pb-3">
-                <div className="flex items-center gap-2">
-                  <UsersIcon className="w-5 h-5 text-muted-foreground" />
-                  <h2 className="text-sm font-black uppercase tracking-wider">Community Member Roles</h2>
-                </div>
-                <button
-                  onClick={fetchCommunityMembers}
-                  className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg cursor-pointer"
-                >
-                  <ArrowPathIcon className="w-4 h-4" />
-                </button>
+          <div className="bg-card border border-border/50 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-3">
+              <div className="flex items-center gap-2">
+                <ExclamationTriangleIcon className="w-5 h-5 text-rose-500 animate-pulse" />
+                <h2 className="text-sm font-black uppercase tracking-wider">Escalated Moderation Issues</h2>
               </div>
+              <button
+                onClick={fetchEscalatedReports}
+                className="p-1 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg cursor-pointer transition-colors"
+                title="Refresh List"
+              >
+                <ArrowPathIcon className="w-4 h-4" />
+              </button>
+            </div>
 
-              {isLoadingMembers ? (
-                <div className="py-12 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
-                  Loading membership roster...
-                </div>
-              ) : membersList.length > 0 ? (
-                <div className="divide-y divide-border/20 max-h-[500px] overflow-y-auto pr-1">
-                  {membersList.map((membership) => (
-                    <div key={membership.user.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
-                      <div>
-                        <p className="font-bold">@{membership.user.username}</p>
-                        <p className="text-[10px] text-muted-foreground">{membership.user.email}</p>
-                      </div>
+            {isLoadingEscalated ? (
+              <div className="py-12 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
+                Loading escalated issues...
+              </div>
+            ) : escalatedReports.length > 0 ? (
+              <div className="space-y-4">
+                {escalatedReports.map((report) => (
+                  <div
+                    key={report.id}
+                    className="p-4 bg-muted/40 hover:bg-muted/70 border border-border/40 hover:border-border/80 rounded-xl transition-all space-y-3"
+                  >
+                    {/* Header: Status badge, Category & Timestamp */}
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-[10px] text-muted-foreground font-semibold">
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 text-[9px] font-black uppercase tracking-widest rounded-md bg-muted text-muted-foreground">
-                          {membership.role}
+                        <span className="px-2 py-0.5 font-black uppercase tracking-widest bg-rose-500/10 text-rose-500 rounded-md border border-rose-500/20">
+                          {report.status}
                         </span>
-                        
-                        {/* Action promote dropdown */}
-                        <select
-                          defaultValue={membership.role}
-                          onChange={(e) => handleUpdateMemberRole(membership.user.id, e.target.value)}
-                          className="bg-muted text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1 px-2 outline-hidden cursor-pointer"
-                        >
-                          <option value="MEMBER">MEMBER</option>
-                          <option value="MODERATOR">MODERATOR</option>
-                          <option value="ADMIN">ADMIN</option>
-                        </select>
+                        <span className="font-black text-foreground uppercase bg-secondary px-2 py-0.5 rounded-md">
+                          {report.reason}
+                        </span>
                       </div>
+                      <span>{new Date(report.createdAt).toLocaleString()}</span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="py-6 text-center text-xs text-muted-foreground italic">No members found inside this community.</p>
-              )}
-            </div>
-          ) : (
-            <div className="bg-card border border-border/50 p-8 rounded-2xl text-center italic text-xs text-muted-foreground">
-              Scope a specific community above to assign roles or promote community moderators.
-            </div>
-          )}
 
-          {/* Platform promotions (SUPER_ADMIN only) */}
-          {isSuperAdmin && (
-            <div className="bg-card border border-border/50 rounded-2xl p-5 space-y-4">
-              <h3 className="text-sm font-black uppercase tracking-wider">Platform Citizens</h3>
-              <div className="flex gap-4 items-center">
-                <div className="relative flex-grow">
-                  <input
-                    type="text"
-                    placeholder="Username, Email, or User ID"
-                    value={promoUserId}
-                    onChange={(e) => {
-                      setPromoUserId(e.target.value);
-                      setIsPromoFocused(true);
-                    }}
-                    onFocus={() => setIsPromoFocused(true)}
-                    onBlur={() => setTimeout(() => setIsPromoFocused(false), 200)}
-                    className="w-full bg-muted border border-border/50 rounded-xl py-2.5 px-3 text-xs font-semibold outline-hidden placeholder-muted-foreground"
-                  />
-                  {isPromoFocused && promoUserId.trim().length >= 2 && (promoSuggestions.length > 0 || isSearchingPromoSuggestions) && (
-                    <div className="absolute left-0 right-0 mt-1 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-border/25 max-h-48 overflow-y-auto">
-                      {isSearchingPromoSuggestions ? (
-                        <div className="px-4 py-3 text-[10px] text-muted-foreground animate-pulse font-medium">
-                          Searching suggestions...
-                        </div>
-                      ) : (
-                        promoSuggestions.map((sug) => (
-                          <button
-                            key={sug.id}
-                            type="button"
-                            onClick={() => {
-                              setPromoUserId(sug.username);
-                              setPromoSuggestions([]);
-                              setPromoUserResult(sug);
-                            }}
-                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-secondary text-left transition-colors cursor-pointer border-none bg-transparent"
-                          >
-                            <div className="text-xs font-bold text-foreground">@{sug.username}</div>
-                            <div className="text-[10px] text-muted-foreground">({sug.name || sug.email})</div>
-                          </button>
-                        ))
+                    {/* Description and Content */}
+                    <div className="text-xs space-y-2">
+                      <p className="text-foreground leading-relaxed">
+                        <span className="font-black text-[10px] uppercase text-muted-foreground block mb-0.5">Report Description:</span>
+                        {report.description}
+                      </p>
+
+                      {/* Escalation Reason */}
+                      {report.resolutionReason && (
+                        <p className="p-2.5 bg-rose-500/5 text-rose-500 rounded-lg border border-rose-500/10 text-xs italic font-semibold">
+                          <span className="font-black text-[10px] uppercase text-rose-500/70 block not-italic mb-0.5">Moderator Escalation Note:</span>
+                          {report.resolutionReason.replace(/^Escalated:\s*/i, "")}
+                        </p>
                       )}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleSearchCitizen}
-                  className="bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold text-xs uppercase px-6 py-2.5 cursor-pointer shrink-0 border-none"
-                >
-                  Search Citizen
-                </button>
-              </div>
 
-              {/* Matched Citizen Result Profile Card */}
-              {promoUserResult && (
-                <div className="bg-muted p-4 rounded-xl border border-border/40 flex items-center justify-between gap-4 animate-in fade-in">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-background border border-border/20 shrink-0">
-                      {promoUserResult.avatar ? (
-                        <img src={promoUserResult.avatar} alt={promoUserResult.username} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-indigo-500/10 text-indigo-500 font-black text-sm">
-                          {promoUserResult.username.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-                    <div>
-                      <p className="font-bold text-xs">@{promoUserResult.username}</p>
-                      <p className="text-[10px] text-muted-foreground">{promoUserResult.email || "No email linked"}</p>
-                      <p className="text-[9px] text-indigo-500 font-bold uppercase mt-0.5">Current Role: {promoUserResult.role}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={promoRole}
-                      onChange={(e) => setPromoRole(e.target.value)}
-                      className="bg-background text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1.5 px-3 outline-hidden cursor-pointer"
-                    >
-                      <option value="MEMBER">Platform Member</option>
-                      <option value="PLATFORM_MOD">Platform Moderator</option>
-                      <option value="PLATFORM_ADMIN">Platform Admin</option>
-                    </select>
-                    <button
-                      onClick={() => handlePromotePlatformUser(promoUserResult.id, promoRole)}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-1.5 px-4 font-bold text-xs uppercase transition-all cursor-pointer border-none"
-                    >
-                      Update Role
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Platform Citizens Roster List */}
-              <div className="border-t border-border/40 pt-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <UsersIcon className="w-4 h-4 text-muted-foreground" />
-                    <h4 className="text-xs font-black uppercase tracking-wider">Citizen Directory</h4>
-                  </div>
-                  
-                  {/* Filter select */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase">Filter Role:</span>
-                    <select
-                      value={platformUsersFilter}
-                      onChange={(e) => setPlatformUsersFilter(e.target.value)}
-                      className="bg-muted text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1 px-2.5 outline-hidden cursor-pointer"
-                    >
-                      <option value="ALL">ALL CITIZENS</option>
-                      <option value="MEMBER">MEMBER</option>
-                      <option value="PLATFORM_MOD">MODERATOR</option>
-                      <option value="PLATFORM_ADMIN">ADMIN</option>
-                      <option value="SUPER_ADMIN">SUPER ADMIN</option>
-                    </select>
-                  </div>
-                </div>
-
-                {isLoadingPlatformUsers ? (
-                  <div className="py-8 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
-                    Loading citizens directory...
-                  </div>
-                ) : platformUsers.length > 0 ? (
-                  <div className="divide-y divide-border/20 max-h-[300px] overflow-y-auto pr-1">
-                    {platformUsers.map((cit) => (
-                      <div key={cit.id} className="py-3 flex items-center justify-between gap-4 text-xs">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted border border-border/30 shrink-0">
-                            {cit.avatar ? (
-                              <img src={cit.avatar} alt={cit.username} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center bg-indigo-500/10 text-indigo-500 font-black text-xs">
-                                {cit.username.slice(0, 2).toUpperCase()}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold">@{cit.username}</p>
-                            <p className="text-[10px] text-muted-foreground">{cit.email || "No email linked"}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-widest rounded-md ${
-                            cit.role === "SUPER_ADMIN" ? "bg-indigo-500/10 text-indigo-500" :
-                            cit.role === "PLATFORM_ADMIN" ? "bg-amber-500/10 text-amber-500" :
-                            cit.role === "PLATFORM_MOD" ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
-                          }`}>
-                            {cit.role}
+                      {/* Details on reported entities */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div className="space-y-1">
+                          <span className="font-black text-[10px] uppercase text-muted-foreground block">Reporter</span>
+                          <span className="text-foreground font-bold">
+                            @{report.reporter?.username} <span className="text-[10px] font-medium text-muted-foreground">({report.reporter?.name || report.reporter?.email})</span>
                           </span>
-                          
-                          {cit.role !== "SUPER_ADMIN" ? (
-                            <select
-                              value={cit.role}
-                              onChange={(e) => handleUpdatePlatformMemberRole(cit.id, e.target.value)}
-                              className="bg-muted text-foreground text-[10px] font-bold rounded-lg border border-border/40 py-1 px-2 outline-hidden cursor-pointer"
-                            >
-                              <option value="MEMBER">MEMBER</option>
-                              <option value="PLATFORM_MOD">MODERATOR</option>
-                              <option value="PLATFORM_ADMIN">ADMIN</option>
-                            </select>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground italic font-medium px-2">Protected</span>
-                          )}
                         </div>
+                        {report.reportedUser && (
+                          <div className="space-y-1">
+                            <span className="font-black text-[10px] uppercase text-muted-foreground block">Reported User</span>
+                            <span className="text-foreground font-bold text-rose-400">
+                              @{report.reportedUser?.username} <span className="text-[10px] font-medium text-muted-foreground">({report.reportedUser?.name || report.reportedUser?.email})</span>
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    ))}
+
+                      {/* Message Content Context */}
+                      {report.message && (
+                        <div className="p-3 bg-card border border-border/40 rounded-xl mt-2 text-xs">
+                          <span className="font-black text-[10px] uppercase text-muted-foreground block mb-1">Reported Message Content</span>
+                          <blockquote className="border-l-2 border-border pl-3 text-muted-foreground italic">
+                            "{report.message.content}"
+                          </blockquote>
+                        </div>
+                      )}
+
+                      {/* Room and Community Context */}
+                      <div className="flex gap-4 pt-1 text-[10px] text-muted-foreground">
+                        {report.room && (
+                          <span>
+                            Room: <span className="font-bold text-foreground">#{report.room.title}</span>
+                          </span>
+                        )}
+                        {report.reportedCommunity && (
+                          <span>
+                            Community: <span className="font-bold text-foreground">{report.reportedCommunity.name}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions Panel */}
+                    <div className="border-t border-border/20 pt-3 flex flex-col gap-2.5">
+                      {resolvingReportId === report.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            placeholder="Provide resolution details (e.g., content removed, user warned, or closed as false positive)..."
+                            value={resolutionReason}
+                            onChange={(e) => setResolutionReason(e.target.value)}
+                            className="w-full bg-card text-foreground border border-border/60 rounded-xl p-2.5 text-xs outline-hidden min-h-[70px] placeholder-muted-foreground font-semibold"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleResolveReport(report.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3.5 py-1.5 font-bold text-[10px] uppercase transition-all cursor-pointer border-none"
+                            >
+                              Confirm Resolution
+                            </button>
+                            <button
+                              onClick={() => {
+                                setResolvingReportId(null);
+                                setResolutionReason("");
+                              }}
+                              className="bg-muted hover:bg-muted/80 text-muted-foreground rounded-lg px-3.5 py-1.5 font-bold text-[10px] uppercase transition-all cursor-pointer border-none"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setResolvingReportId(report.id)}
+                          className="bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-500 border border-emerald-500/20 rounded-xl px-4 py-2 font-bold text-xs uppercase transition-all cursor-pointer self-start"
+                        >
+                          Mark as Resolved
+                        </button>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <p className="py-6 text-center text-xs text-muted-foreground italic">No citizens matching filter found.</p>
-                )}
+                ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <div className="py-12 text-center text-xs text-muted-foreground italic bg-muted/20 border border-dashed border-border/60 rounded-xl">
+                No escalated issues currently active. Good job!
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1049,6 +885,8 @@ export function AdminDashboard() {
             </button>
           </div>
         </div>
+      )}      {activeTab === "rename-requests" && isPlatformAdmin && (
+        <AdminRenameRequestsTab />
       )}
 
       {/* Confirmation Step Up modal overlay */}
@@ -1105,4 +943,116 @@ export function AdminDashboard() {
     </div>
   );
 }
+
+function AdminRenameRequestsTab() {
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchRequests = async () => {
+    setLoading(true);
+    try {
+      const res = await apiClient.get("/rooms/rename-requests");
+      setRequests(res.data.data || []);
+    } catch (err) {
+      toast.error("Failed to load rename requests");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRequests();
+  }, []);
+
+  const handleApprove = async (id) => {
+    try {
+      await apiClient.post(`/rooms/rename-requests/${id}/approve`);
+      toast.success("Rename request approved successfully!");
+      fetchRequests();
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || "Failed to approve request");
+    }
+  };
+
+  const handleReject = async (id) => {
+    try {
+      await apiClient.post(`/rooms/rename-requests/${id}/reject`);
+      toast.success("Rename request rejected");
+      fetchRequests();
+    } catch (err) {
+      toast.error(err.response?.data?.error || err.message || "Failed to reject request");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-48">
+        <ArrowPathIcon className="animate-spin text-primary w-6 h-6" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card border border-border/50 rounded-3xl p-6 shadow-sm space-y-6 animate-in slide-in-from-bottom-2">
+      <div className="flex items-center justify-between border-b border-border pb-3">
+        <div>
+          <h2 className="text-lg font-black font-serif">Pending Room Rename Requests</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Review and approve or reject requested title updates from room owners.
+          </p>
+        </div>
+        <span className="text-[10px] font-black bg-primary/10 text-primary px-2.5 py-1 rounded-md font-mono">
+          {requests.length} pending
+        </span>
+      </div>
+
+      {requests.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic py-4 text-center font-medium">
+          No pending rename requests at this time.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-border/80 text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
+                <th className="py-3 px-4">Owner</th>
+                <th className="py-3 px-4">Original Name</th>
+                <th className="py-3 px-4">Proposed Name</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r.id} className="border-b border-border/40 hover:bg-secondary/25 transition-colors font-medium">
+                  <td className="py-3 px-4 font-bold">
+                    @{r.createdBy?.username || "unknown"}
+                  </td>
+                  <td className="py-3 px-4 text-muted-foreground">{r.title}</td>
+                  <td className="py-3 px-4 text-indigo-500 font-bold">{r.pendingNameRequest}</td>
+                  <td className="py-3 px-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => handleApprove(r.id)}
+                        className="h-8 px-3.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-[10px] uppercase cursor-pointer border-none flex items-center gap-1 transition-all"
+                      >
+                        <CheckIcon className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(r.id)}
+                        className="h-8 px-3.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-[10px] uppercase cursor-pointer border-none flex items-center gap-1 transition-all"
+                      >
+                        <XMarkIcon className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default AdminDashboard;

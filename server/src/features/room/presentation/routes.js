@@ -101,6 +101,9 @@ export function createRoomsRouter() {
     try {
       const query = new GetTrendingRoomsQuery(limit, userId);
       const result = await getTrendingRoomsHandler.execute(query);
+      const total = await roomRepo.countVisibleRooms(userId);
+      res.setHeader("Access-Control-Expose-Headers", "x-total-count");
+      res.setHeader("x-total-count", total);
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);
@@ -114,6 +117,9 @@ export function createRoomsRouter() {
     try {
       const query = new GetHotRoomsQuery(limit, userId);
       const result = await getHotRoomsHandler.execute(query);
+      const total = await roomRepo.countVisibleRooms(userId);
+      res.setHeader("Access-Control-Expose-Headers", "x-total-count");
+      res.setHeader("x-total-count", total);
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);
@@ -127,6 +133,9 @@ export function createRoomsRouter() {
     try {
       const query = new GetNewRoomsQuery(limit, userId);
       const result = await getNewRoomsHandler.execute(query);
+      const total = await roomRepo.countVisibleRooms(userId);
+      res.setHeader("Access-Control-Expose-Headers", "x-total-count");
+      res.setHeader("x-total-count", total);
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);
@@ -181,6 +190,109 @@ export function createRoomsRouter() {
         orderBy: { name: "asc" }
       });
       res.json({ success: true, data: hashtags.map(h => h.name) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Admin: Get all rooms with pending rename requests
+  router.get("/rename-requests", authenticateJWT, async (req, res, next) => {
+    const isPlatformAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(req.user.role?.toUpperCase());
+    if (!isPlatformAdmin) {
+      res.status(403).json({ success: false, error: "Only admins can view rename requests" });
+      return;
+    }
+
+    try {
+      const rooms = await prisma.room.findMany({
+        where: {
+          deleted: false,
+          pendingNameRequest: { not: null }
+        },
+        include: {
+          createdBy: {
+            select: { id: true, username: true, name: true }
+          }
+        }
+      });
+      res.json({ success: true, data: rooms });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Admin: Approve room rename request
+  router.post("/rename-requests/:id/approve", authenticateJWT, async (req, res, next) => {
+    const isPlatformAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(req.user.role?.toUpperCase());
+    if (!isPlatformAdmin) {
+      res.status(403).json({ success: false, error: "Only admins can approve rename requests" });
+      return;
+    }
+
+    try {
+      const room = await prisma.room.findUnique({
+        where: { id: req.params.id }
+      });
+      if (!room || room.deleted) {
+        res.status(404).json({ success: false, error: "Room not found" });
+        return;
+      }
+      if (!room.pendingNameRequest) {
+        res.status(400).json({ success: false, error: "No pending rename request found for this room" });
+        return;
+      }
+
+      // Check unique title
+      const existingRoom = await prisma.room.findFirst({
+        where: {
+          title: { equals: room.pendingNameRequest, mode: "insensitive" },
+          deleted: false
+        }
+      });
+      if (existingRoom) {
+        res.status(400).json({ success: false, error: "Room title already exists" });
+        return;
+      }
+
+      await prisma.room.update({
+        where: { id: req.params.id },
+        data: {
+          title: room.pendingNameRequest,
+          pendingNameRequest: null
+        }
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Admin: Reject room rename request
+  router.post("/rename-requests/:id/reject", authenticateJWT, async (req, res, next) => {
+    const isPlatformAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(req.user.role?.toUpperCase());
+    if (!isPlatformAdmin) {
+      res.status(403).json({ success: false, error: "Only admins can reject rename requests" });
+      return;
+    }
+
+    try {
+      const room = await prisma.room.findUnique({
+        where: { id: req.params.id }
+      });
+      if (!room || room.deleted) {
+        res.status(404).json({ success: false, error: "Room not found" });
+        return;
+      }
+
+      await prisma.room.update({
+        where: { id: req.params.id },
+        data: {
+          pendingNameRequest: null
+        }
+      });
+
+      res.json({ success: true });
     } catch (err) {
       next(err);
     }

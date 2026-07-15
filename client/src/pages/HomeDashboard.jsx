@@ -63,6 +63,23 @@ export function HomeDashboard() {
   const { useSearchUsersQuery } = useDiscovery();
 
   const [activeTab, setActiveTab] = useState("trending");
+  const [visibleLimits, setVisibleLimits] = useState({
+    trending: 9,
+    hot: 9,
+    new: 9,
+  });
+  const [isDelayingLoadMore, setIsDelayingLoadMore] = useState(false);
+
+  const handleLoadMore = () => {
+    setIsDelayingLoadMore(true);
+    setTimeout(() => {
+      setVisibleLimits((prev) => ({
+        ...prev,
+        [activeTab]: prev[activeTab] + 9,
+      }));
+      setIsDelayingLoadMore(false);
+    }, 1000);
+  };
   // Friend search states
   const [friendSearchInput, setFriendSearchInput] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
@@ -160,10 +177,19 @@ export function HomeDashboard() {
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
 
   // Fetch Room Feeds
-  const { data: trendingRooms = [], isLoading: trendingLoading } =
-    useTrendingRoomsQuery(10, { enabled: activeTab === "trending" });
-  const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10, { enabled: activeTab === "hot" });
-  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10, { enabled: activeTab === "new" });
+  const { data: trendingData, isLoading: trendingLoading } =
+    useTrendingRoomsQuery(visibleLimits.trending, { enabled: activeTab === "trending" });
+  const { data: hotData, isLoading: hotLoading } = useHotRoomsQuery(visibleLimits.hot, { enabled: activeTab === "hot" });
+  const { data: newData, isLoading: newLoading } = useNewRoomsQuery(visibleLimits.new, { enabled: activeTab === "new" });
+
+  const trendingRooms = trendingData?.rooms || [];
+  const trendingTotal = trendingData?.total || 0;
+
+  const hotRooms = hotData?.rooms || [];
+  const hotTotal = hotData?.total || 0;
+
+  const newRooms = newData?.rooms || [];
+  const newTotal = newData?.total || 0;
 
   // Fetch Friends List (which returns status 'online' or 'offline')
   const { data: friendsList = [], isLoading: friendsLoading } =
@@ -232,7 +258,7 @@ export function HomeDashboard() {
       toast.error("You must select a valid category from the suggestions dropdown");
       return;
     }
-    
+
     // Validate hashtags
     const tagsArray = roomForm.tags
       .replace(/#/g, " ")
@@ -377,7 +403,13 @@ export function HomeDashboard() {
     }
   };
 
-  if (isLoading) {
+  const isInitialLoading =
+    friendsLoading ||
+    (activeTab === "trending" && trendingLoading && trendingRooms.length === 0) ||
+    (activeTab === "hot" && hotLoading && hotRooms.length === 0) ||
+    (activeTab === "new" && newLoading && newRooms.length === 0);
+
+  if (isInitialLoading) {
     return (
       <div className="p-20 flex flex-col justify-center items-center h-64">
         <ArrowPathIcon className="animate-spin text-primary w-8 h-8" />
@@ -394,6 +426,13 @@ export function HomeDashboard() {
       : activeTab === "hot"
         ? hotRooms
         : newRooms;
+
+  const activeTotal =
+    activeTab === "trending"
+      ? trendingTotal
+      : activeTab === "hot"
+        ? hotTotal
+        : newTotal;
 
   return (
     <div className="pb-10 w-full space-y-10 ">
@@ -552,7 +591,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Left"
                 >
-                   <ChevronLeftIcon className="w-4 h-4" />
+                  <ChevronLeftIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() =>
@@ -564,7 +603,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Right"
                 >
-                   <ChevronRightIcon className="w-4 h-4" />
+                  <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -766,6 +805,30 @@ export function HomeDashboard() {
             </div>
           )}
         </div>
+
+        {/* Load More Button */}
+        {activeRooms.length < activeTotal && (
+          <div className="flex justify-center pt-2">
+            <Button
+              onClick={handleLoadMore}
+              disabled={isDelayingLoadMore}
+              variant="outline"
+              className="rounded-full font-bold px-8 h-10 border border-border/80 text-foreground hover:bg-secondary cursor-pointer transition-colors flex items-center justify-center gap-2"
+            >
+              {isDelayingLoadMore ? (
+                <>
+                  <ArrowPathIcon className="animate-spin w-4 h-4 text-primary" />
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <span>Load More</span>
+                  <span className="inline-block transform rotate-90 font-mono tracking-tighter text-xs">&gt;&gt;</span>
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Callout Section */}
@@ -900,10 +963,10 @@ export function HomeDashboard() {
                       {categories.filter((c) =>
                         c.toLowerCase().includes(categorySearch.toLowerCase())
                       ).length === 0 && (
-                        <div className="px-4 py-2.5 text-xs text-muted-foreground font-medium">
-                          No matching categories found
-                        </div>
-                      )}
+                          <div className="px-4 py-2.5 text-xs text-muted-foreground font-medium">
+                            No matching categories found
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -964,7 +1027,7 @@ export function HomeDashboard() {
                 <label className="text-xs font-black uppercase tracking-widest text-muted-foreground block">
                   Select Cover Banner (Optional)
                 </label>
-                
+
                 {/* Live Preview */}
                 <div className="h-20 w-full rounded-2xl overflow-hidden border border-border/50 relative bg-muted shrink-0 mb-3">
                   {customBannerPreview ? (

@@ -293,7 +293,7 @@ export function MessageCard({
         )}
 
         {/* Actions Row */}
-        {!message.deleted && (isLastInGroup || Object.values(reactionCounts).some((c) => c > 0)) && (
+        {!message.deleted && (isLastInGroup || Object.values(reactionCounts).some((c) => c > 0) || (message.replies && message.replies.length > 0)) && (
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {/* Active reaction pills (only displayed if count > 0) */}
             {Object.entries(reactionCounts).map(([type, count]) => {
@@ -317,67 +317,64 @@ export function MessageCard({
               );
             })}
 
-            {/* + React & Reply option (only show for the last message in a consecutive group) */}
+            {/* + React option (only show for the last message in a consecutive group) */}
             {isLastInGroup && (
-              <>
-                {/* + React Button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowEmojiPanel(!showEmojiPanel)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer border border-transparent"
-                  >
-                    + React
-                  </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowEmojiPanel(!showEmojiPanel)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer border border-transparent"
+                >
+                  + React
+                </button>
 
-                  {showEmojiPanel && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowEmojiPanel(false)}
-                      />
-                      <div className="absolute bottom-full left-0 mb-1 z-50 flex items-center gap-1 p-1 bg-popover border border-border shadow-xl rounded-xl animate-in fade-in slide-in-from-bottom-1">
-                        <button
-                          onClick={() => {
-                            toggleReaction("like");
-                            setShowEmojiPanel(false);
-                          }}
-                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                        >
-                          👍
-                        </button>
-                        <button
-                          onClick={() => {
-                            toggleReaction("fire");
-                            setShowEmojiPanel(false);
-                          }}
-                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                        >
-                          🔥
-                        </button>
-                        <button
-                          onClick={() => {
-                            toggleReaction("heart");
-                            setShowEmojiPanel(false);
-                          }}
-                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                        >
-                          ❤️
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Reply Button */}
-                {onReply && depth < 2 && (
-                  <button
-                    onClick={() => onReply(message.id, user.username)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
-                  >
-                    Reply
-                  </button>
+                {showEmojiPanel && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowEmojiPanel(false)}
+                    />
+                    <div className="absolute bottom-full left-0 mb-1 z-50 flex items-center gap-1 p-1 bg-popover border border-border shadow-xl rounded-xl animate-in fade-in slide-in-from-bottom-1">
+                      <button
+                        onClick={() => {
+                          toggleReaction("like");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        👍
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("fire");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        🔥
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("heart");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        ❤️
+                      </button>
+                    </div>
+                  </>
                 )}
-              </>
+              </div>
+            )}
+
+            {/* Reply Button */}
+            {onReply && depth < 2 && (
+              <button
+                onClick={() => onReply(message.id, user.username)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
+              >
+                Reply
+              </button>
             )}
 
             {/* Collapse/Expand Toggle (if has replies) */}
@@ -471,8 +468,8 @@ export function MessageCard({
         <div className="opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0 self-start ml-2">
           <DropdownMenu>
             <DropdownMenuTrigger>
-              <button className="flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer">
-                <EllipsisHorizontalIcon className="w-3 h-3" />
+              <button className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground/60 hover:bg-secondary hover:text-foreground transition-all cursor-pointer">
+                <EllipsisHorizontalIcon className="w-5 h-5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-40 rounded-xl p-1 shadow-xl border-border/50 bg-card">

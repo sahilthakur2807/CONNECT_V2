@@ -43,11 +43,17 @@ export class GetReportsHandler {
     let reports = [];
     if (query.type === "assigned") {
       reports = await this.reportRepo.findAssignedReports(query.userId);
+    } else if (query.type === "escalated") {
+      reports = await this.reportRepo.findEscalatedReports();
     } else {
       reports = await this.reportRepo.findOpenReports();
     }
 
-    if (isPlatformStaff && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole)) {
+    if (actorRole === "PLATFORM_MOD") {
+      return reports;
+    }
+
+    if (query.type === "escalated" && ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(actorRole)) {
       return reports;
     }
 
@@ -70,7 +76,20 @@ export class GetReportsHandler {
       },
       select: { roomId: true }
     });
-    const modRoomIds = roomMemberships.map(rm => rm.roomId);
+    
+    // Load owned rooms (created by actor)
+    const ownedRooms = await prisma.room.findMany({
+      where: {
+        createdById: query.userId,
+        deleted: false
+      },
+      select: { id: true }
+    });
+    
+    const modRoomIds = Array.from(new Set([
+      ...roomMemberships.map(rm => rm.roomId),
+      ...ownedRooms.map(r => r.id)
+    ]));
 
     // Filter reports based on the actor's scope of authority
     return reports.filter(report => {
@@ -154,13 +173,21 @@ export class GetOpenAppealsHandler {
   }
 
   async execute(query) {
-    const allowed = ModerationPolicy.canResolveAppeal({
-      id: query.userId,
-      role: query.userRole,
-    });
-    if (!allowed)
-      throw new ForbiddenError("You do not have permission to view appeals");
+    const actorRole = query.userRole?.toUpperCase();
+    const isSiteAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(actorRole);
 
-    return this.appealRepo.findOpenAppeals();
+    if (isSiteAdmin) {
+      return this.appealRepo.findOpenAppeals();
+    }
+
+    // Otherwise, retrieve and return only the user's own appeals
+    return prisma.appeal.findMany({
+      where: { userId: query.userId },
+      include: {
+        user: { select: { id: true, username: true } },
+        action: true
+      },
+      orderBy: { createdAt: "desc" }
+    });
   }
 }

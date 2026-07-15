@@ -48,13 +48,8 @@ export class ModerationPolicy {
   /**
    * Evaluates if a user can resolve appeals.
    */
-  static canResolveAppeal(user, communityMembership) {
-    if (this.isSiteAdmin(user)) return true;
-    if (communityMembership) {
-      const role = communityMembership.role?.toUpperCase();
-      return ["OWNER", "ADMIN"].includes(role);
-    }
-    return false;
+  static canResolveAppeal(user) {
+    return this.isSiteAdmin(user);
   }
 
   /**
@@ -63,5 +58,37 @@ export class ModerationPolicy {
   static canViewAuditLogs(user) {
     const role = user.role?.toUpperCase();
     return ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD", "ADMIN", "SUPERADMIN", "MODERATOR"].includes(role);
+  }
+
+  /**
+   * Evaluates if an actor's role is permitted to moderate a target user's role.
+   */
+  static canModerateUser(actorRole, targetRole) {
+    const actor = actorRole?.toUpperCase();
+    const target = targetRole?.toUpperCase();
+
+    const getRoleLevel = (r) => {
+      if (["SUPER_ADMIN", "SUPERADMIN"].includes(r)) return 4;
+      if (["PLATFORM_ADMIN", "ADMIN"].includes(r)) return 3;
+      if (["PLATFORM_MOD", "MODERATOR"].includes(r)) return 2;
+      return 1;
+    };
+
+    const actorLevel = getRoleLevel(actor);
+    const targetLevel = getRoleLevel(target);
+
+    if (targetLevel === 4) {
+      return actorLevel === 4;
+    }
+    if (targetLevel === 3) {
+      return actorLevel === 4;
+    }
+    if (targetLevel === 2) {
+      return actorLevel >= 3;
+    }
+    if (targetLevel === 1) {
+      return true;
+    }
+    return false;
   }
 }

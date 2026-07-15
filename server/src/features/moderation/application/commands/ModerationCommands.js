@@ -171,6 +171,14 @@ export class ReportResolvedEvent {
   }
 }
 
+export class ReportEscalatedEvent {
+  eventName = "report.escalated";
+  occurredAt = new Date();
+  constructor(reportId) {
+    this.reportId = reportId;
+  }
+}
+
 export class ModerationActionExecutedEvent {
   eventName = "moderation.action.executed";
   occurredAt = new Date();
@@ -197,6 +205,121 @@ export class CreateReportHandler {
   }
 
   async execute(command) {
+    let reportedUserRole = null;
+    let finalReportedUserId = command.reportedUserId;
+    let finalRoomId = command.roomId;
+    let finalReportedCommunityId = command.reportedCommunityId;
+
+    if (command.messageId) {
+      const message = await prisma.message.findUnique({
+        where: { id: command.messageId },
+        include: {
+          user: { select: { id: true, role: true } },
+          room: { select: { id: true, communityId: true, createdById: true } }
+        }
+      });
+      if (message) {
+        finalReportedUserId = message.userId;
+        reportedUserRole = message.user.role;
+        finalRoomId = message.roomId;
+        finalReportedCommunityId = message.room.communityId;
+      }
+    } else if (finalReportedUserId) {
+      const userObj = await prisma.user.findUnique({
+        where: { id: finalReportedUserId },
+        select: { role: true }
+      });
+      if (userObj) {
+        reportedUserRole = userObj.role;
+      }
+    }
+
+    if (reportedUserRole && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD", "ADMIN", "SUPERADMIN", "MODERATOR"].includes(reportedUserRole.toUpperCase())) {
+      let roomObj = null;
+      if (finalRoomId) {
+        roomObj = await prisma.room.findUnique({
+          where: { id: finalRoomId },
+          select: { title: true, createdById: true, communityId: true }
+        });
+      }
+
+      const reportedUser = await prisma.user.findUnique({
+        where: { id: finalReportedUserId },
+        select: { username: true }
+      });
+
+      const report = await this.reportRepo.create({
+        reason: command.reason,
+        description: command.description,
+        status: "resolved",
+        resolutionReason: "System: Reported user is staff. Automatically resolved.",
+        resolvedAt: new Date(),
+        reporter: { connect: { id: command.reporterId } },
+        ...(finalReportedUserId ? { reportedUser: { connect: { id: finalReportedUserId } } } : {}),
+        ...(command.messageId ? { message: { connect: { id: command.messageId } } } : {}),
+        ...(finalRoomId ? { room: { connect: { id: finalRoomId } } } : {}),
+        ...(finalReportedCommunityId ? { reportedCommunity: { connect: { id: finalReportedCommunityId } } } : {}),
+      });
+
+      const platformMods = await prisma.user.findMany({
+        where: {
+          role: "PLATFORM_MOD",
+          isDeleted: false
+        },
+        select: { id: true }
+      });
+      const platformModIds = new Set(platformMods.map(m => m.id));
+
+      const owners = new Set();
+      if (roomObj && roomObj.createdById) {
+        owners.add(roomObj.createdById);
+      }
+
+      const recipientIds = new Set();
+      platformModIds.forEach(id => recipientIds.add(id));
+      owners.forEach(id => recipientIds.add(id));
+
+      recipientIds.delete(command.reporterId);
+
+      if (finalReportedUserId) {
+        if (!platformModIds.has(finalReportedUserId) && !owners.has(finalReportedUserId)) {
+          recipientIds.delete(finalReportedUserId);
+        }
+      }
+
+      for (const recipientId of recipientIds) {
+        const staffReportedNotif = await prisma.notification.create({
+          data: {
+            type: "staff_reported",
+            title: "Staff Member Reported",
+            body: `Staff member @${reportedUser?.username || "Staff"} was reported in room "${roomObj?.title || "Discussion Room"}". Reason: ${command.reason}`,
+            roomId: finalRoomId || null,
+            referenceId: report.id,
+            user: { connect: { id: recipientId } },
+            trigger: { connect: { id: command.reporterId } }
+          }
+        });
+        if (io) {
+          io.to(recipientId).emit("notification.created", {
+            success: true,
+            data: staffReportedNotif
+          });
+        }
+      }
+
+      await EventBus.publish(new ReportCreatedEvent(report.id));
+
+      if (io) {
+        await broadcastModerationEvent("report.created", {
+          success: true,
+          data: report,
+        }, null, report.reportedCommunityId, report.roomId);
+      }
+
+      return report;
+    }
+
+    // Default reporting path for standard users
     const report = await this.reportRepo.create({
       reason: command.reason,
       description: command.description,
@@ -217,7 +340,6 @@ export class CreateReportHandler {
 
     await EventBus.publish(new ReportCreatedEvent(report.id));
 
-    // Realtime broadcast to moderators dashboard channel
     if (io) {
       await broadcastModerationEvent("report.created", {
         success: true,
@@ -290,10 +412,44 @@ export class ResolveReportHandler {
     const report = await this.reportRepo.findById(command.reportId);
     if (!report) throw new NotFoundError("Report not found");
 
-    const allowed = ModerationPolicy.canManageReport({
-      id: command.userId,
-      role: command.userRole,
-    });
+    const actorRole = command.userRole?.toUpperCase();
+    const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD", "ADMIN", "SUPERADMIN", "MODERATOR"].includes(actorRole);
+
+    let allowed = isPlatformStaff;
+
+    if (!allowed && report.roomId) {
+      const room = await prisma.room.findUnique({
+        where: { id: report.roomId },
+        select: { createdById: true, communityId: true }
+      });
+      if (room && room.createdById === command.userId) {
+        allowed = true;
+      }
+      
+      // Also check community membership of the room's community
+      if (!allowed && room && room.communityId) {
+        const membership = await prisma.communityMember.findUnique({
+          where: {
+            userId_communityId: { userId: command.userId, communityId: room.communityId }
+          }
+        });
+        if (membership && !membership.banned && ["OWNER", "ADMIN", "MODERATOR"].includes(membership.role?.toUpperCase())) {
+          allowed = true;
+        }
+      }
+    }
+
+    if (!allowed && report.reportedCommunityId) {
+      const membership = await prisma.communityMember.findUnique({
+        where: {
+          userId_communityId: { userId: command.userId, communityId: report.reportedCommunityId }
+        }
+      });
+      if (membership && !membership.banned && ["OWNER", "ADMIN", "MODERATOR"].includes(membership.role?.toUpperCase())) {
+        allowed = true;
+      }
+    }
+
     if (!allowed)
       throw new ForbiddenError("You do not have permission to resolve reports");
 
@@ -344,7 +500,17 @@ export class ExecuteModerationActionHandler {
   }
 
   async execute(command) {
-    // 1. Policy Authorization
+    const targetUser = await prisma.user.findUnique({
+      where: { id: command.targetUserId },
+      select: { role: true }
+    });
+    if (!targetUser) throw new NotFoundError("Target user not found");
+
+    const hierarchyAllowed = ModerationPolicy.canModerateUser(command.actorRole, targetUser.role);
+    if (!hierarchyAllowed) {
+      throw new ForbiddenError("You do not have permission to moderate a user with this role hierarchy level");
+    }
+
     let allowed = false;
     if (command.communityId) {
       const membership = await this.membershipRepo.findMember(
@@ -446,12 +612,83 @@ export class SubmitAppealHandler {
   }
 
   async execute(command) {
-    return this.appealRepo.create({
+    let finalActionId = command.actionId;
+    if (finalActionId === "platform-restriction" || !finalActionId) {
+      const latestAction = await prisma.moderationAction.findFirst({
+        where: {
+          userId: command.userId,
+          active: true
+        },
+        orderBy: {
+          createdAt: "desc"
+        }
+      });
+      if (latestAction) {
+        finalActionId = latestAction.id;
+      } else {
+        const anyAction = await prisma.moderationAction.findFirst({
+          where: { userId: command.userId },
+          orderBy: { createdAt: "desc" }
+        });
+        if (anyAction) {
+          finalActionId = anyAction.id;
+        } else {
+          const systemAction = await prisma.moderationAction.create({
+            data: {
+              type: "ban",
+              reason: "System restriction active",
+              active: true,
+              user: { connect: { id: command.userId } },
+              actor: { connect: { id: command.userId } }
+            }
+          });
+          finalActionId = systemAction.id;
+        }
+      }
+    } else {
+      const exists = await prisma.moderationAction.findUnique({
+        where: { id: finalActionId }
+      });
+      if (!exists) {
+        const anyAction = await prisma.moderationAction.findFirst({
+          where: { userId: command.userId },
+          orderBy: { createdAt: "desc" }
+        });
+        if (anyAction) {
+          finalActionId = anyAction.id;
+        } else {
+          const systemAction = await prisma.moderationAction.create({
+            data: {
+              type: "ban",
+              reason: "System restriction active",
+              active: true,
+              user: { connect: { id: command.userId } },
+              actor: { connect: { id: command.userId } }
+            }
+          });
+          finalActionId = systemAction.id;
+        }
+      }
+    }
+
+    const appeal = await this.appealRepo.create({
       reason: command.reason,
       status: "pending",
       user: { connect: { id: command.userId } },
-      action: { connect: { id: command.actionId } },
+      action: { connect: { id: finalActionId } },
     });
+
+    await EventBus.publish(new AppealSubmittedEvent(appeal.id));
+
+    return appeal;
+  }
+}
+
+export class AppealSubmittedEvent {
+  eventName = "appeal.submitted";
+  occurredAt = new Date();
+  constructor(appealId) {
+    this.appealId = appealId;
   }
 }
 
@@ -960,6 +1197,8 @@ export class EscalateReportHandler {
           data: updated,
         }, command.reportId);
       }
+
+      await EventBus.publish(new ReportEscalatedEvent(updated.id));
 
       return updated;
     });

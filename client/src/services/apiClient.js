@@ -41,10 +41,6 @@ const processQueue = (error, token = null) => {
 // Response Interceptor: Handle automatic token refresh and global error formatting
 apiClient.interceptors.response.use(
   (response) => {
-    // If we make a successful request, clear any previous user restriction!
-    if (store.getState().auth.userRestriction) {
-      store.dispatch(setUserRestriction(null));
-    }
     return response;
   },
   async (error) => {

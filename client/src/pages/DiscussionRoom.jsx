@@ -251,6 +251,36 @@ export function DiscussionRoom() {
   const [pendingBannerFile, setPendingBannerFile] = useState(null);
   const [isUpdatingBanner, setIsUpdatingBanner] = useState(false);
 
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [newRoomTitle, setNewRoomTitle] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  const handleRenameRoom = async () => {
+    if (!newRoomTitle.trim() || newRoomTitle.trim().length < 10) {
+      toast.error("Room title must be at least 10 characters long");
+      return;
+    }
+    setIsRenaming(true);
+    const isStaff = currentUser && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(currentUser.role);
+    const renameToast = toast.loading(isStaff ? "Renaming room..." : "Submitting rename request...");
+    try {
+      await updateRoomMutation.mutateAsync({
+        roomId: room.id,
+        data: { title: newRoomTitle.trim() },
+      });
+      setIsRenameModalOpen(false);
+      if (isStaff) {
+        toast.success("Room renamed successfully!", { id: renameToast });
+      } else {
+        toast.success("Rename request submitted for admin approval!", { id: renameToast });
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to rename room", { id: renameToast });
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   const [messageText, setMessageText] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
   const [isJoined, setIsJoined] = useState(false);
@@ -276,7 +306,12 @@ export function DiscussionRoom() {
   // Auto scroll to bottom when messages load or change
   useEffect(() => {
     if (messages.length > 0 && feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      const scrollTimer = setTimeout(() => {
+        if (feedRef.current) {
+          feedRef.current.scrollTop = feedRef.current.scrollHeight;
+        }
+      }, 150);
+      return () => clearTimeout(scrollTimer);
     }
   }, [messages, messagesLoading]);
 
@@ -518,7 +553,7 @@ export function DiscussionRoom() {
             You own this discussion room. You can review user reports and enforce room policy.
           </p>
           <button
-            onClick={() => navigate("/moderator")}
+            onClick={() => navigate(`/moderator?roomId=${roomId}`)}
             className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-1.5 font-bold text-xs uppercase transition-all cursor-pointer border-none"
           >
             Moderate Room
@@ -766,6 +801,17 @@ export function DiscussionRoom() {
 
                     {isCreator && (
                       <>
+                        {isActualCreator && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setNewRoomTitle(room.title);
+                              setIsRenameModalOpen(true);
+                            }}
+                            className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
+                          >
+                            <span className="w-3.5 h-3.5 flex items-center justify-center font-bold text-foreground">✎</span> Rename Room
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={openBannerModal}
                           className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
@@ -1101,6 +1147,77 @@ export function DiscussionRoom() {
                 </div>
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Room Modal */}
+      <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
+        <DialogContent className="rounded-[24px] max-h-[85vh] overflow-y-auto max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-lg font-serif">Rename Room</DialogTitle>
+            <DialogDescription className="text-xs">
+              Enter a new name for this discussion room. Only room owners can rename rooms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-4">
+            {room.pendingNameRequest && !isStaff ? (
+              <div className="space-y-4">
+                <div className="bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 p-4 rounded-xl text-xs space-y-1.5 border border-amber-200/50">
+                  <p className="font-black uppercase tracking-wider text-[10px]">Awaiting Admin Approval</p>
+                  <p>You have requested to rename this room to: <strong>{room.pendingNameRequest}</strong>. Please wait for an administrator to approve it.</p>
+                </div>
+                <div className="flex gap-3 justify-end pt-4 border-t border-border/40">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsRenameModalOpen(false)}
+                    className="rounded-xl font-bold text-xs h-9 cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="room-title-input" className="text-[10px] font-black text-muted-foreground uppercase tracking-widest font-mono">
+                    Room Name / Title
+                  </label>
+                  <input
+                    id="room-title-input"
+                    type="text"
+                    value={newRoomTitle}
+                    onChange={(e) => setNewRoomTitle(e.target.value)}
+                    placeholder="Enter new room title..."
+                    className="w-full bg-secondary/40 border border-border/60 rounded-xl px-4 py-2 text-sm font-medium text-foreground focus:outline-none focus:border-primary/30"
+                  />
+                  <p className="text-[10px] text-muted-foreground italic font-medium mt-1.5 leading-normal">
+                    * Owners can request to update the room name if there is some error in the name of the room. This request will be sent to the administrator for approval.
+                  </p>
+                </div>
+                
+                <div className="flex gap-3 justify-end pt-4 border-t border-border/40">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsRenameModalOpen(false)}
+                    className="rounded-xl font-bold text-xs h-9 cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleRenameRoom}
+                    disabled={isRenaming || !newRoomTitle.trim() || newRoomTitle.trim().length < 10}
+                    size="sm"
+                    className="rounded-xl font-bold text-xs h-9 px-5 cursor-pointer animate-in fade-in"
+                  >
+                    {isRenaming ? "Requesting..." : isStaff ? "Save Changes" : "Request Rename"}
+                  </Button>
+                </div>
+              </>
+            )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>

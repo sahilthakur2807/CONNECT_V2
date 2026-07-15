@@ -22,7 +22,17 @@ vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
   const mockPrisma = {
     $transaction: vi.fn((cb) => cb(mockPrisma)),
     user: {
+      findUnique: vi.fn().mockResolvedValue({ id: "usr_1", role: "MEMBER" }),
       update: vi.fn().mockResolvedValue({}),
+    },
+    message: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    room: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    communityMember: {
+      findMany: vi.fn().mockResolvedValue([]),
     },
     auditLog: {
       findUnique: vi.fn().mockResolvedValue(null),
@@ -66,6 +76,10 @@ describe("CONNECT Phase 6 Moderation & Governance Unit Tests", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    prisma.user.findUnique.mockResolvedValue({ id: "usr_target", role: "MEMBER" });
+    prisma.message.findUnique.mockResolvedValue(null);
+    prisma.room.findUnique.mockResolvedValue(null);
+    prisma.communityMember.findMany.mockResolvedValue([]);
 
     mockReportRepo = {
       create: vi.fn(),
