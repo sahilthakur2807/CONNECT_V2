@@ -91,6 +91,15 @@ export class RoomDeletedEvent {
   }
 }
 
+export class RoomUpdatedEvent {
+  eventName = "room.updated";
+  occurredAt = new Date();
+  constructor(roomId, userId) {
+    this.roomId = roomId;
+    this.userId = userId;
+  }
+}
+
 // --- Handlers ---
 
 export class CreateRoomHandler {
@@ -186,40 +195,42 @@ export class CreateRoomHandler {
         "You do not have permission to create rooms in this community",
       );
 
-    const room = await this.roomRepo.create({
-      title: command.title,
-      description: command.description,
-      category: command.category,
-      tags: command.tags,
-      sourceUrl: command.sourceUrl,
-      imageUrl: command.imageUrl,
-      createdBy: { connect: { id: command.userId } },
-      ...(command.communityId
-        ? { community: { connect: { id: command.communityId } } }
-        : {}),
-      ...(normalizedTags.length > 0
-        ? {
-            hashtags: {
-              connectOrCreate: normalizedTags.map((name) => ({
-                where: { name },
-                create: { name },
-              })),
-            },
-          }
-        : {}),
-    });
+    return prisma.$transaction(async (tx) => {
+      const room = await this.roomRepo.create({
+        title: command.title,
+        description: command.description,
+        category: command.category,
+        tags: command.tags,
+        sourceUrl: command.sourceUrl,
+        imageUrl: command.imageUrl,
+        createdBy: { connect: { id: command.userId } },
+        ...(command.communityId
+          ? { community: { connect: { id: command.communityId } } }
+          : {}),
+        ...(normalizedTags.length > 0
+          ? {
+              hashtags: {
+                connectOrCreate: normalizedTags.map((name) => ({
+                  where: { name },
+                  create: { name },
+                })),
+              },
+            }
+          : {}),
+      }, tx);
 
-    // Automatically join creator as ROOM_MOD
-    await prisma.roomMember.create({
-      data: {
-        userId: command.userId,
-        roomId: room.id,
-        status: "ROOM_MOD"
-      }
-    });
+      // Automatically join creator as ROOM_MOD
+      await tx.roomMember.create({
+        data: {
+          userId: command.userId,
+          roomId: room.id,
+          status: "ROOM_MOD"
+        }
+      });
 
-    await EventBus.publish(new RoomCreatedEvent(room.id, command.userId));
-    return room;
+      await EventBus.publish(new RoomCreatedEvent(room.id, command.userId));
+      return room;
+    });
   }
 }
 
@@ -303,7 +314,9 @@ export class UpdateRoomHandler {
     if (command.imageUrl !== undefined) data.imageUrl = command.imageUrl;
     if (command.isPrivate !== undefined) data.isPrivate = command.isPrivate;
 
-    return this.roomRepo.update(command.roomId, data);
+    const updated = await this.roomRepo.update(command.roomId, data);
+    await EventBus.publish(new RoomUpdatedEvent(command.roomId, command.userId));
+    return updated;
   }
 }
 

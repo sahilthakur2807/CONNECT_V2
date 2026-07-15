@@ -331,18 +331,9 @@ export function DiscussionRoom() {
     // Rejoin on connection recovery / reconnection
     socket.on("connect", joinRoom);
 
-    // Custom stats/active users updates
-    const handleActiveUsersUpdate = (data) => {
-      if (data && data.roomId === roomId) {
-        setActiveVoices(data.activeUsers || []);
-      }
-    };
-    socket.on("room_active_users_update", handleActiveUsersUpdate);
-
     return () => {
       socket.emit("chat.room.left", { roomId });
       socket.off("connect", joinRoom);
-      socket.off("room_active_users_update", handleActiveUsersUpdate);
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -363,6 +354,11 @@ export function DiscussionRoom() {
     },
     onTypingStopped: (data) => {
       setTypingUsers((prev) => prev.filter((u) => u !== data.username));
+    },
+    onRoomActiveUsersUpdate: (data) => {
+      if (data && data.roomId === roomId) {
+        setActiveVoices(data.activeUsers || []);
+      }
     },
   });
 

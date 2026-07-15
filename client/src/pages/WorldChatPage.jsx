@@ -89,6 +89,11 @@ export function WorldChatPage() {
         }
       }, 100);
     },
+    onRoomActiveUsersUpdate: (data) => {
+      if (data && data.roomId === worldChatRoomId) {
+        setActiveUsers(data.activeUsers || []);
+      }
+    },
   });
 
   // Socket channel joining and active users tracking
@@ -103,17 +108,9 @@ export function WorldChatPage() {
     socket.emit("chat.room.joined", { roomId: worldChatRoomId });
     socket.on("connect", handleConnect);
 
-    const handleActiveUsersUpdate = (data) => {
-      if (data && data.roomId === worldChatRoomId) {
-        setActiveUsers(data.activeUsers || []);
-      }
-    };
-    socket.on("room_active_users_update", handleActiveUsersUpdate);
-
     return () => {
       socket.emit("chat.room.left", { roomId: worldChatRoomId });
       socket.off("connect", handleConnect);
-      socket.off("room_active_users_update", handleActiveUsersUpdate);
     };
   }, [worldChatRoomId]);
 

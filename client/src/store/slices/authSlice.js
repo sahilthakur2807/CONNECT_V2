@@ -1,20 +1,19 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-const getPersistedUser = () => {
+const getPersistedUserId = () => {
   try {
-    const data = localStorage.getItem("newsconnect_user");
-    return data ? JSON.parse(data) : null;
+    return localStorage.getItem("newsconnect_user_id");
   } catch {
     return null;
   }
 };
 
 const initialState = {
-  user: getPersistedUser(),
+  userId: getPersistedUserId(),
   accessToken: null,
   isLoading: false,
   error: null,
-  isAuthenticated: getPersistedUser() !== null,
+  isAuthenticated: getPersistedUserId() !== null,
   userRestriction: null,
 };
 
@@ -26,15 +25,15 @@ const authSlice = createSlice({
       state.accessToken = action.payload;
     },
     setUser: (state, action) => {
-      state.user = action.payload;
+      state.userId = action.payload ? action.payload.id : null;
       state.isAuthenticated = action.payload !== null;
       if (action.payload) {
         localStorage.setItem(
-          "newsconnect_user",
-          JSON.stringify(action.payload),
+          "newsconnect_user_id",
+          action.payload.id,
         );
       } else {
-        localStorage.removeItem("newsconnect_user");
+        localStorage.removeItem("newsconnect_user_id");
         state.userRestriction = null;
       }
     },
@@ -48,13 +47,13 @@ const authSlice = createSlice({
       state.error = action.payload;
     },
     logout: (state) => {
-      state.user = null;
+      state.userId = null;
       state.accessToken = null;
       state.isAuthenticated = false;
       state.isLoading = false;
       state.error = null;
       state.userRestriction = null;
-      localStorage.removeItem("newsconnect_user");
+      localStorage.removeItem("newsconnect_user_id");
     },
     clearError: (state) => {
       state.error = null;

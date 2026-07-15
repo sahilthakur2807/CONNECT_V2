@@ -5,6 +5,7 @@ import {
   UnauthorizedError,
   ForbiddenError,
 } from "../../shared/errors/AppError.js";
+import { moderationActionRepository } from "../../features/moderation/infrastructure/repository/ModerationActionRepository.js";
 
 /** Check active platform restrictions (ban or suspension) and throw ForbiddenError if not allowed */
 const verifyRestrictions = async (decoded, req, res, next) => {
@@ -14,15 +15,7 @@ const verifyRestrictions = async (decoded, req, res, next) => {
   }
 
   try {
-    const activeBan = await prisma.moderationAction.findFirst({
-      where: {
-        userId: decoded.id,
-        communityId: null,
-        type: { in: ["ban", "suspend"] },
-        active: true,
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
-    });
+    const activeBan = await moderationActionRepository.findActivePlatformBan(decoded.id);
 
     if (activeBan) {
       const path = req.baseUrl + req.path;

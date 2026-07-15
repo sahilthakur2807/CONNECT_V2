@@ -3,6 +3,7 @@ import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 import { Logger } from "../../../../shared/logger/Logger.js";
 import { io } from "../../../../infrastructure/socket/SocketServer.js";
 import { NotificationCreatedEvent } from "../../application/commands/SocialCommands.js";
+import crypto from "crypto";
 
 export function registerNotificationSubscribers() {
   // Listen for message creation to trigger reply notifications
@@ -79,7 +80,7 @@ export function registerNotificationSubscribers() {
       const report = await prisma.report.findUnique({
         where: { id: event.reportId },
         include: {
-          reporter: { select: { username: true } },
+          reporter: { select: { id: true, username: true, name: true, avatar: true } },
           room: { select: { id: true, title: true, createdById: true } },
           reportedCommunity: { select: { id: true, name: true, createdById: true } }
         }
@@ -121,26 +122,46 @@ export function registerNotificationSubscribers() {
         }
       }
 
-      // Create notifications in database
+      // Bulk create notifications in database (Task 4.2 optimization)
+      const notificationsData = [];
+      const notificationRecords = [];
       for (const userId of recipientIds) {
-        const notification = await prisma.notification.create({
-          data: {
-            type: "report",
-            title: "New Report Filed",
-            body: `A new report has been filed by @${report.reporter.username} for "${report.reason}".`,
-            roomId: report.roomId,
-            referenceId: report.id,
-            user: { connect: { id: userId } },
-            trigger: { connect: { id: report.reporterId } }
+        const id = crypto.randomUUID();
+        const notificationData = {
+          id,
+          type: "report",
+          title: "New Report Filed",
+          body: `A new report has been filed by @${report.reporter.username} for "${report.reason}".`,
+          roomId: report.roomId,
+          referenceId: report.id,
+          userId,
+          triggerId: report.reporterId,
+        };
+        notificationsData.push(notificationData);
+        notificationRecords.push({
+          ...notificationData,
+          trigger: {
+            id: report.reporter.id,
+            username: report.reporter.username,
+            name: report.reporter.name || null,
+            avatar: report.reporter.avatar || null,
           }
+        });
+      }
+
+      if (notificationsData.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsData,
         });
 
         // Realtime emit
         if (io) {
-          io.to(userId).emit("notification.created", {
-            success: true,
-            data: notification
-          });
+          for (const notification of notificationRecords) {
+            io.to(notification.userId).emit("notification.created", {
+              success: true,
+              data: notification,
+            });
+          }
         }
       }
     } catch (err) {
@@ -199,23 +220,35 @@ export function registerNotificationSubscribers() {
         select: { id: true }
       });
 
+      const notificationsData = [];
+      const notificationRecords = [];
       for (const mod of platformMods) {
-        const notification = await prisma.notification.create({
-          data: {
-            type: "report_escalated",
-            title: "Report Escalated",
-            body: `A report for "${report.reason}" has been escalated to platform staff.`,
-            roomId: report.roomId,
-            referenceId: report.id,
-            user: { connect: { id: mod.id } }
-          }
+        const id = crypto.randomUUID();
+        const notificationData = {
+          id,
+          type: "report_escalated",
+          title: "Report Escalated",
+          body: `A report for "${report.reason}" has been escalated to platform staff.`,
+          roomId: report.roomId,
+          referenceId: report.id,
+          userId: mod.id,
+        };
+        notificationsData.push(notificationData);
+        notificationRecords.push(notificationData);
+      }
+
+      if (notificationsData.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsData,
         });
 
         if (io) {
-          io.to(mod.id).emit("notification.created", {
-            success: true,
-            data: notification
-          });
+          for (const notification of notificationRecords) {
+            io.to(notification.userId).emit("notification.created", {
+              success: true,
+              data: notification,
+            });
+          }
         }
       }
     } catch (err) {
@@ -312,24 +345,42 @@ export function registerNotificationSubscribers() {
         select: { id: true }
       });
 
+      const notificationsData = [];
+      const notificationRecords = [];
       for (const admin of admins) {
-        const notification = await prisma.notification.create({
-          data: {
-            type: "appeal_submitted",
-            title: "New Appeal Submitted",
-            body: `A new restriction appeal has been submitted by @${appeal.user.username}.`,
-            referenceId: appeal.id,
-            user: { connect: { id: admin.id } },
-            trigger: { connect: { id: appeal.userId } }
+        const id = crypto.randomUUID();
+        const notificationData = {
+          id,
+          type: "appeal_submitted",
+          title: "New Appeal Submitted",
+          body: `A new restriction appeal has been submitted by @${appeal.user.username}.`,
+          referenceId: appeal.id,
+          userId: admin.id,
+          triggerId: appeal.userId,
+        };
+        notificationsData.push(notificationData);
+        notificationRecords.push({
+          ...notificationData,
+          trigger: {
+            id: appeal.userId,
+            username: appeal.user.username,
           }
+        });
+      }
+
+      if (notificationsData.length > 0) {
+        await prisma.notification.createMany({
+          data: notificationsData,
         });
 
         // Socket emit
         if (io) {
-          io.to(admin.id).emit("notification.created", {
-            success: true,
-            data: notification
-          });
+          for (const notification of notificationRecords) {
+            io.to(notification.userId).emit("notification.created", {
+              success: true,
+              data: notification,
+            });
+          }
         }
       }
     } catch (err) {

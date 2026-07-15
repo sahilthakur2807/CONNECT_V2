@@ -3,17 +3,10 @@ import { z } from "zod";
 import { config } from "../../../config/index.js";
 import { optionalJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
 import { prisma } from "../../../infrastructure/db/PrismaClient.js";
+import { moderationActionRepository } from "../../moderation/infrastructure/repository/ModerationActionRepository.js";
 
 const getUserRestriction = async (userId) => {
-  const activeBan = await prisma.moderationAction.findFirst({
-    where: {
-      userId,
-      communityId: null,
-      type: { in: ["ban", "suspend"] },
-      active: true,
-      OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-    },
-  });
+  const activeBan = await moderationActionRepository.findActivePlatformBan(userId);
   return activeBan ? {
     isBanned: activeBan.type === "ban",
     isSuspended: activeBan.type === "suspend",

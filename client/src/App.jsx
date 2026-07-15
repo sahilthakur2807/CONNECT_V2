@@ -46,11 +46,15 @@ function AdminRoute({ children }) {
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoomDiscoverySocket } from "@/hooks/useRooms";
 
 export function App() {
   const { refreshSession, user } = useAuth();
   const [initialized, setInitialized] = useState(false);
   const { userRestriction } = useAppSelector((state) => state.auth);
+
+  // Synchronize real-time room discovery events (creation/update/archive/deletion)
+  useRoomDiscoverySocket();
 
   useEffect(() => {
     const initAuth = async () => {

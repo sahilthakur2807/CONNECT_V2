@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
+import { useEffect } from "react";
+import { getSocket } from "@/services/socketService";
 
 // --- Standalone Queries ---
 
@@ -202,6 +204,18 @@ export const useJoinRoomMutation = () => {
             ),
           };
         }
+
+        // Trending/Hot/New structure query match
+        if (old.rooms && Array.isArray(old.rooms)) {
+          return {
+            ...old,
+            rooms: old.rooms.map((room) =>
+              room.id === roomId
+                ? { ...room, isJoined: data.isJoined, isPending: data.isPending }
+                : room
+            ),
+          };
+        }
         
         return old;
       });
@@ -244,6 +258,18 @@ export const useLeaveRoomMutation = () => {
           return {
             ...old,
             items: old.items.map((room) =>
+              room.id === roomId
+                ? { ...room, isJoined: false, isPending: false }
+                : room
+            ),
+          };
+        }
+
+        // Trending/Hot/New structure query match
+        if (old.rooms && Array.isArray(old.rooms)) {
+          return {
+            ...old,
+            rooms: old.rooms.map((room) =>
               room.id === roomId
                 ? { ...room, isJoined: false, isPending: false }
                 : room
@@ -355,4 +381,57 @@ export function useRooms() {
       queryClient.invalidateQueries({ queryKey: ["rooms", "trending"] });
     },
   };
+}
+
+export function useRoomDiscoverySocket() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleRoomCreated = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      }
+    };
+
+    const handleRoomUpdated = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        if (res.data?.id) {
+          queryClient.invalidateQueries({ queryKey: ["rooms", res.data.id] });
+        }
+      }
+    };
+
+    const handleRoomArchived = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        if (res.roomId) {
+          queryClient.invalidateQueries({ queryKey: ["rooms", res.roomId] });
+        }
+      }
+    };
+
+    const handleRoomDeleted = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        if (res.roomId) {
+          queryClient.invalidateQueries({ queryKey: ["rooms", res.roomId] });
+        }
+      }
+    };
+
+    socket.on("room.created", handleRoomCreated);
+    socket.on("room.updated", handleRoomUpdated);
+    socket.on("room.archived", handleRoomArchived);
+    socket.on("room.deleted", handleRoomDeleted);
+
+    return () => {
+      socket.off("room.created", handleRoomCreated);
+      socket.off("room.updated", handleRoomUpdated);
+      socket.off("room.archived", handleRoomArchived);
+      socket.off("room.deleted", handleRoomDeleted);
+    };
+  }, [queryClient]);
 }

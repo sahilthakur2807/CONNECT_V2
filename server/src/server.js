@@ -21,6 +21,7 @@ import { authRouter } from "./features/auth/presentation/routes.js";
 import { registerAuthAuditSubscribers } from "./features/auth/infrastructure/events/AuthAuditSubscribers.js";
 import { registerEmailSubscribers } from "./features/auth/infrastructure/events/EmailNotificationSubscribers.js";
 import { registerNotificationSubscribers } from "./features/social/infrastructure/events/NotificationEventSubscribers.js";
+import { registerRoomEventSubscribers } from "./features/room/infrastructure/events/RoomEventSubscribers.js";
 import { communitiesRouter } from "./features/community/presentation/routes.js";
 import { roomsRouter } from "./features/room/presentation/routes.js";
 import { messagesRouter } from "./features/message/presentation/routes.js";
@@ -117,16 +118,17 @@ app.use(errorMiddleware);
 registerAuthAuditSubscribers();
 registerEmailSubscribers();
 registerNotificationSubscribers();
+registerRoomEventSubscribers();
 
 // Reset all users to offline on server startup to clean up stale states from previous restarts/crashes
 prisma.user
   .updateMany({
-    where: { status: "online" },
+    where: { status: { in: ["online", "paused"] } },
     data: { status: "offline" },
   })
   .then(() => {
     Logger.info(
-      "Successfully reset all stale online user statuses to offline.",
+      "Successfully reset all stale online/paused user statuses to offline.",
     );
   })
   .catch((err) => {

@@ -61,6 +61,8 @@ model User {
   activitiesFeed       ActivityFeedItem[] @relation("UserActivities")
   reputationLogs       ReputationLog[]
 
+  @@index([status])
+  @@index([isDeleted])
   @@map("users")
 }
 
@@ -174,7 +176,7 @@ model Message {
   reactions Reaction[]
   reports   Report[]
 
-  @@index([roomId])
+  @@index([roomId, createdAt])
   @@index([userId])
   @@index([parentId])
   @@map("messages")
@@ -209,7 +211,7 @@ model Notification {
   triggerId   String?
   trigger     User?    @relation("TriggeredNotifications", fields: [triggerId], references: [id], onDelete: SetNull)
 
-  @@index([userId])
+  @@index([userId, createdAt])
   @@index([triggerId])
   @@map("notifications")
 }
@@ -367,7 +369,7 @@ model ModerationAction {
   room        Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
   appeals     Appeal[]
 
-  @@index([userId])
+  @@index([userId, active])
   @@index([actorId])
   @@index([communityId])
   @@index([roomId])
@@ -404,7 +406,8 @@ model AuditLog {
   actorId    String
   actor      User     @relation("AuditLogsInitiated", fields: [actorId], references: [id], onDelete: Cascade)
 
-  @@index([actorId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 

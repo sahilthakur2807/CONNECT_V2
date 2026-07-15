@@ -6,14 +6,27 @@ export class ModerationActionRepository extends BaseRepository {
     super(prisma.moderationAction, "moderationAction");
   }
 
-  /**
-   * Retrieves active, non-expired enforcements for a specific user.
-   */
   async findActiveActions(userId, tx) {
     const delegate = this.getDelegate(tx);
     return delegate.findMany({
       where: {
         userId,
+        active: true,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+    });
+  }
+
+  /**
+   * Retrieves active, non-expired platform bans or suspensions for a specific user.
+   */
+  async findActivePlatformBan(userId, tx) {
+    const delegate = this.getDelegate(tx);
+    return delegate.findFirst({
+      where: {
+        userId,
+        communityId: null,
+        type: { in: ["ban", "suspend"] },
         active: true,
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
