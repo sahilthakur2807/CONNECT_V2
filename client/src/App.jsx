@@ -49,7 +49,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRoomDiscoverySocket } from "@/hooks/useRooms";
 
 export function App() {
-  const { refreshSession, user } = useAuth();
+  const { refreshSession } = useAuth();
   const [initialized, setInitialized] = useState(false);
   const { userRestriction } = useAppSelector((state) => state.auth);
 
@@ -59,7 +59,7 @@ export function App() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (user) {
+        if (localStorage.getItem("newsconnect_user_id")) {
           await refreshSession();
         }
       } catch (err) {
@@ -74,7 +74,7 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!initialized && user) {
+  if (!initialized && localStorage.getItem("newsconnect_user_id")) {
     return (
       <div className="min-h-screen bg-background flex flex-col justify-center items-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />

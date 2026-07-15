@@ -17,6 +17,8 @@ export function useGlobalSocketEvents() {
 
     const handleConnect = () => {
       dispatch(setSocketConnected(true));
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
     };
 
     const handleDisconnect = () => {

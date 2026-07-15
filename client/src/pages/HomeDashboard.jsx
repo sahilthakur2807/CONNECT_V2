@@ -195,6 +195,14 @@ export function HomeDashboard() {
   const { data: friendsList = [], isLoading: friendsLoading } =
     useFriendsQuery();
 
+  const sortedFriends = useMemo(() => {
+    return [...friendsList].sort((a, b) => {
+      if (a.status === "online" && b.status !== "online") return -1;
+      if (a.status !== "online" && b.status === "online") return 1;
+      return 0;
+    });
+  }, [friendsList]);
+
   // Prune sent requests list if they have become accepted friends
   useEffect(() => {
     if (friendsList.length > 0 && sentFriendRequestIds.length > 0) {
@@ -616,7 +624,7 @@ export function HomeDashboard() {
             className="flex pt-2 gap-5 overflow-x-auto pb-2 scrollbar-none snap-x"
             style={{ scrollbarWidth: "none" }}
           >
-            {friendsList.map((u) => (
+            {sortedFriends.map((u) => (
               <div
                 key={u.id}
                 className="flex flex-col items-center gap-2 min-w-[76px] snap-start group cursor-pointer text-center"
