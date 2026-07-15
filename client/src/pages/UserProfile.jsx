@@ -692,7 +692,6 @@ export function UserProfile() {
                 >
                   {profileUser.name || profileUser.username}
                 </h1>
-                {profileUser.verified && <Badge variant="verified" size="sm" />}
                 {profileUser.isPaused && (
                   <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                     <PauseIcon className="w-2.5 h-2.5" /> Paused
@@ -703,13 +702,51 @@ export function UserProfile() {
             </div>
 
             {/* Badges */}
-            {profileUser.badges?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {profileUser.badges.map(b => (
-                  <Badge key={b} variant={b.toLowerCase().replace(" ", "-")} size="sm" />
-                ))}
-              </div>
-            )}
+            {(() => {
+              const displayBadges = [];
+
+              // 1. Admin/Super Admin tags (only visible to admins/super admins)
+              const isViewerAdmin = currentUser && ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(currentUser.role);
+              if (profileUser.role === "SUPER_ADMIN" && isViewerAdmin) {
+                displayBadges.push({ key: "super-admin", variant: "super-admin" });
+              } else if (profileUser.role === "PLATFORM_ADMIN" && isViewerAdmin) {
+                displayBadges.push({ key: "admin", variant: "admin" });
+              } else if (profileUser.role === "PLATFORM_MOD") {
+                displayBadges.push({ key: "moderator", variant: "moderator" });
+              }
+
+              // 2. Verified tag
+              if (profileUser.verified) {
+                displayBadges.push({ key: "verified", variant: "verified" });
+              }
+
+              // 3. Contributor / Top Contributor tag
+              const hasTopContributor = profileUser.badges?.some(b => b.toLowerCase().replace(" ", "-") === "top-contributor") || stats?.messagesSent >= 100;
+              if (hasTopContributor) {
+                displayBadges.push({ key: "top-contributor", variant: "top-contributor" });
+              }
+
+              // 4. Other custom badges from profileUser.badges
+              const handledBadges = new Set(["super-admin", "superadmin", "admin", "moderator", "verified", "top-contributor"]);
+              if (profileUser.badges) {
+                profileUser.badges.forEach((b) => {
+                  const variant = b.toLowerCase().replace(" ", "-");
+                  if (!handledBadges.has(variant)) {
+                    displayBadges.push({ key: b, variant });
+                  }
+                });
+              }
+
+              if (displayBadges.length === 0) return null;
+
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  {displayBadges.map((b) => (
+                    <Badge key={b.key} variant={b.variant} size="sm" />
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Bio */}
             {profileUser.bio && (
