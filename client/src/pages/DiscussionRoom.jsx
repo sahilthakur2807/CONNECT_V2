@@ -1218,7 +1218,6 @@ export function DiscussionRoom() {
               </>
             )}
             </div>
-          </div>
         </DialogContent>
       </Dialog>
 
