@@ -9,6 +9,7 @@ export function LandingHero() {
   const [tickerItems, setTickerItems] = useState([]);
   const [liveQuestion, setLiveQuestion] = useState("");
   const [liveReplies, setLiveReplies] = useState([]);
+  const [liveRoomId, setLiveRoomId] = useState("");
   const { user } = useAuth();
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function LandingHero() {
             );
             if (data.length > 0) {
               setLiveQuestion(data[0].room?.title || data[0].content);
+              setLiveRoomId(data[0].room?.id || "");
               const replies = data[0].replies || [];
               setLiveReplies(replies.slice(0, 4));
             }
@@ -158,7 +160,7 @@ export function LandingHero() {
             className="flex items-center gap-4 mb-16"
           >
             <Link
-              to={user ? "/home" : "/auth?mode=register"}
+              to={user ? "/home" : "/auth?mode=login"}
               className="bg-[#d42b2b] hover:bg-[#b82020] text-[#f0ede6] px-6 py-3 transition-all duration-200 hover:scale-[0.98] active:scale-95"
               style={{
                 fontFamily: "'Hedvig Letters Serif', serif",
@@ -170,7 +172,7 @@ export function LandingHero() {
               Join the conversation →
             </Link>
             <Link
-              to="/discover"
+              to={user ? "/discover" : "/auth?mode=login"}
               className="text-[#888880] hover:text-[#f0ede6] transition-colors duration-200 flex items-center gap-2"
               style={{
                 fontFamily: "'Hedvig Letters Serif', serif",
@@ -350,15 +352,16 @@ export function LandingHero() {
               </span>
             </div>
 
-            <div
-              className="mt-4 pt-4 border-t border-white/[0.07] text-[#FFFFFF]"
+            <Link
+              to={user ? (liveRoomId ? `/room/${liveRoomId}` : "/home") : "/auth?mode=login"}
+              className="mt-4 pt-4 border-t border-white/[0.07] text-[#FFFFFF] block hover:text-[#d42b2b] transition-colors duration-200"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: "12.5px",
               }}
             >
               Branch into this one →
-            </div>
+            </Link>
           </div>
 
           {/* Floating mini-card */}
