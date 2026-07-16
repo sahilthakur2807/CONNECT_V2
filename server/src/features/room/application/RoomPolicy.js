@@ -1,6 +1,6 @@
 export class RoomPolicy {
   static isSiteAdmin(user) {
-    return user.role === "admin" || user.role === "superadmin";
+    return user.role === "PLATFORM_ADMIN" || user.role === "SUPER_ADMIN";
   }
 
   /**
@@ -9,16 +9,15 @@ export class RoomPolicy {
   static canCreateRoom(user, communityId, membership) {
     if (this.isSiteAdmin(user)) return true;
     if (communityId) {
-      // Community-based room: requires active membership and not banned
       return !!membership && !membership.banned;
     }
-    return true; // Global/Article rooms can be created by any user
+    return true; // Global/Article rooms can be created by any authenticated user
   }
 
   /**
-   * Checks if a user is permitted to edit, delete, or archive a room.
+   * Checks if a user is permitted to edit or archive a room.
    */
-  static canMutateRoom(
+  static canEditOrArchiveRoom(
     user,
     roomCreatorId,
     communityOwnerId,
@@ -26,15 +25,29 @@ export class RoomPolicy {
   ) {
     if (this.isSiteAdmin(user)) return true;
     if (roomCreatorId && user.id === roomCreatorId) return true;
-    // Community level authorizations
-    if (communityOwnerId && user.id === communityOwnerId) return true;
-    if (
-      communityMembership &&
-      (communityMembership.role === "owner" ||
-        communityMembership.role === "admin" ||
-        communityMembership.role === "moderator")
-    ) {
-      return true;
+    
+    if (communityMembership && !communityMembership.banned) {
+      // Community OWNER or Community ADMIN can edit/archive rooms
+      return ["OWNER", "ADMIN"].includes(communityMembership.role);
+    }
+    return false;
+  }
+
+  /**
+   * Checks if a user is permitted to delete a room.
+   */
+  static canDeleteRoom(
+    user,
+    roomCreatorId,
+    communityOwnerId,
+    communityMembership,
+  ) {
+    if (this.isSiteAdmin(user)) return true;
+    if (roomCreatorId && user.id === roomCreatorId) return true;
+
+    if (communityMembership && !communityMembership.banned) {
+      // Only Community OWNER can delete rooms (Community ADMIN/MODERATOR cannot delete)
+      return communityMembership.role === "OWNER";
     }
     return false;
   }

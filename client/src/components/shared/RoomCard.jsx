@@ -1,6 +1,7 @@
 import { UsersIcon, ChatBubbleLeftRightIcon, BoltIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 import { Badge } from "./Badge";
 import { cn } from "@/utils/cn";
+import { useAppSelector } from "@/store";
 import {
   Card,
   CardHeader,
@@ -10,6 +11,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 export function RoomCard({
   room,
@@ -21,6 +23,7 @@ export function RoomCard({
   index,
   activeTab,
 }) {
+  const { user: currentUser } = useAuth();
   const memberCount = room.memberCount ?? room._count?.members ?? 0;
   const messageCount = room.messageCount ?? room._count?.messages ?? 0;
   const activeNow = room.activeNow ?? 0;
@@ -166,18 +169,29 @@ export function RoomCard({
         </div>
 
         {isJoined ? (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={(e) => {
-              e.stopPropagation();
-              onLeave?.(room.id);
-            }}
-            className="h-7.5 px-3 text-xs font-semibold cursor-pointer group/btn border-green-200 text-green-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 dark:border-green-900/30 dark:text-green-400 dark:hover:border-red-950/20 transition-all"
-          >
-            <span className="group-hover/btn:hidden">Joined</span>
-            <span className="hidden group-hover/btn:inline">Leave</span>
-          </Button>
+          room.createdById === currentUser?.id ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled
+              className="h-7.5 px-3 text-xs font-semibold border-green-200 text-green-600 bg-green-500/5 dark:border-green-900/30 dark:text-green-400 opacity-90 cursor-default"
+            >
+              Owner
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onLeave?.(room.id);
+              }}
+              className="h-7.5 px-3 text-xs font-semibold cursor-pointer group/btn border-green-200 text-green-600 hover:border-red-200 hover:text-red-600 hover:bg-red-50 dark:border-green-900/30 dark:text-green-400 dark:hover:border-red-950/20 transition-all"
+            >
+              <span className="group-hover/btn:hidden">Joined</span>
+              <span className="hidden group-hover/btn:inline">Leave</span>
+            </Button>
+          )
         ) : isPending ? (
           <Button
             size="sm"

@@ -1,5 +1,7 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
+import { useEffect } from "react";
+import { getSocket } from "@/services/socketService";
 
 // --- Standalone Queries ---
 
@@ -59,8 +61,12 @@ export const useTrendingRoomsQuery = (limit = 20, options = {}) =>
     queryKey: ["rooms", "trending", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/trending?limit=${limit}`);
-      return res.data.data;
+      return {
+        rooms: res.data.data,
+        total: parseInt(res.headers["x-total-count"] || "0", 10),
+      };
     },
+    placeholderData: keepPreviousData,
     ...options,
   });
 
@@ -69,8 +75,12 @@ export const useHotRoomsQuery = (limit = 20, options = {}) =>
     queryKey: ["rooms", "hot", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/hot?limit=${limit}`);
-      return res.data.data;
+      return {
+        rooms: res.data.data,
+        total: parseInt(res.headers["x-total-count"] || "0", 10),
+      };
     },
+    placeholderData: keepPreviousData,
     ...options,
   });
 
@@ -79,9 +89,23 @@ export const useNewRoomsQuery = (limit = 20, options = {}) =>
     queryKey: ["rooms", "new", limit],
     queryFn: async () => {
       const res = await apiClient.get(`/rooms/new?limit=${limit}`);
+      return {
+        rooms: res.data.data,
+        total: parseInt(res.headers["x-total-count"] || "0", 10),
+      };
+    },
+    placeholderData: keepPreviousData,
+    ...options,
+  });
+
+export const useCategoriesQuery = () =>
+  useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const res = await apiClient.get("/rooms/categories");
       return res.data.data;
     },
-    ...options,
+    staleTime: 60000,
   });
 
 // --- Standalone Mutations ---
@@ -125,12 +149,26 @@ export const useLeaveCommunityMutation = () => {
   });
 };
 
+import { useAppDispatch } from "@/store";
+import { addOptimisticContribution, rollbackOptimisticContribution } from "@/store/slices/reputationSlice";
+
 export const useCreateRoomMutation = () => {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   return useMutation({
     mutationFn: async (data) => {
       const res = await apiClient.post("/rooms", data);
       return res.data.data;
+    },
+    onMutate: async (data) => {
+      if (data.category) {
+        dispatch(addOptimisticContribution({ category: data.category, type: "room" }));
+      }
+    },
+    onError: (err, data) => {
+      if (data.category) {
+        dispatch(rollbackOptimisticContribution());
+      }
     },
     onSuccess: (newRoom) => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
@@ -180,6 +218,18 @@ export const useJoinRoomMutation = () => {
             ),
           };
         }
+
+        // Trending/Hot/New structure query match
+        if (old.rooms && Array.isArray(old.rooms)) {
+          return {
+            ...old,
+            rooms: old.rooms.map((room) =>
+              room.id === roomId
+                ? { ...room, isJoined: data.isJoined, isPending: data.isPending }
+                : room
+            ),
+          };
+        }
         
         return old;
       });
@@ -222,6 +272,18 @@ export const useLeaveRoomMutation = () => {
           return {
             ...old,
             items: old.items.map((room) =>
+              room.id === roomId
+                ? { ...room, isJoined: false, isPending: false }
+                : room
+            ),
+          };
+        }
+
+        // Trending/Hot/New structure query match
+        if (old.rooms && Array.isArray(old.rooms)) {
+          return {
+            ...old,
+            rooms: old.rooms.map((room) =>
               room.id === roomId
                 ? { ...room, isJoined: false, isPending: false }
                 : room
@@ -317,6 +379,7 @@ export function useRooms() {
     useTrendingRoomsQuery,
     useHotRoomsQuery,
     useNewRoomsQuery,
+    useCategoriesQuery,
     createCommunityMutation: useCreateCommunityMutation(),
     joinCommunityMutation: useJoinCommunityMutation(),
     leaveCommunityMutation: useLeaveCommunityMutation(),
@@ -332,4 +395,57 @@ export function useRooms() {
       queryClient.invalidateQueries({ queryKey: ["rooms", "trending"] });
     },
   };
+}
+
+export function useRoomDiscoverySocket() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleRoomCreated = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      }
+    };
+
+    const handleRoomUpdated = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        if (res.data?.id) {
+          queryClient.invalidateQueries({ queryKey: ["rooms", res.data.id] });
+        }
+      }
+    };
+
+    const handleRoomArchived = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        if (res.roomId) {
+          queryClient.invalidateQueries({ queryKey: ["rooms", res.roomId] });
+        }
+      }
+    };
+
+    const handleRoomDeleted = (res) => {
+      if (res.success) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        if (res.roomId) {
+          queryClient.invalidateQueries({ queryKey: ["rooms", res.roomId] });
+        }
+      }
+    };
+
+    socket.on("room.created", handleRoomCreated);
+    socket.on("room.updated", handleRoomUpdated);
+    socket.on("room.archived", handleRoomArchived);
+    socket.on("room.deleted", handleRoomDeleted);
+
+    return () => {
+      socket.off("room.created", handleRoomCreated);
+      socket.off("room.updated", handleRoomUpdated);
+      socket.off("room.archived", handleRoomArchived);
+      socket.off("room.deleted", handleRoomDeleted);
+    };
+  }, [queryClient]);
 }

@@ -18,7 +18,9 @@ import { useAppSelector, useAppDispatch } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { setUnreadNotificationsCount } from "@/store/slices/uiSlice";
 import { cn } from "@/utils/cn";
+import { useRooms } from "@/hooks/useRooms";
 import { useGlobalSocketEvents } from "@/hooks/useGlobalSocketEvents";
+import { useAuth } from "@/hooks/useAuth";
 
 const CATEGORIES = [
   "All Topics",
@@ -50,10 +52,14 @@ function LeftSidebar() {
   const searchParams = new URLSearchParams(location.search);
   const activeCategory = searchParams.get("category");
 
+  const { useCategoriesQuery } = useRooms();
+  const { data: serverCategories } = useCategoriesQuery();
+  const categoriesList = serverCategories ? ["All Topics", ...serverCategories] : CATEGORIES;
+
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
   );
-  const currentUser = useAppSelector((state) => state.auth.user);
+  const { user: currentUser } = useAuth();
   const profilePath = currentUser ? `/profile/${currentUser.id}` : "/profile";
 
   return (
@@ -103,7 +109,7 @@ function LeftSidebar() {
             </span>
           </div>
           <ul className="space-y-0.5">
-            {CATEGORIES.slice(0, 8).map((cat) => {
+            {categoriesList.map((cat) => {
               const isActiveCategory =
                 location.pathname === "/discover" &&
                 ((!activeCategory && cat === "All Topics") ||

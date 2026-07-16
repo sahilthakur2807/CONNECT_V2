@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
+import { prisma } from "../../../infrastructure/db/PrismaClient.js";
+import { ForbiddenError } from "../../../shared/errors/AppError.js";
 
 // Repositories
 import { ReportRepository } from "../infrastructure/repository/ReportRepository.js";
@@ -26,6 +28,8 @@ import {
   RemoveContentHandler,
   RestoreContentCommand,
   RestoreContentHandler,
+  EscalateReportCommand,
+  EscalateReportHandler,
 } from "../application/commands/ModerationCommands.js";
 import {
   GetReportsQuery,
@@ -60,6 +64,7 @@ const executeModerationActionHandler = new ExecuteModerationActionHandler(
   auditRepo,
   membershipRepo,
 );
+const escalateReportHandler = new EscalateReportHandler(reportRepo, auditRepo);
 const submitAppealHandler = new SubmitAppealHandler(appealRepo);
 const resolveAppealHandler = new ResolveAppealHandler(
   appealRepo,
@@ -166,6 +171,31 @@ export function createModerationRouter() {
     },
   );
 
+  // 3b. Escalate Report
+  router.post(
+    "/reports/:id/escalate",
+    authenticateJWT,
+    async (req, res, next) => {
+      const schema = z.object({
+        reason: z.string().min(5).max(1000),
+      });
+      try {
+        const parsed = schema.parse(req.body);
+        const command = new EscalateReportCommand(
+          req.user.id,
+          req.user.role,
+          req.params.id,
+          parsed.reason,
+        );
+
+        const result = await escalateReportHandler.execute(command);
+        res.json({ success: true, data: result });
+      } catch (err) {
+        next(err);
+      }
+    },
+  );
+
   // 4. Execute Moderation Action (Warn, Mute, Suspend, Ban)
   router.post(
     "/moderation/actions",
@@ -180,6 +210,7 @@ export function createModerationRouter() {
           z.date().optional(),
         ),
         communityId: z.string().optional(),
+        roomId: z.string().optional(),
       });
 
       try {
@@ -192,6 +223,7 @@ export function createModerationRouter() {
           parsed.reason,
           parsed.expiresAt,
           parsed.communityId,
+          parsed.roomId,
         );
 
         const result = await executeModerationActionHandler.execute(command);
@@ -255,7 +287,7 @@ export function createModerationRouter() {
   // 7. Get Reports (Open / Assigned)
   router.get("/reports", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
-      type: z.enum(["open", "assigned"]).default("open"),
+      type: z.enum(["open", "assigned", "escalated"]).default("open"),
     });
 
     try {
@@ -281,6 +313,7 @@ export function createModerationRouter() {
         z.number().min(1).max(100),
       ),
       cursor: z.string().optional(),
+      communityId: z.string().optional(),
     });
 
     try {
@@ -290,6 +323,7 @@ export function createModerationRouter() {
         req.user.role,
         parsed.limit,
         parsed.cursor,
+        parsed.communityId,
       );
 
       const result = await getAuditLogsHandler.execute(query);
@@ -367,6 +401,304 @@ export function createModerationRouter() {
         next(err);
       }
     },
+  );
+
+  // 12. User Lookup (for Moderator/Admin panel)
+  router.get(
+    "/moderation/users/lookup",
+    authenticateJWT,
+    async (req, res, next) => {
+      const schema = z.object({
+        query: z.string().min(1),
+        communityId: z.string().optional(),
+        suggest: z.preprocess((val) => val === "true" || val === true, z.boolean()).optional(),
+      });
+
+      try {
+        const parsed = schema.parse(req.query);
+        const actorRole = req.user.role?.toUpperCase();
+        const actorId = req.user.id;
+
+        if (parsed.suggest) {
+          const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole);
+          const actorMemberships = await prisma.communityMember.findMany({
+            where: {
+              userId: actorId,
+              role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+              banned: false,
+            }
+          });
+          const actorCommunityIds = actorMemberships.map(m => m.communityId);
+
+          const roomMemberships = await prisma.roomMember.findMany({
+            where: {
+              userId: actorId,
+              status: "ROOM_MOD"
+            }
+          });
+          const actorRoomIds = roomMemberships.map(rm => rm.roomId);
+
+          if (!isPlatformStaff && actorCommunityIds.length === 0 && actorRoomIds.length === 0) {
+            throw new ForbiddenError("You do not have permission to access user suggestions");
+          }
+
+          // Build suggestion where clause
+          const suggestWhere = {
+            OR: [
+              { username: { contains: parsed.query, mode: "insensitive" } },
+              { name: { contains: parsed.query, mode: "insensitive" } },
+              { email: { contains: parsed.query, mode: "insensitive" } },
+              { id: { contains: parsed.query } }
+            ]
+          };
+
+          // If not platform staff, restrict suggestions to users in the same communities or rooms
+          if (!isPlatformStaff) {
+            suggestWhere.AND = [
+              {
+                OR: [
+                  {
+                    communities: {
+                      some: {
+                        communityId: { in: actorCommunityIds }
+                      }
+                    }
+                  },
+                  {
+                    rooms: {
+                      some: {
+                        roomId: { in: actorRoomIds }
+                      }
+                    }
+                  }
+                ]
+              }
+            ];
+          }
+
+          const users = await prisma.user.findMany({
+            where: suggestWhere,
+            select: {
+              id: true,
+              username: true,
+              name: true,
+              email: true,
+              avatar: true,
+              role: true
+            },
+            take: 10
+          });
+
+          return res.json({ success: true, data: users });
+        }
+
+        let targetUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { username: { equals: parsed.query, mode: "insensitive" } },
+              { id: parsed.query },
+              { email: { equals: parsed.query, mode: "insensitive" } }
+            ]
+          },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            avatar: true,
+            bio: true,
+            verified: true,
+            badges: true,
+            reputation: true,
+            role: true,
+            status: true,
+            createdAt: true,
+          }
+        });
+
+        if (!targetUser) {
+          // Fallback to partial match if no exact match is found
+          targetUser = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { username: { contains: parsed.query, mode: "insensitive" } },
+                { name: { contains: parsed.query, mode: "insensitive" } },
+                { email: { contains: parsed.query, mode: "insensitive" } },
+                { id: { contains: parsed.query } }
+              ]
+            },
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              name: true,
+              avatar: true,
+              bio: true,
+              verified: true,
+              badges: true,
+              reputation: true,
+              role: true,
+              status: true,
+              createdAt: true,
+            }
+          });
+        }
+
+        if (!targetUser) {
+          return res.status(404).json({ success: false, error: "User not found" });
+        }
+
+        const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole);
+        let isAuthorized = isPlatformStaff;
+        let activeCommunityId = parsed.communityId;
+
+        const actorMemberships = await prisma.communityMember.findMany({
+          where: {
+            userId: actorId,
+            role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+            banned: false,
+          }
+        });
+
+        const actorCommunityIds = actorMemberships.map(m => m.communityId);
+
+        if (!isAuthorized) {
+          const targetMembership = await prisma.communityMember.findFirst({
+            where: {
+              userId: targetUser.id,
+              communityId: { in: actorCommunityIds }
+            }
+          });
+          if (targetMembership) {
+            isAuthorized = true;
+            activeCommunityId = targetMembership.communityId;
+          }
+        }
+
+        if (!isAuthorized) {
+          const roomMemberships = await prisma.roomMember.findMany({
+            where: {
+              userId: actorId,
+              status: "ROOM_MOD"
+            }
+          });
+          const actorRoomIds = roomMemberships.map(rm => rm.roomId);
+          const targetInSameRoom = await prisma.roomMember.findFirst({
+            where: {
+              userId: targetUser.id,
+              roomId: { in: actorRoomIds }
+            }
+          });
+          if (targetInSameRoom) {
+            isAuthorized = true;
+          }
+        }
+
+        if (!isAuthorized) {
+          throw new ForbiddenError("You do not have permission to look up this user");
+        }
+
+        const historyWhere = {
+          userId: targetUser.id
+        };
+
+        if (!isPlatformStaff) {
+          historyWhere.communityId = { in: actorCommunityIds };
+        } else if (activeCommunityId) {
+          historyWhere.communityId = activeCommunityId;
+        }
+
+        const actions = await prisma.moderationAction.findMany({
+          where: historyWhere,
+          orderBy: { createdAt: "desc" },
+          include: {
+            actor: {
+              select: {
+                id: true,
+                username: true,
+                name: true
+              }
+            }
+          }
+        });
+
+        res.json({
+          success: true,
+          data: {
+            user: targetUser,
+            history: actions
+          }
+        });
+      } catch (err) {
+        next(err);
+      }
+    }
+  );
+
+  // 13. Revoke Restriction (Deactivate mute/ban/suspension)
+  router.post(
+    "/moderation/restrictions/:actionId/revoke",
+    authenticateJWT,
+    async (req, res, next) => {
+      const schema = z.object({
+        reason: z.string().min(5).max(1000),
+      });
+
+      try {
+        const parsed = schema.parse(req.body);
+        const actionId = req.params.actionId;
+        const actorRole = req.user.role?.toUpperCase();
+
+        const action = await prisma.moderationAction.findUnique({
+          where: { id: actionId }
+        });
+
+        if (!action) {
+          return res.status(404).json({ success: false, error: "Restriction not found" });
+        }
+
+        const isPlatformStaff = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole);
+        let isAuthorized = isPlatformStaff;
+
+        if (!isAuthorized && action.communityId) {
+          const membership = await prisma.communityMember.findFirst({
+            where: {
+              userId: req.user.id,
+              communityId: action.communityId,
+              role: { in: ["OWNER", "ADMIN"] },
+              banned: false
+            }
+          });
+          if (membership) {
+            isAuthorized = true;
+          }
+        }
+
+        if (!isAuthorized) {
+          throw new ForbiddenError("You do not have permission to revoke this restriction");
+        }
+
+        await prisma.moderationAction.update({
+          where: { id: actionId },
+          data: { active: false }
+        });
+
+        // Log the revocation in audit logs
+        await prisma.auditLog.create({
+          data: {
+            action: "moderation.action.revoked",
+            targetId: actionId,
+            targetType: "ModerationAction",
+            details: `Enforcement action ${actionId} (${action.type}) revoked. Reason: ${parsed.reason}`,
+            actorId: req.user.id
+          }
+        });
+
+        res.json({ success: true, message: "Restriction successfully revoked" });
+      } catch (err) {
+        next(err);
+      }
+    }
   );
 
   return router;

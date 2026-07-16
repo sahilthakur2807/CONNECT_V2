@@ -16,12 +16,22 @@ import { RoomPolicy } from "../src/features/room/application/RoomPolicy.js";
 import { prisma } from "../src/infrastructure/db/PrismaClient.js";
 import { ForbiddenError } from "../src/shared/errors/AppError.js";
 
-// Mock Prisma transaction
-vi.mock("../src/infrastructure/db/PrismaClient.js", () => ({
-  prisma: {
-    $transaction: vi.fn((cb) => cb(prisma)),
-  },
-}));
+// Mock Prisma transaction and client models
+vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
+  const mockPrisma = {
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
+    room: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    hashtag: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    roomMember: {
+      create: vi.fn().mockResolvedValue({}),
+    },
+  };
+  return { prisma: mockPrisma };
+});
 
 describe("CONNECT Phase 3 Domain Unit Tests", () => {
   let mockCommunityRepo;
@@ -30,6 +40,17 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+
+    prisma.room = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      updateMany: vi.fn(),
+    };
+    prisma.hashtag = {
+      findMany: vi.fn().mockResolvedValue([]),
+    };
+    prisma.roomMember = {
+      create: vi.fn().mockResolvedValue({}),
+    };
 
     mockCommunityRepo = {
       findById: vi.fn(),
@@ -113,7 +134,7 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
       expect(mockCommunityRepo.create).toHaveBeenCalled();
       expect(mockMembershipRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          role: "owner",
+          role: "OWNER",
           user: { connect: { id: "usr_1" } },
         }),
         expect.any(Object),
@@ -158,12 +179,12 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
       );
       expect(mockMembershipRepo.update).toHaveBeenCalledWith(
         "memb_target",
-        { role: "owner" },
+        { role: "OWNER" },
         expect.any(Object),
       );
       expect(mockMembershipRepo.update).toHaveBeenCalledWith(
         "memb_owner",
-        { role: "admin" },
+        { role: "ADMIN" },
         expect.any(Object),
       );
     });
@@ -180,10 +201,6 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
         createdById: "usr_owner",
         deleted: false,
       });
-      // Mock raw updateMany transactions
-      const mockRoomUpdateMany = vi.fn();
-      prisma.room = { updateMany: mockRoomUpdateMany };
-
       await handler.execute(command);
 
       expect(mockCommunityRepo.update).toHaveBeenCalledWith(
@@ -191,7 +208,7 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
         { deleted: true },
         expect.any(Object),
       );
-      expect(mockRoomUpdateMany).toHaveBeenCalledWith(
+      expect(prisma.room.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { communityId: "comm_1", deleted: false },
           data: { deleted: true },
@@ -212,8 +229,8 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
         "usr_member",
         "Socrates Room",
         "Discuss dialogues",
-        "Philosophy",
-        [],
+        "culture",
+        ["philosophy"],
         "comm_1",
       );
 
@@ -248,8 +265,8 @@ describe("CONNECT Phase 3 Domain Unit Tests", () => {
         "usr_banned",
         "Socrates Room",
         "Discuss dialogues",
-        "Philosophy",
-        [],
+        "culture",
+        ["philosophy"],
         "comm_1",
       );
 

@@ -41,8 +41,9 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import { useSocial } from "@/hooks/useSocial";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useAppDispatch } from "@/store";
+import { useAppDispatch, useAppSelector } from "@/store";
 import { setUser } from "@/store/slices/authSlice";
+import { fetchReputationData } from "@/store/slices/reputationSlice";
 import { apiClient } from "@/services/apiClient";
 import { cn } from "@/utils/cn";
 import {
@@ -83,6 +84,29 @@ function getCitizenRank(rep = 0) {
     ? Math.min(100, Math.round(((rep - tier.min) / (tier.max - tier.min + 1)) * 100))
     : 100;
   return { ...tier, next, progress, tierIndex: idx };
+}
+
+const CATEGORY_RANK_LEVELS = [
+  { level: 0, rank: "Unranked" },
+  { level: 1, rank: "Newcomer" },
+  { level: 2, rank: "Contributor" },
+  { level: 3, rank: "Active Contributor" },
+  { level: 4, rank: "Senior Contributor" },
+  { level: 5, rank: "Analyst" },
+  { level: 6, rank: "Senior Analyst" },
+  { level: 7, rank: "Specialist" },
+  { level: 8, rank: "Expert" },
+  { level: 9, rank: "Senior Expert" },
+  { level: 10, rank: "Authority" },
+  { level: 11, rank: "Distinguished Authority" },
+  { level: 12, rank: "Thought Leader" },
+  { level: 13, rank: "Community Icon" },
+  { level: 14, rank: "Visionary" },
+];
+
+function getNextRankName(currentLevel) {
+  const next = CATEGORY_RANK_LEVELS.find((l) => l.level === currentLevel + 1);
+  return next ? next.rank : "Max Rank";
 }
 
 /* ─── Tiny reusable pieces ───────────────────────────────────── */
@@ -217,6 +241,201 @@ const ACHIEVEMENT_BADGES = [
   }
 ];
 
+const CATEGORY_COLORS = {
+  "Politics": "bg-red-500",
+  "Technology": "bg-orange-500",
+  "Economy": "bg-green-600",
+  "Environment": "bg-emerald-500",
+  "World Affairs": "bg-blue-600",
+  "Science": "bg-purple-600",
+  "Health": "bg-pink-500",
+  "Culture": "bg-yellow-500",
+  "Sports": "bg-rose-500",
+};
+
+function getCardStyle(medal) {
+  if (!medal) {
+    return {
+      badgeClass: "bg-slate-100 text-slate-600 dark:bg-slate-800/40 dark:text-slate-400",
+      progressBarClass: "bg-slate-400",
+    };
+  }
+
+  if (medal.startsWith("diamond")) {
+    return {
+      badgeClass: "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-400",
+      progressBarClass: "bg-cyan-500",
+    };
+  } else if (medal.startsWith("platinum")) {
+    return {
+      badgeClass: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-400",
+      progressBarClass: "bg-indigo-500",
+    };
+  } else if (medal.startsWith("gold")) {
+    return {
+      badgeClass: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400",
+      progressBarClass: "bg-amber-500",
+    };
+  } else if (medal.startsWith("silver")) {
+    return {
+      badgeClass: "bg-slate-100 text-slate-800 dark:bg-slate-800/40 dark:text-slate-400",
+      progressBarClass: "bg-slate-500",
+    };
+  } else {
+    // bronze
+    return {
+      badgeClass: "bg-orange-100 text-orange-800 dark:bg-orange-950/30 dark:text-orange-400",
+      progressBarClass: "bg-orange-500",
+    };
+  }
+}
+
+function MedalIcon({ medal, className = "w-20 h-20" }) {
+  if (!medal) return null;
+
+  // Render Bronze I, II, III
+  if (medal.startsWith("bronze")) {
+    const num = medal === "bronze1" ? "I" : medal === "bronze2" ? "II" : "III";
+    return (
+      <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#b91c1c" />
+        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#b91c1c" />
+        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#7f1d1d" opacity="0.3" />
+        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#7f1d1d" opacity="0.3" />
+        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#ef4444" opacity="0.5" />
+        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#ef4444" opacity="0.5" />
+        <circle cx="50" cy="45" r="28" fill="url(#bronzeGrad)" stroke="#78350f" strokeWidth="2" />
+        <circle cx="50" cy="45" r="24" fill="none" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="22" fill="none" stroke="#78350f" strokeWidth="1" opacity="0.4" />
+        <text x="50" y="52" textAnchor="middle" fill="#78350f" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        <defs>
+          <radialGradient id="bronzeGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#f59e0b" />
+            <stop offset="40%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#78350f" />
+          </radialGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  // Render Silver I, II, III
+  if (medal.startsWith("silver")) {
+    const num = medal === "silver1" ? "I" : medal === "silver2" ? "II" : "III";
+    return (
+      <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#1e3a8a" />
+        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#1e3a8a" />
+        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#172554" opacity="0.3" />
+        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#172554" opacity="0.3" />
+        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#3b82f6" opacity="0.5" />
+        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#3b82f6" opacity="0.5" />
+        <circle cx="50" cy="45" r="28" fill="url(#silverGrad)" stroke="#334155" strokeWidth="2" />
+        <circle cx="50" cy="45" r="24" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="22" fill="none" stroke="#334155" strokeWidth="1" opacity="0.4" />
+        <text x="50" y="52" textAnchor="middle" fill="#334155" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        <defs>
+          <radialGradient id="silverGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#e2e8f0" />
+            <stop offset="40%" stopColor="#94a3b8" />
+            <stop offset="100%" stopColor="#334155" />
+          </radialGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  // Render Gold I, II, III
+  if (medal.startsWith("gold")) {
+    const num = medal === "gold1" ? "I" : medal === "gold2" ? "II" : "III";
+    return (
+      <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#b91c1c" />
+        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#b91c1c" />
+        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#7f1d1d" opacity="0.3" />
+        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#7f1d1d" opacity="0.3" />
+        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#ef4444" opacity="0.5" />
+        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#ef4444" opacity="0.5" />
+        <circle cx="50" cy="45" r="28" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="2" />
+        <circle cx="50" cy="45" r="24" fill="none" stroke="#fef08a" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="22" fill="none" stroke="#78350f" strokeWidth="1" opacity="0.4" />
+        <text x="50" y="52" textAnchor="middle" fill="#78350f" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        <defs>
+          <radialGradient id="goldGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#fde047" />
+            <stop offset="45%" stopColor="#ca8a04" />
+            <stop offset="100%" stopColor="#78350f" />
+          </radialGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  // Render Platinum I, II
+  if (medal.startsWith("platinum")) {
+    const num = medal === "platinum1" ? "I" : "II";
+    return (
+      <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#581c87" />
+        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#581c87" />
+        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#3b0764" opacity="0.3" />
+        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#3b0764" opacity="0.3" />
+        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#a855f7" opacity="0.5" />
+        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#a855f7" opacity="0.5" />
+        <circle cx="50" cy="45" r="28" fill="url(#platinumGrad)" stroke="#3b0764" strokeWidth="2" />
+        <circle cx="50" cy="45" r="24" fill="none" stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="22" fill="none" stroke="#3b0764" strokeWidth="1" opacity="0.4" />
+        <text x="50" y="52" textAnchor="middle" fill="#3b0764" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        <defs>
+          <radialGradient id="platinumGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="45%" stopColor="#cbd5e1" />
+            <stop offset="100%" stopColor="#64748b" />
+          </radialGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  // Render Diamond / Diamond+
+  if (medal.startsWith("diamond")) {
+    const isPlus = medal === "diamondPlus";
+    return (
+      <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#0891b2" />
+        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#0891b2" />
+        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#164e63" opacity="0.3" />
+        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#164e63" opacity="0.3" />
+        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#22d3ee" opacity="0.5" />
+        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#22d3ee" opacity="0.5" />
+        <circle cx="50" cy="45" r="28" fill="url(#diamondGrad)" stroke="#164e63" strokeWidth="2" />
+        <circle cx="50" cy="45" r="24" fill="none" stroke="#e0f2fe" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="22" fill="none" stroke="#164e63" strokeWidth="1" opacity="0.4" />
+        <polygon points="50,25 64,39 50,53 36,39" fill="url(#starDiamondGrad)" stroke="#0891b2" strokeWidth="1" />
+        <polygon points="50,25 50,53 36,39" fill="#ffffff" opacity="0.4" />
+        <circle cx="36" cy="27" r="1.5" fill="#ffffff" />
+        <circle cx="64" cy="27" r="1.5" fill="#ffffff" />
+        <circle cx="50" cy="39" r="2" fill="#ffffff" />
+        {isPlus && (
+          <text x="50" y="51" textAnchor="middle" fill="#ca8a04" fontSize="18" fontWeight="bold" stroke="#78350f" strokeWidth="0.5">+</text>
+        )}
+        <defs>
+          <radialGradient id="diamondGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#ecfeff" />
+            <stop offset="45%" stopColor="#22d3ee" />
+            <stop offset="100%" stopColor="#164e63" />
+          </radialGradient>
+          <linearGradient id="starDiamondGrad" x1="50" y1="25" x2="50" y2="53" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#cffafe" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  return null;
+}
 
 /* ─── Modal wrapper ─────────────────────────────────────────── */
 function Modal({ open, onClose, title, icon: Icon, children, maxWidth = "max-w-md" }) {
@@ -257,7 +476,7 @@ export function UserProfile() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user: currentUser, logout } = useAuth();
-  const { useUserStatsQuery } = useAnalytics();
+  const { useUserStatsQuery, useUserCategoryContributionsQuery } = useAnalytics();
   const {
     blockUserMutation, unblockUserMutation,
     sendFriendRequestMutation, acceptFriendRequestMutation,
@@ -275,12 +494,15 @@ export function UserProfile() {
   const [ownedRooms, setOwnedRooms] = useState([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [visibleRooms, setVisibleRooms] = useState(6);
+  const [joinedRooms, setJoinedRooms] = useState([]);
+  const [isLoadingJoinedRooms, setIsLoadingJoinedRooms] = useState(false);
+  const [visibleJoinedRooms, setVisibleJoinedRooms] = useState(6);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [isLoadingBlocked, setIsLoadingBlocked] = useState(false);
-  const [activeTab, setActiveTab] = useState("rooms");
+  const [activeTab, setActiveTab] = useState("contributions");
 
   // Modal states
-  const [modal, setModal] = useState(null); // null | 'edit' | 'banner' | 'blocked' | 'settings' | 'delete'
+  const [modal, setModal] = useState(null); // null | 'edit' | 'banner' | 'blocked' | 'settings' | 'delete' | 'ranking_help'
 
   // Edit form
   const [editName, setEditName] = useState("");
@@ -295,6 +517,22 @@ export function UserProfile() {
 
   const { data: stats, isLoading: statsLoading } = useUserStatsQuery(targetId);
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
+
+  const {
+    totalExp,
+    totalReputation,
+    categories,
+    topThree,
+    remainingCategories,
+    overallLevel,
+    isLoading: categoryLoading,
+  } = useAppSelector((state) => state.reputation);
+
+  useEffect(() => {
+    if (targetId) {
+      dispatch(fetchReputationData(targetId));
+    }
+  }, [targetId, dispatch]);
 
   /* ── Data fetching ── */
   useEffect(() => {
@@ -321,6 +559,15 @@ export function UserProfile() {
       .then(res => setOwnedRooms(res.data.data))
       .catch(err => console.error(err))
       .finally(() => setIsLoadingRooms(false));
+  }, [targetId]);
+
+  useEffect(() => {
+    if (!targetId) return;
+    setIsLoadingJoinedRooms(true);
+    apiClient.get(`/users/${targetId}/rooms-joined`)
+      .then(res => setJoinedRooms(res.data.data))
+      .catch(err => console.error(err))
+      .finally(() => setIsLoadingJoinedRooms(false));
   }, [targetId]);
 
   /* ── Handlers ── */
@@ -424,7 +671,8 @@ export function UserProfile() {
   };
 
   /* ── Loading / error states ── */
-  if (isLoadingProfile || statsLoading) {
+  const isInitialLoading = isLoadingProfile || (!stats && statsLoading) || (categoryLoading && (!categories || categories.length === 0));
+  if (isInitialLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <div className="w-8 h-8 border-2 border-border border-t-primary rounded-full animate-spin" />
@@ -456,6 +704,10 @@ export function UserProfile() {
 
   const profileUser = resolvedUser || currentUser;
   if (!profileUser) return null;
+
+  const unlockedAchievementsCount = ACHIEVEMENT_BADGES.filter(ach =>
+    ach.checkUnlock(profileUser, stats)
+  ).length;
 
   const bannerClass = (() => {
     const b = profileUser.banner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800";
@@ -523,7 +775,7 @@ export function UserProfile() {
   }
 
   /* ── Derived data ── */
-  const rank = getCitizenRank(profileUser.reputation || 0);
+  const rank = getCitizenRank(totalReputation || 0);
 
   const joinedDate = (() => {
     if (!profileUser.createdAt) return null;
@@ -692,7 +944,6 @@ export function UserProfile() {
                 >
                   {profileUser.name || profileUser.username}
                 </h1>
-                {profileUser.verified && <Badge variant="verified" size="sm" />}
                 {profileUser.isPaused && (
                   <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                     <PauseIcon className="w-2.5 h-2.5" /> Paused
@@ -703,13 +954,51 @@ export function UserProfile() {
             </div>
 
             {/* Badges */}
-            {profileUser.badges?.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {profileUser.badges.map(b => (
-                  <Badge key={b} variant={b.toLowerCase().replace(" ", "-")} size="sm" />
-                ))}
-              </div>
-            )}
+            {(() => {
+              const displayBadges = [];
+
+              // 1. Admin/Super Admin tags (only visible to admins/super admins)
+              const isViewerAdmin = currentUser && ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(currentUser.role);
+              if (profileUser.role === "SUPER_ADMIN" && isViewerAdmin) {
+                displayBadges.push({ key: "super-admin", variant: "super-admin" });
+              } else if (profileUser.role === "PLATFORM_ADMIN" && isViewerAdmin) {
+                displayBadges.push({ key: "admin", variant: "admin" });
+              } else if (profileUser.role === "PLATFORM_MOD") {
+                displayBadges.push({ key: "moderator", variant: "moderator" });
+              }
+
+              // 2. Verified tag
+              if (profileUser.verified) {
+                displayBadges.push({ key: "verified", variant: "verified" });
+              }
+
+              // 3. Contributor / Top Contributor tag
+              const hasTopContributor = profileUser.badges?.some(b => b.toLowerCase().replace(" ", "-") === "top-contributor") || stats?.messagesSent >= 100;
+              if (hasTopContributor) {
+                displayBadges.push({ key: "top-contributor", variant: "top-contributor" });
+              }
+
+              // 4. Other custom badges from profileUser.badges
+              const handledBadges = new Set(["super-admin", "superadmin", "admin", "moderator", "verified", "top-contributor"]);
+              if (profileUser.badges) {
+                profileUser.badges.forEach((b) => {
+                  const variant = b.toLowerCase().replace(" ", "-");
+                  if (!handledBadges.has(variant)) {
+                    displayBadges.push({ key: b, variant });
+                  }
+                });
+              }
+
+              if (displayBadges.length === 0) return null;
+
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  {displayBadges.map((b) => (
+                    <Badge key={b.key} variant={b.variant} size="sm" />
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Bio */}
             {profileUser.bio && (
@@ -741,7 +1030,7 @@ export function UserProfile() {
       ══════════════════════════════════════════ */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-border/40 border border-border/40 rounded-2xl overflow-hidden mt-4">
         {[
-          { label: "Reputation", value: (profileUser.reputation || 0) + " XP" },
+          { label: "Reputation (Lvl " + overallLevel + ")", value: totalExp.toLocaleString() + " EXP" },
           { label: "Contributions", value: formatContributions(stats?.messagesSent || 0) },
           { label: "Rooms Created", value: stats?.roomsCreated || 0 },
           { label: "Login Streak", value: (stats?.streak || 0) + " days" },
@@ -757,17 +1046,18 @@ export function UserProfile() {
           TABS
       ══════════════════════════════════════════ */}
       <div className="mt-8 space-y-6">
-        {/* Custom tab bar — underline style */}
-        <div className="border-b border-border/50 flex gap-1">
+        <div className="border-b border-border/50 flex gap-1 overflow-x-auto scrollbar-none">
           {[
-            { id: "rooms", label: "Rooms" },
-            { id: "badges", label: "Badges" },
+            { id: "contributions", label: "Contribution Overview" },
+            { id: "rooms_owned", label: `Rooms Owned (${ownedRooms.length})` },
+            { id: "rooms_joined", label: `Rooms Joined (${joinedRooms.length})` },
+            { id: "achievements", label: `Achievements (${unlockedAchievementsCount}/${ACHIEVEMENT_BADGES.length})` },
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "relative px-5 py-3 text-sm transition-colors",
+                "relative px-5 py-3 text-sm transition-colors whitespace-nowrap",
                 activeTab === tab.id
                   ? "text-foreground font-medium"
                   : "text-muted-foreground hover:text-foreground font-normal"
@@ -782,8 +1072,203 @@ export function UserProfile() {
           ))}
         </div>
 
-        {/* ── Rooms ── */}
-        {activeTab === "rooms" && (
+        {/* ── Contributions Overview ── */}
+        {activeTab === "contributions" && (
+          <div className="space-y-10">
+            {/* Section 1: Contribution Overview Cards */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl text-foreground font-bold" style={{ fontFamily: "'DM Serif Display', serif" }}>
+                    Contribution Overview
+                  </h3>
+                  <p className="text-xs text-muted-foreground font-light mt-0.5">
+                    Your top topics where you contribute the most
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/discover")}
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors"
+                >
+                  View all categories <ArrowRightIcon className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {topThree.map((item, idx) => {
+                  const cardTheme = getCardStyle(item.medal);
+                  const isTopUnranked = item.currentExp === 0;
+
+                  const badgeColors = [
+                    "bg-[#f59e0b] text-white", // #1 Gold
+                    "bg-[#94a3b8] text-white", // #2 Silver
+                    "bg-[#f97316] text-white", // #3 Bronze/Expert
+                  ];
+
+                  return (
+                    <div
+                      key={item.category}
+                      className="relative rounded-3xl border border-border/50 bg-card p-6 flex flex-col justify-between shadow-xs hover:border-primary/30 hover:shadow-md transition-all duration-300 min-h-[220px]"
+                    >
+                      <div className={`absolute top-4 left-4 w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${badgeColors[idx] || "bg-muted text-muted-foreground"}`}>
+                        {idx + 1}
+                      </div>
+
+                      <div className="flex items-center gap-4 mt-6">
+                        <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center bg-muted/20 rounded-2xl overflow-hidden">
+                          {isTopUnranked ? (
+                            <div className="text-xs text-muted-foreground/40 font-light">No Rank</div>
+                          ) : (
+                            <MedalIcon medal={item.medal} className="w-16 h-16" />
+                          )}
+                        </div>
+                        <div className="space-y-1 min-w-0">
+                          <h4 className="text-base font-bold text-foreground truncate leading-snug">
+                            {item.category}
+                          </h4>
+                          {!isTopUnranked && (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold tracking-wider uppercase ${cardTheme.badgeClass}`}>
+                              {item.rank}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mt-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${isTopUnranked ? "bg-slate-200" : cardTheme.progressBarClass} rounded-full transition-all duration-500`}
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-muted-foreground font-semibold shrink-0">
+                            {item.percentage}%
+                          </span>
+                        </div>
+                        
+                        <p className="text-[11px] text-muted-foreground font-light">
+                          {isTopUnranked ? (
+                            `0 / ${item.nextThreshold} pts to Newcomer`
+                          ) : item.nextThreshold ? (
+                            `${item.currentExp.toLocaleString()} / ${item.nextThreshold.toLocaleString()} pts to ${getNextRankName(item.level)}`
+                          ) : (
+                            `${item.currentExp.toLocaleString()} pts (Max Rank reached)`
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section 2: Top Categories List */}
+            <div className="space-y-4 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl text-foreground font-bold" style={{ fontFamily: "'DM Serif Display', serif" }}>
+                    Top Categories
+                  </h3>
+                  <p className="text-xs text-muted-foreground font-light mt-0.5">
+                    Your contribution progress across other topics
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/discover")}
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors"
+                >
+                  View all categories <ArrowRightIcon className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="rounded-3xl border border-border/50 bg-card overflow-hidden">
+                <div className="grid grid-cols-12 items-center bg-muted/30 px-6 py-3 border-b border-border/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                  <div className="col-span-4">Category</div>
+                  <div className="col-span-3">Current Rank</div>
+                  <div className="col-span-3">Progress</div>
+                  <div className="col-span-1 text-right">Points</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {remainingCategories.map((item, idx) => {
+                  const cardTheme = getCardStyle(item.medal);
+                  const isUnranked = item.currentExp === 0;
+                  const rowNumber = idx + 4;
+
+                  return (
+                    <div
+                      key={item.category}
+                      onClick={() => navigate(`/discover?category=${encodeURIComponent(item.category)}`)}
+                      className="grid grid-cols-12 items-center px-6 py-4 border-b border-border/40 hover:bg-muted/10 transition-colors cursor-pointer group"
+                    >
+                      <div className="col-span-4 flex items-center gap-6">
+                        <span className="text-sm font-bold text-muted-foreground/50 w-5 shrink-0 text-left">
+                          {rowNumber}
+                        </span>
+                        <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {item.category}
+                        </span>
+                      </div>
+
+                      <div className="col-span-3 flex items-center gap-2">
+                        {!isUnranked && item.medal ? (
+                          <>
+                            <MedalIcon medal={item.medal} className="w-5 h-5 shrink-0" />
+                            <span className="text-xs font-medium text-foreground">
+                              {item.rank}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs font-light text-muted-foreground/60">
+                            Unranked
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="col-span-3 flex items-center gap-3 pr-4">
+                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${isUnranked ? "bg-slate-200" : cardTheme.progressBarClass} rounded-full`}
+                            style={{ width: `${item.percentage}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-muted-foreground shrink-0">
+                          {item.percentage}%
+                        </span>
+                      </div>
+
+                      <div className="col-span-1 text-right text-xs font-bold text-foreground">
+                        {item.currentExp.toLocaleString()}
+                      </div>
+
+                      <div className="col-span-1 flex justify-end">
+                        <ChevronRightIcon className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section 3: Footer Alert Info Box */}
+            <div className="p-4 rounded-2xl bg-muted/40 border border-border/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-foreground font-bold text-[10px]">i</span>
+                <span>Points are earned by creating rooms (+50 EXP) and posting messages (+15 EXP) in specific categories.</span>
+              </div>
+              <button
+                onClick={() => setModal("ranking_help")}
+                className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors self-end sm:self-auto"
+              >
+                <span>?</span> How ranking works
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Rooms Owned ── */}
+        {activeTab === "rooms_owned" && (
           <div>
             {isLoadingRooms ? (
               <div className="flex items-center justify-center py-24">
@@ -840,8 +1325,66 @@ export function UserProfile() {
           </div>
         )}
 
-        {/* ── Badges ── */}
-        {activeTab === "badges" && (
+        {/* ── Rooms Joined ── */}
+        {activeTab === "rooms_joined" && (
+          <div>
+            {isLoadingJoinedRooms ? (
+              <div className="flex items-center justify-center py-24">
+                <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : joinedRooms.length > 0 ? (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {joinedRooms.slice(0, visibleJoinedRooms).map(room => (
+                    <div
+                      key={room.id}
+                      onClick={() => navigate(`/room/${room.id}`)}
+                      className="group rounded-2xl border border-border/50 bg-card p-5 cursor-pointer hover:border-primary/25 hover:shadow-sm transition-all space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-primary">{room.category}</span>
+                            {room.isPrivate && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Private</span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
+                            {room.title}
+                          </h4>
+                        </div>
+                        <ChevronRightIcon className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
+                      </div>
+                      <p className="text-xs text-muted-foreground font-light line-clamp-2 leading-relaxed">
+                        {room.description}
+                      </p>
+                      <Divider />
+                      <div className="flex gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><UsersIcon className="w-3 h-3" /> {room._count?.members || 0} members</span>
+                        <span className="flex items-center gap-1"><ChatBubbleLeftRightIcon className="w-3 h-3" /> {room._count?.messages || 0} takes</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {joinedRooms.length > visibleJoinedRooms && (
+                  <div className="text-center">
+                    <Button variant="outline" onClick={() => setVisibleJoinedRooms(p => p + 6)} className="rounded-xl px-8 text-sm font-medium">
+                      Load more
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-2xl border border-border/40 bg-card/50 text-center">
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-muted-foreground/30" />
+                <p className="text-sm font-medium text-muted-foreground">No rooms joined yet.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Achievements ── */}
+        {activeTab === "achievements" && (
           <div className="space-y-6">
             <div className="flex flex-col gap-1.5">
               <h3 
@@ -1147,6 +1690,58 @@ export function UserProfile() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Ranking Help Modal */}
+      <Modal open={modal === "ranking_help"} onClose={() => setModal(null)} title="Reputation & Ranking Guide" icon={TrophyIcon}>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground font-light leading-relaxed">
+            CONNECT rewards active citizens who drive constructive dialogues across various news topics. Here is how your expertise score and rank are calculated:
+          </p>
+          
+          <div className="space-y-2.5">
+            <div className="flex justify-between items-center text-xs p-2.5 bg-muted/40 border border-border/30 rounded-xl">
+              <span className="font-semibold text-foreground">Post a Take (Message)</span>
+              <span className="text-emerald-600 font-bold font-mono">+15 EXP</span>
+            </div>
+            <div className="flex justify-between items-center text-xs p-2.5 bg-muted/40 border border-border/30 rounded-xl">
+              <span className="font-semibold text-foreground">Launch a Room</span>
+              <span className="text-emerald-600 font-bold font-mono">+50 EXP</span>
+            </div>
+          </div>
+
+          <div className="border-t border-border/40 pt-4 space-y-3">
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Expertise Tiers & Medals</h4>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {[
+                { name: "Unranked (Lvl 0)", range: "0 EXP", medal: null },
+                { name: "Newcomer (Lvl 1)", range: "1 - 49 EXP", medal: null },
+                { name: "Contributor (Lvl 2)", range: "50 - 99 EXP", medal: "bronze1" },
+                { name: "Active Contributor (Lvl 3)", range: "100 - 199 EXP", medal: "bronze2" },
+                { name: "Senior Contributor (Lvl 4)", range: "200 - 299 EXP", medal: "bronze3" },
+                { name: "Analyst (Lvl 5)", range: "300 - 449 EXP", medal: "silver1" },
+                { name: "Senior Analyst (Lvl 6)", range: "450 - 599 EXP", medal: "silver2" },
+                { name: "Specialist (Lvl 7)", range: "600 - 749 EXP", medal: "silver3" },
+                { name: "Expert (Lvl 8)", range: "750 - 899 EXP", medal: "gold1" },
+                { name: "Senior Expert (Lvl 9)", range: "900 - 1049 EXP", medal: "gold2" },
+                { name: "Authority (Lvl 10)", range: "1050 - 1199 EXP", medal: "gold3" },
+                { name: "Distinguished Authority (Lvl 11)", range: "1200 - 1349 EXP", medal: "platinum1" },
+                { name: "Thought Leader (Lvl 12)", range: "1350 - 1499 EXP", medal: "platinum2" },
+                { name: "Community Icon (Lvl 13)", range: "1500 - 1999 EXP", medal: "diamond" },
+                { name: "Visionary (Lvl 14)", range: "2000+ EXP", medal: "diamondPlus" }
+              ].map((tier) => (
+                <div key={tier.name} className="flex items-center justify-between p-2 rounded-lg bg-card border border-border/20 text-xs">
+                  <div className="flex items-center gap-2">
+                    {tier.medal ? <MedalIcon medal={tier.medal} className="w-5 h-5" /> : <div className="w-5 h-5 rounded bg-muted" />}
+                    <span className="font-semibold text-foreground">{tier.name}</span>
+                  </div>
+                  <span className="text-muted-foreground font-mono font-medium">{tier.range}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Button className="w-full rounded-xl h-9 text-sm" onClick={() => setModal(null)}>Got it</Button>
+        </div>
       </Modal>
 
       {/* Image Crop Overlay for Avatar */}

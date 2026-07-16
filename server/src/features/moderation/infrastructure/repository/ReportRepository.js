@@ -13,8 +13,11 @@ export class ReportRepository extends BaseRepository {
     return this.getDelegate(tx).findMany({
       where: { status: "pending" },
       include: {
-        reporter: { select: { id: true, username: true } },
-        reportedUser: { select: { id: true, username: true } },
+        reporter: { select: { id: true, username: true, name: true, avatar: true } },
+        reportedUser: { select: { id: true, username: true, name: true, avatar: true } },
+        room: { select: { id: true, title: true, communityId: true, createdById: true } },
+        message: { select: { id: true, content: true, userId: true } },
+        reportedCommunity: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -27,8 +30,28 @@ export class ReportRepository extends BaseRepository {
     return this.getDelegate(tx).findMany({
       where: { assignedId: moderatorId, status: "assigned" },
       include: {
-        reporter: { select: { id: true, username: true } },
-        reportedUser: { select: { id: true, username: true } },
+        reporter: { select: { id: true, username: true, name: true, avatar: true } },
+        reportedUser: { select: { id: true, username: true, name: true, avatar: true } },
+        room: { select: { id: true, title: true, communityId: true, createdById: true } },
+        message: { select: { id: true, content: true, userId: true } },
+        reportedCommunity: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+
+  /**
+   * Finds all escalated reports.
+   */
+  async findEscalatedReports(tx) {
+    return this.getDelegate(tx).findMany({
+      where: { status: "escalated" },
+      include: {
+        reporter: { select: { id: true, username: true, name: true, avatar: true } },
+        reportedUser: { select: { id: true, username: true, name: true, avatar: true } },
+        room: { select: { id: true, title: true, communityId: true, createdById: true } },
+        message: { select: { id: true, content: true, userId: true } },
+        reportedCommunity: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });

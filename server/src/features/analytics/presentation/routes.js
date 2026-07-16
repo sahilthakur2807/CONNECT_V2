@@ -15,12 +15,14 @@ import {
   GetCommunityStatsHandler,
   GetPlatformMetricsHandler,
   GetUserMonthlyContributionsHandler,
+  GetUserCategoryContributionsHandler,
   GetUserActivityFeedQuery,
   GetCommunityActivityFeedQuery,
   GetUserStatsQuery,
   GetCommunityStatsQuery,
   GetPlatformMetricsQuery,
   GetUserMonthlyContributionsQuery,
+  GetUserCategoryContributionsQuery,
 } from "../application/queries/AnalyticsQueries.js";
 
 const awardReputationHandler = new AwardReputationHandler();
@@ -30,6 +32,7 @@ const getUserStatsHandler = new GetUserStatsHandler();
 const getCommunityStatsHandler = new GetCommunityStatsHandler();
 const getPlatformMetricsHandler = new GetPlatformMetricsHandler();
 const getUserMonthlyContributionsHandler = new GetUserMonthlyContributionsHandler();
+const getUserCategoryContributionsHandler = new GetUserCategoryContributionsHandler();
 
 export function createAnalyticsRouter() {
   const router = Router();
@@ -126,7 +129,7 @@ export function createAnalyticsRouter() {
         select: { isPaused: true },
       });
 
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
 
       if (targetUser?.isPaused && !isAdmin) {
         return res.json({ success: true, data: [] });
@@ -232,7 +235,7 @@ export function createAnalyticsRouter() {
         select: { isPaused: true },
       });
 
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
 
       if (targetUser?.isPaused && !isAdmin) {
         return res.json({ success: true, data: [] });
@@ -240,6 +243,49 @@ export function createAnalyticsRouter() {
 
       const query = new GetUserMonthlyContributionsQuery(targetUserId);
       const result = await getUserMonthlyContributionsHandler.execute(query);
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // Get User Category Contributions (Ranks & Medals)
+  router.get("/users/:id/category-contributions", authenticateJWT, async (req, res, next) => {
+    try {
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check if target user has blocked current user
+      const blocked = await prisma.block.findUnique({
+        where: {
+          userId_blockedId: {
+            userId: targetUserId,
+            blockedId: currentUserId,
+          },
+        },
+      });
+
+      if (blocked) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You have been blocked by this user.",
+        });
+      }
+
+      // Check if target user has paused their account
+      const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { isPaused: true },
+      });
+
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
+
+      if (targetUser?.isPaused && !isAdmin) {
+        return res.json({ success: true, data: [] });
+      }
+
+      const query = new GetUserCategoryContributionsQuery(targetUserId);
+      const result = await getUserCategoryContributionsHandler.execute(query);
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);

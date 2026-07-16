@@ -6,6 +6,7 @@ import {
   NotFoundError,
 } from "../../../../shared/errors/AppError.js";
 import { EventBus } from "../../../../shared/event-bus/EventBus.js";
+import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 
 // --- Commands ---
 
@@ -19,6 +20,7 @@ export class CreateRoomCommand {
     communityId,
     sourceUrl,
     imageUrl,
+    userRole,
   ) {
     this.userId = userId;
     this.title = title;
@@ -28,11 +30,12 @@ export class CreateRoomCommand {
     this.communityId = communityId;
     this.sourceUrl = sourceUrl;
     this.imageUrl = imageUrl;
+    this.userRole = userRole;
   }
 }
 
 export class UpdateRoomCommand {
-  constructor(userId, roomId, title, description, category, tags, imageUrl, isPrivate) {
+  constructor(userId, roomId, title, description, category, tags, imageUrl, isPrivate, userRole) {
     this.userId = userId;
     this.roomId = roomId;
     this.title = title;
@@ -41,13 +44,15 @@ export class UpdateRoomCommand {
     this.tags = tags;
     this.imageUrl = imageUrl;
     this.isPrivate = isPrivate;
+    this.userRole = userRole;
   }
 }
 
 export class ArchiveRoomCommand {
-  constructor(userId, roomId) {
+  constructor(userId, roomId, userRole) {
     this.userId = userId;
     this.roomId = roomId;
+    this.userRole = userRole;
   }
 }
 
@@ -86,6 +91,15 @@ export class RoomDeletedEvent {
   }
 }
 
+export class RoomUpdatedEvent {
+  eventName = "room.updated";
+  occurredAt = new Date();
+  constructor(roomId, userId) {
+    this.roomId = roomId;
+    this.userId = userId;
+  }
+}
+
 // --- Handlers ---
 
 export class CreateRoomHandler {
@@ -96,6 +110,62 @@ export class CreateRoomHandler {
   }
 
   async execute(command) {
+    // 1. Validation checks
+    if (!command.title || command.title.trim().length < 10) {
+      throw new BadRequestError("Room title must be at least 10 characters long");
+    }
+    const existingRoom = await prisma.room.findFirst({
+      where: {
+        title: { equals: command.title.trim(), mode: "insensitive" },
+        deleted: false
+      }
+    });
+    if (existingRoom) {
+      throw new BadRequestError("Room title already exists");
+    }
+
+    if (!command.category || !command.category.trim()) {
+      throw new BadRequestError("Category is required");
+    }
+
+    const coreCategories = [
+      "politics",
+      "technology",
+      "economy",
+      "environment",
+      "world affairs",
+      "science",
+      "health",
+      "culture",
+      "sports",
+      "all topics"
+    ];
+
+    const hashtags = await prisma.hashtag.findMany({
+      include: {
+        _count: {
+          select: { rooms: true }
+        }
+      }
+    });
+
+    const promoted = hashtags
+      .filter((h) => h._count.rooms > 50)
+      .map((h) => h.name.toLowerCase());
+
+    const allowedCategories = new Set([...coreCategories, ...promoted]);
+    if (!allowedCategories.has(command.category.trim().toLowerCase())) {
+      throw new BadRequestError("Invalid category selected. You must select an existing category.");
+    }
+
+    const normalizedTags = (command.tags || [])
+      .map((t) => t.trim().replace(/^#/, "").toLowerCase())
+      .filter(Boolean);
+
+    if (normalizedTags.length === 0) {
+      throw new BadRequestError("At least one hashtag is required");
+    }
+
     let communityOwnerId = null;
     let membership = null;
 
@@ -115,7 +185,7 @@ export class CreateRoomHandler {
 
     // Policy check
     const allowed = RoomPolicy.canCreateRoom(
-      { id: command.userId, role: "" },
+      { id: command.userId, role: command.userRole },
       command.communityId,
       membership || undefined,
     );
@@ -125,35 +195,42 @@ export class CreateRoomHandler {
         "You do not have permission to create rooms in this community",
       );
 
-    const normalizedTags = (command.tags || [])
-      .map((t) => t.trim().replace(/^#/, "").toLowerCase())
-      .filter(Boolean);
+    return prisma.$transaction(async (tx) => {
+      const room = await this.roomRepo.create({
+        title: command.title,
+        description: command.description,
+        category: command.category,
+        tags: command.tags,
+        sourceUrl: command.sourceUrl,
+        imageUrl: command.imageUrl,
+        createdBy: { connect: { id: command.userId } },
+        ...(command.communityId
+          ? { community: { connect: { id: command.communityId } } }
+          : {}),
+        ...(normalizedTags.length > 0
+          ? {
+              hashtags: {
+                connectOrCreate: normalizedTags.map((name) => ({
+                  where: { name },
+                  create: { name },
+                })),
+              },
+            }
+          : {}),
+      }, tx);
 
-    const room = await this.roomRepo.create({
-      title: command.title,
-      description: command.description,
-      category: command.category,
-      tags: command.tags,
-      sourceUrl: command.sourceUrl,
-      imageUrl: command.imageUrl,
-      createdBy: { connect: { id: command.userId } },
-      ...(command.communityId
-        ? { community: { connect: { id: command.communityId } } }
-        : {}),
-      ...(normalizedTags.length > 0
-        ? {
-            hashtags: {
-              connectOrCreate: normalizedTags.map((name) => ({
-                where: { name },
-                create: { name },
-              })),
-            },
-          }
-        : {}),
+      // Automatically join creator as ROOM_MOD
+      await tx.roomMember.create({
+        data: {
+          userId: command.userId,
+          roomId: room.id,
+          status: "ROOM_MOD"
+        }
+      });
+
+      await EventBus.publish(new RoomCreatedEvent(room.id, command.userId));
+      return room;
     });
-
-    await EventBus.publish(new RoomCreatedEvent(room.id, command.userId));
-    return room;
   }
 }
 
@@ -183,8 +260,8 @@ export class UpdateRoomHandler {
     }
 
     // Policy check
-    const allowed = RoomPolicy.canMutateRoom(
-      { id: command.userId, role: "" },
+    const allowed = RoomPolicy.canEditOrArchiveRoom(
+      { id: command.userId, role: command.userRole },
       room.createdById,
       communityOwnerId,
       membership || undefined,
@@ -195,8 +272,41 @@ export class UpdateRoomHandler {
         "You do not have permission to update this room",
       );
 
+    const isSiteAdmin = RoomPolicy.isSiteAdmin({ id: command.userId, role: command.userRole });
+
+    // Enforce that only the room owner (creator) or a site admin can edit the title (room name)
+    if (command.title !== undefined && room.createdById !== command.userId && !isSiteAdmin) {
+      throw new ForbiddenError(
+        "Only the owner can edit the name of the room",
+      );
+    }
+
     const data = {};
-    if (command.title !== undefined) data.title = command.title;
+    if (command.title !== undefined) {
+      const trimmedTitle = command.title.trim();
+      if (trimmedTitle.length < 10) {
+        throw new BadRequestError("Room title must be at least 10 characters long");
+      }
+      if (trimmedTitle.toLowerCase() !== room.title.toLowerCase()) {
+        const existingRoom = await prisma.room.findFirst({
+          where: {
+            title: { equals: trimmedTitle, mode: "insensitive" },
+            deleted: false
+          }
+        });
+        if (existingRoom) {
+          throw new BadRequestError("Room title already exists");
+        }
+      }
+      if (isSiteAdmin) {
+        data.title = trimmedTitle;
+      } else {
+        if (room.pendingNameRequest) {
+          throw new BadRequestError("You already have a pending rename request for this room. Please wait for administrator approval.");
+        }
+        data.pendingNameRequest = trimmedTitle;
+      }
+    }
     if (command.description !== undefined)
       data.description = command.description;
     if (command.category !== undefined) data.category = command.category;
@@ -204,7 +314,9 @@ export class UpdateRoomHandler {
     if (command.imageUrl !== undefined) data.imageUrl = command.imageUrl;
     if (command.isPrivate !== undefined) data.isPrivate = command.isPrivate;
 
-    return this.roomRepo.update(command.roomId, data);
+    const updated = await this.roomRepo.update(command.roomId, data);
+    await EventBus.publish(new RoomUpdatedEvent(command.roomId, command.userId));
+    return updated;
   }
 }
 
@@ -234,8 +346,8 @@ export class ArchiveRoomHandler {
     }
 
     // Policy check
-    const allowed = RoomPolicy.canMutateRoom(
-      { id: command.userId, role: "" },
+    const allowed = RoomPolicy.canEditOrArchiveRoom(
+      { id: command.userId, role: command.userRole },
       room.createdById,
       communityOwnerId,
       membership || undefined,
@@ -280,7 +392,7 @@ export class DeleteRoomHandler {
     }
 
     // Policy check
-    const allowed = RoomPolicy.canMutateRoom(
+    const allowed = RoomPolicy.canDeleteRoom(
       { id: command.userId, role: command.userRole },
       room.createdById,
       communityOwnerId,

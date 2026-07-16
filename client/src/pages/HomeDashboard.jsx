@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowTrendingUpIcon,
   SparklesIcon,
@@ -41,6 +41,7 @@ const CATEGORIES = [
 
 export function HomeDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const activeFriendsRef = useRef(null);
   const { user: currentUser } = useAuth();
   const {
@@ -51,6 +52,7 @@ export function HomeDashboard() {
     createCommunityMutation,
     joinRoomMutation,
     leaveRoomMutation,
+    useCategoriesQuery,
   } = useRooms();
   const {
     useFriendsQuery,
@@ -62,6 +64,23 @@ export function HomeDashboard() {
   const { useSearchUsersQuery } = useDiscovery();
 
   const [activeTab, setActiveTab] = useState("trending");
+  const [visibleLimits, setVisibleLimits] = useState({
+    trending: 9,
+    hot: 9,
+    new: 9,
+  });
+  const [isDelayingLoadMore, setIsDelayingLoadMore] = useState(false);
+
+  const handleLoadMore = () => {
+    setIsDelayingLoadMore(true);
+    setTimeout(() => {
+      setVisibleLimits((prev) => ({
+        ...prev,
+        [activeTab]: prev[activeTab] + 9,
+      }));
+      setIsDelayingLoadMore(false);
+    }, 1000);
+  };
   // Friend search states
   const [friendSearchInput, setFriendSearchInput] = useState("");
   const [friendSearchQuery, setFriendSearchQuery] = useState("");
@@ -80,6 +99,19 @@ export function HomeDashboard() {
   // Dialog states
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showCreateCommunity, setShowCreateCommunity] = useState(false);
+
+  // Open creation dialogs if query parameters are set (e.g. when coming from Discover page CTA)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("createRoom") === "true") {
+      setShowCreateRoom(true);
+      navigate(location.pathname, { replace: true });
+    } else if (params.get("createCommunity") === "true") {
+      setShowCreateCommunity(true);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, navigate, location.pathname]);
+
   const [roomForm, setRoomForm] = useState({
     title: "",
     description: "",
@@ -92,6 +124,60 @@ export function HomeDashboard() {
   const [customBannerPreview, setCustomBannerPreview] = useState("");
   const [pendingBannerFile, setPendingBannerFile] = useState(null);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
+
+  const [categorySearch, setCategorySearch] = useState("");
+  const [showCatSuggestions, setShowCatSuggestions] = useState(false);
+  const [tagSuggestions, setTagSuggestions] = useState([]);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+
+  const catRef = useRef(null);
+  const tagRef = useRef(null);
+
+  const { data: serverCategories } = useCategoriesQuery();
+  const categories = serverCategories || CATEGORIES.filter(c => c !== "All Topics");
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (catRef.current && !catRef.current.contains(e.target)) {
+        setShowCatSuggestions(false);
+      }
+      if (tagRef.current && !tagRef.current.contains(e.target)) {
+        setShowTagSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    const words = roomForm.tags.split(/[\s,]+/);
+    const lastWord = words[words.length - 1] || "";
+    const prefix = lastWord.startsWith("#") ? lastWord.slice(1) : lastWord;
+
+    if (!prefix) {
+      setTagSuggestions([]);
+      return;
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/rooms/hashtags/suggest?q=${prefix}`);
+        setTagSuggestions(res.data.data);
+      } catch (err) {
+        console.error("Error fetching tag suggestions", err);
+      }
+    }, 200);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [roomForm.tags]);
+
+  const handleSelectTagSuggestion = (tag) => {
+    const words = roomForm.tags.split(/[\s,]+/);
+    words[words.length - 1] = `#${tag}`;
+    const newTagsValue = words.join(" ") + " ";
+    setRoomForm({ ...roomForm, tags: newTagsValue });
+    setShowTagSuggestions(false);
+  };
   const [communityForm, setCommunityForm] = useState({
     name: "",
     description: "",
@@ -105,14 +191,31 @@ export function HomeDashboard() {
   const { data: pendingRequests = [] } = usePendingRequestsQuery();
 
   // Fetch Room Feeds
-  const { data: trendingRooms = [], isLoading: trendingLoading } =
-    useTrendingRoomsQuery(10, { enabled: activeTab === "trending" });
-  const { data: hotRooms = [], isLoading: hotLoading } = useHotRoomsQuery(10, { enabled: activeTab === "hot" });
-  const { data: newRooms = [], isLoading: newLoading } = useNewRoomsQuery(10, { enabled: activeTab === "new" });
+  const { data: trendingData, isLoading: trendingLoading } =
+    useTrendingRoomsQuery(visibleLimits.trending, { enabled: activeTab === "trending" });
+  const { data: hotData, isLoading: hotLoading } = useHotRoomsQuery(visibleLimits.hot, { enabled: activeTab === "hot" });
+  const { data: newData, isLoading: newLoading } = useNewRoomsQuery(visibleLimits.new, { enabled: activeTab === "new" });
+
+  const trendingRooms = trendingData?.rooms || [];
+  const trendingTotal = trendingData?.total || 0;
+
+  const hotRooms = hotData?.rooms || [];
+  const hotTotal = hotData?.total || 0;
+
+  const newRooms = newData?.rooms || [];
+  const newTotal = newData?.total || 0;
 
   // Fetch Friends List (which returns status 'online' or 'offline')
   const { data: friendsList = [], isLoading: friendsLoading } =
     useFriendsQuery();
+
+  const sortedFriends = useMemo(() => {
+    return [...friendsList].sort((a, b) => {
+      if (a.status === "online" && b.status !== "online") return -1;
+      if (a.status !== "online" && b.status === "online") return 1;
+      return 0;
+    });
+  }, [friendsList]);
 
   // Prune sent requests list if they have become accepted friends
   useEffect(() => {
@@ -157,7 +260,38 @@ export function HomeDashboard() {
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
-    if (!roomForm.title || !roomForm.category) return;
+
+    if (!roomForm.title.trim()) {
+      toast.error("Room title is required");
+      return;
+    }
+    if (roomForm.title.trim().length < 10) {
+      toast.error("Room title must be at least 10 characters long");
+      return;
+    }
+    if (!categorySearch.trim()) {
+      toast.error("Category is required");
+      return;
+    }
+    const isCategoryValid = categories.some(
+      (c) => c.toLowerCase() === categorySearch.trim().toLowerCase()
+    );
+    if (!isCategoryValid) {
+      toast.error("You must select a valid category from the suggestions dropdown");
+      return;
+    }
+
+    // Validate hashtags
+    const tagsArray = roomForm.tags
+      .replace(/#/g, " ")
+      .split(/[\s,]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (tagsArray.length === 0) {
+      toast.error("At least one hashtag is required");
+      return;
+    }
+
     setIsUploadingBanner(true);
     try {
       let finalImageUrl = selectedBannerPreset;
@@ -171,11 +305,6 @@ export function HomeDashboard() {
         finalImageUrl = uploadRes.data.data.url;
       }
 
-      const tagsArray = roomForm.tags
-        .replace(/#/g, " ")
-        .split(/[\s,]+/)
-        .map((t) => t.trim().toLowerCase())
-        .filter(Boolean);
       let normalizedSourceUrl = roomForm.sourceUrl?.trim() || undefined;
       if (normalizedSourceUrl && !/^https?:\/\//i.test(normalizedSourceUrl)) {
         normalizedSourceUrl = `https://${normalizedSourceUrl}`;
@@ -183,9 +312,7 @@ export function HomeDashboard() {
 
       const newRoom = await createRoomMutation.mutateAsync({
         title: roomForm.title,
-        description:
-          roomForm.description.trim() ||
-          "No description provided for this room.",
+        description: roomForm.description.trim() || "",
         category: roomForm.category,
         tags: tagsArray,
         sourceUrl: normalizedSourceUrl,
@@ -195,10 +322,11 @@ export function HomeDashboard() {
       setRoomForm({
         title: "",
         description: "",
-        category: "Politics",
+        category: "",
         tags: "",
         sourceUrl: "",
       });
+      setCategorySearch("");
       setCustomBannerFile(null);
       setCustomBannerPreview("");
       setSelectedBannerPreset("");
@@ -295,7 +423,13 @@ export function HomeDashboard() {
     }
   };
 
-  if (isLoading) {
+  const isInitialLoading =
+    friendsLoading ||
+    (activeTab === "trending" && trendingLoading && trendingRooms.length === 0) ||
+    (activeTab === "hot" && hotLoading && hotRooms.length === 0) ||
+    (activeTab === "new" && newLoading && newRooms.length === 0);
+
+  if (isInitialLoading) {
     return (
       <div className="p-20 flex flex-col justify-center items-center h-64">
         <ArrowPathIcon className="animate-spin text-primary w-8 h-8" />
@@ -312,6 +446,13 @@ export function HomeDashboard() {
       : activeTab === "hot"
         ? hotRooms
         : newRooms;
+
+  const activeTotal =
+    activeTab === "trending"
+      ? trendingTotal
+      : activeTab === "hot"
+        ? hotTotal
+        : newTotal;
 
   return (
     <div className="pb-10 w-full space-y-10 ">
@@ -470,7 +611,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Left"
                 >
-                   <ChevronLeftIcon className="w-4 h-4" />
+                  <ChevronLeftIcon className="w-4 h-4" />
                 </button>
                 <button
                   onClick={() =>
@@ -482,7 +623,7 @@ export function HomeDashboard() {
                   className="w-8 h-8 flex items-center justify-center rounded-xl border border-border/50 hover:bg-secondary text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
                   title="Scroll Right"
                 >
-                   <ChevronRightIcon className="w-4 h-4" />
+                  <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             )}
@@ -495,7 +636,7 @@ export function HomeDashboard() {
             className="flex pt-2 gap-5 overflow-x-auto pb-2 scrollbar-none snap-x"
             style={{ scrollbarWidth: "none" }}
           >
-            {friendsList.map((u) => (
+            {sortedFriends.map((u) => (
               <div
                 key={u.id}
                 className="flex flex-col items-center gap-2 min-w-[76px] snap-start group cursor-pointer text-center"
@@ -684,6 +825,30 @@ export function HomeDashboard() {
             </div>
           )}
         </div>
+
+        {/* Load More Button */}
+        {activeRooms.length < activeTotal && (
+          <div className="flex justify-center pt-2">
+            <Button
+              onClick={handleLoadMore}
+              disabled={isDelayingLoadMore}
+              variant="outline"
+              className="rounded-full font-bold px-8 h-10 border border-border/80 text-foreground hover:bg-secondary cursor-pointer transition-colors flex items-center justify-center gap-2"
+            >
+              {isDelayingLoadMore ? (
+                <>
+                  <ArrowPathIcon className="animate-spin w-4 h-4 text-primary" />
+                  <span>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <span>Load More</span>
+                  <span className="inline-block transform rotate-90 font-mono tracking-tighter text-xs">&gt;&gt;</span>
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Callout Section */}
@@ -720,7 +885,9 @@ export function HomeDashboard() {
       {/* Create Room Overlay */}
       {showCreateRoom && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
-          <div className="bg-card text-card-foreground rounded-[32px] max-w-lg w-full p-8 space-y-6 relative shadow-2xl border border-border/50">
+          <div
+            className="bg-card text-card-foreground rounded-[32px] max-w-lg w-full max-h-[90vh] overflow-y-auto p-8 space-y-6 relative shadow-2xl border border-border/50 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+          >
             <button
               onClick={() => setShowCreateRoom(false)}
               className="absolute top-6 right-6 text-muted-foreground hover:text-foreground cursor-pointer"
@@ -773,30 +940,57 @@ export function HomeDashboard() {
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative" ref={catRef}>
                   <label
-                    htmlFor="room-cat"
+                    htmlFor="room-cat-input"
                     className="text-xs font-black uppercase tracking-widest text-muted-foreground"
                   >
                     Category
                   </label>
-                  <Select
-                    value={roomForm.category}
-                    onValueChange={(val) =>
-                      setRoomForm({ ...roomForm, category: val })
-                    }
-                  >
-                    <SelectTrigger id="room-cat" />
-                    <SelectContent>
-                      {CATEGORIES.filter((c) => c !== "All Topics").map((cat) => (
-                        <SelectItem key={cat} value={cat}>
-                          {cat}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id="room-cat-input"
+                    value={categorySearch}
+                    onChange={(e) => {
+                      setCategorySearch(e.target.value);
+                      setShowCatSuggestions(true);
+                      const match = categories.find(c => c.toLowerCase() === e.target.value.trim().toLowerCase());
+                      setRoomForm({ ...roomForm, category: match || "" });
+                    }}
+                    onFocus={() => setShowCatSuggestions(true)}
+                    placeholder="Type to search category..."
+                    className="h-10 px-3 rounded-xl border border-border"
+                  />
+                  {showCatSuggestions && (
+                    <div className="absolute left-0 right-0 mt-1 bg-card border border-border/80 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto divide-y divide-border/20">
+                      {categories
+                        .filter((c) =>
+                          c.toLowerCase().includes(categorySearch.toLowerCase())
+                        )
+                        .map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => {
+                              setCategorySearch(cat);
+                              setRoomForm({ ...roomForm, category: cat });
+                              setShowCatSuggestions(false);
+                            }}
+                            className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-secondary transition-colors text-foreground cursor-pointer border-none"
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      {categories.filter((c) =>
+                        c.toLowerCase().includes(categorySearch.toLowerCase())
+                      ).length === 0 && (
+                          <div className="px-4 py-2.5 text-xs text-muted-foreground font-medium">
+                            No matching categories found
+                          </div>
+                        )}
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative" ref={tagRef}>
                   <label
                     htmlFor="room-tags"
                     className="text-xs font-black uppercase tracking-widest text-muted-foreground"
@@ -806,11 +1000,28 @@ export function HomeDashboard() {
                   <Input
                     id="room-tags"
                     value={roomForm.tags}
-                    onChange={(e) =>
-                      setRoomForm({ ...roomForm, tags: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setRoomForm({ ...roomForm, tags: e.target.value });
+                      setShowTagSuggestions(true);
+                    }}
+                    onFocus={() => setShowTagSuggestions(true)}
                     placeholder="e.g. #war #fire #world"
+                    className="h-10 px-3 rounded-xl border border-border"
                   />
+                  {showTagSuggestions && tagSuggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 mt-1 bg-card border border-border/80 rounded-2xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto divide-y divide-border/20">
+                      {tagSuggestions.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => handleSelectTagSuggestion(tag)}
+                          className="w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-secondary transition-colors text-foreground cursor-pointer border-none"
+                        >
+                          #{tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -836,7 +1047,7 @@ export function HomeDashboard() {
                 <label className="text-xs font-black uppercase tracking-widest text-muted-foreground block">
                   Select Cover Banner (Optional)
                 </label>
-                
+
                 {/* Live Preview */}
                 <div className="h-20 w-full rounded-2xl overflow-hidden border border-border/50 relative bg-muted shrink-0 mb-3">
                   {customBannerPreview ? (

@@ -3,6 +3,7 @@ import { activityFeedRepository } from "../repository/ActivityFeedRepository.js"
 import { reputationLogRepository } from "../repository/ReputationLogRepository.js";
 import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 import { Logger } from "../../../../shared/logger/Logger.js";
+import { io } from "../../../../infrastructure/socket/SocketServer.js";
 
 const REPUTATION_RULESETS = {
   "auth.user.registered": 10,
@@ -26,6 +27,9 @@ export function registerAnalyticsSubscribers() {
         REPUTATION_RULESETS["auth.user.registered"],
         "auth.user.registered",
       );
+      if (io) {
+        io.to(event.userId).emit("user.reputation.updated", { userId: event.userId });
+      }
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process auth.user.registered:",
@@ -47,6 +51,9 @@ export function registerAnalyticsSubscribers() {
         REPUTATION_RULESETS["community.created"],
         "community.created",
       );
+      if (io) {
+        io.to(event.ownerId).emit("user.reputation.updated", { userId: event.ownerId });
+      }
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process community.created:",
@@ -68,6 +75,9 @@ export function registerAnalyticsSubscribers() {
         REPUTATION_RULESETS["membership.created"],
         "membership.joined",
       );
+      if (io) {
+        io.to(event.userId).emit("user.reputation.updated", { userId: event.userId });
+      }
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process membership.created:",
@@ -91,6 +101,15 @@ export function registerAnalyticsSubscribers() {
           ? { community: { connect: { id: room.communityId } } }
           : {}),
       });
+      // Award 50 EXP to the room creator
+      await reputationLogRepository.logAward(
+        event.creatorId,
+        50,
+        "room.created",
+      );
+      if (io) {
+        io.to(event.creatorId).emit("user.reputation.updated", { userId: event.creatorId });
+      }
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process room.created:", err);
     }
@@ -113,11 +132,34 @@ export function registerAnalyticsSubscribers() {
             : {}),
           metadata: JSON.stringify({ messageId: message.id }),
         });
+
         await reputationLogRepository.logAward(
           message.userId,
           REPUTATION_RULESETS["message.created"],
           "message.posted",
         );
+
+        // Award 15 EXP to the parent author if this is a reply to their message (excluding self-replies)
+        if (message.parentId) {
+          const parentMsg = await prisma.message.findUnique({
+            where: { id: message.parentId },
+            select: { userId: true },
+          });
+          if (parentMsg && parentMsg.userId !== message.userId) {
+            await reputationLogRepository.logAward(
+              parentMsg.userId,
+              15,
+              "reply.received",
+            );
+            if (io) {
+              io.to(parentMsg.userId).emit("user.reputation.updated", { userId: parentMsg.userId });
+            }
+          }
+        }
+
+        if (io) {
+          io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
+        }
       }
     } catch (err) {
       Logger.error(
@@ -150,11 +192,64 @@ export function registerAnalyticsSubscribers() {
         REPUTATION_RULESETS["friend.request.accepted"],
         "friend.request.accepted",
       );
+      if (io) {
+        io.to(event.userId).emit("user.reputation.updated", { userId: event.userId });
+        io.to(event.friendId).emit("user.reputation.updated", { userId: event.friendId });
+      }
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process friend.request.accepted:",
         err,
       );
+    }
+  });
+
+  // 7. Room Deleted
+  EventBus.subscribe("room.deleted", async (event) => {
+    try {
+      const room = await prisma.room.findFirst({
+        where: { id: event.roomId },
+        select: { createdById: true },
+      });
+      if (room) {
+        await reputationLogRepository.logAward(
+          room.createdById,
+          -50,
+          "room.deleted",
+        );
+        if (io) {
+          io.to(room.createdById).emit("user.reputation.updated", { userId: room.createdById });
+        }
+      }
+    } catch (err) {
+      Logger.error("AnalyticsSubscriber: failed to process room.deleted:", err);
+    }
+  });
+
+  // 8. Message Deleted
+  EventBus.subscribe("message.deleted", async (event) => {
+    try {
+      const message = await prisma.message.findFirst({
+        where: { id: event.messageId },
+        select: { userId: true, parentId: true, parent: { select: { userId: true } } },
+      });
+      if (message) {
+        if (message.parentId && message.parent && message.parent.userId !== message.userId) {
+          await reputationLogRepository.logAward(
+            message.parent.userId,
+            -15,
+            "reply.deleted",
+          );
+          if (io) {
+            io.to(message.parent.userId).emit("user.reputation.updated", { userId: message.parent.userId });
+          }
+        }
+        if (io) {
+          io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
+        }
+      }
+    } catch (err) {
+      Logger.error("AnalyticsSubscriber: failed to process message.deleted:", err);
     }
   });
 }

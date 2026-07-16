@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAppDispatch } from "@/store";
+import { addOptimisticContribution, rollbackOptimisticContribution } from "@/store/slices/reputationSlice";
 import { getSocket } from "@/services/socketService";
 import {
   FlagIcon,
@@ -53,33 +55,54 @@ export function MessageCard({
   parentname,
   isConsecutive = false,
   isLastInGroup = true,
+  roomCategory,
 }) {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
+  // Helper to parse reactions from database array if available
+  const initialCounts = useMemo(() => {
+    const counts = { like: 0, fire: 0, heart: 0, laugh: 0, cry: 0 };
+    if (message.reactions) {
+      for (const r of message.reactions) {
+        if (counts[r.emoji] !== undefined) {
+          counts[r.emoji]++;
+        }
+      }
+    } else if (message.reactionCounts) {
+      return message.reactionCounts;
+    }
+    return counts;
+  }, [message.reactions, message.reactionCounts]);
+
+  const initialActive = useMemo(() => {
+    const active = { like: false, fire: false, heart: false, laugh: false, cry: false };
+    if (message.reactions && currentUserId) {
+      for (const r of message.reactions) {
+        if (r.userId === currentUserId && active[r.emoji] !== undefined) {
+          active[r.emoji] = true;
+        }
+      }
+    }
+    return active;
+  }, [message.reactions, currentUserId]);
 
   // Simulated interactive reactions - default 0 and hidden
-  const [reactionCounts, setReactionCounts] = useState(
-    message.reactionCounts || {
-      like: 0,
-      fire: 0,
-      heart: 0,
-    }
-  );
-  const [activeReactions, setActiveReactions] = useState({
-    like: false,
-    fire: false,
-    heart: false,
-  });
+  const [reactionCounts, setReactionCounts] = useState(initialCounts);
+  const [activeReactions, setActiveReactions] = useState(initialActive);
   const [showEmojiPanel, setShowEmojiPanel] = useState(false);
 
-  // Sync reactions when cache changes (e.g. from real-time sockets)
+  // Sync reactions when cache changes (e.g. from real-time sockets or database load)
   useEffect(() => {
-    if (message.reactionCounts) {
-      setReactionCounts(message.reactionCounts);
-    }
-  }, [message.reactionCounts]);
+    setReactionCounts(initialCounts);
+  }, [initialCounts]);
+
+  useEffect(() => {
+    setActiveReactions(initialActive);
+  }, [initialActive]);
 
   const editMessageMutation = useEditMessageMutation();
   const deleteMessageMutation = useDeleteMessageMutation(message.roomId);
@@ -173,6 +196,8 @@ export function MessageCard({
       roomId: message.roomId,
       messageId: message.id,
       reactionCounts: newReactionCounts,
+      emoji: type,
+      active: newActive,
     });
   };
 
@@ -232,8 +257,7 @@ export function MessageCard({
               </span>
             )}
 
-            {/* Role badge like Elena Rodriguez DESIGN */}
-            {user.role && user.role !== "user" && (
+            {user.role && user.role !== "MEMBER" && (
               <span className="text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest font-mono">
                 {user.role}
               </span>
@@ -294,12 +318,21 @@ export function MessageCard({
         )}
 
         {/* Actions Row */}
-        {!message.deleted && (isLastInGroup || Object.values(reactionCounts).some((c) => c > 0)) && (
+        {!message.deleted && (isLastInGroup || Object.values(reactionCounts).some((c) => c > 0) || (message.replies && message.replies.length > 0)) && (
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {/* Active reaction pills (only displayed if count > 0) */}
             {Object.entries(reactionCounts).map(([type, count]) => {
               if (count === 0) return null;
-              const emoji = type === "like" ? "👍" : type === "fire" ? "🔥" : "❤️";
+              const emoji =
+                type === "like"
+                  ? "👍"
+                  : type === "fire"
+                  ? "🔥"
+                  : type === "heart"
+                  ? "❤️"
+                  : type === "laugh"
+                  ? "😂"
+                  : "😭";
               const isActive = activeReactions[type];
               return (
                 <button
@@ -318,67 +351,85 @@ export function MessageCard({
               );
             })}
 
-            {/* + React & Reply option (only show for the last message in a consecutive group) */}
+            {/* + React option (only show for the last message in a consecutive group) */}
             {isLastInGroup && (
-              <>
-                {/* + React Button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowEmojiPanel(!showEmojiPanel)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer border border-transparent"
-                  >
-                    + React
-                  </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowEmojiPanel(!showEmojiPanel)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer border border-transparent"
+                >
+                  + React
+                </button>
 
-                  {showEmojiPanel && (
-                    <>
-                      <div
-                        className="fixed inset-0 z-40"
-                        onClick={() => setShowEmojiPanel(false)}
-                      />
-                      <div className="absolute bottom-full left-0 mb-1 z-50 flex items-center gap-1 p-1 bg-popover border border-border shadow-xl rounded-xl animate-in fade-in slide-in-from-bottom-1">
-                        <button
-                          onClick={() => {
-                            toggleReaction("like");
-                            setShowEmojiPanel(false);
-                          }}
-                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                        >
-                          👍
-                        </button>
-                        <button
-                          onClick={() => {
-                            toggleReaction("fire");
-                            setShowEmojiPanel(false);
-                          }}
-                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                        >
-                          🔥
-                        </button>
-                        <button
-                          onClick={() => {
-                            toggleReaction("heart");
-                            setShowEmojiPanel(false);
-                          }}
-                          className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
-                        >
-                          ❤️
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Reply Button */}
-                {onReply && depth < 2 && (
-                  <button
-                    onClick={() => onReply(message.id, user.username)}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
-                  >
-                    Reply
-                  </button>
+                {showEmojiPanel && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowEmojiPanel(false)}
+                    />
+                    <div className="absolute bottom-full left-0 mb-1 z-50 flex items-center gap-1 p-1 bg-popover border border-border shadow-xl rounded-xl animate-in fade-in slide-in-from-bottom-1">
+                      <button
+                        onClick={() => {
+                          toggleReaction("like");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        👍
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("fire");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        🔥
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("heart");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        ❤️
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("laugh");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        😂
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("cry");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        😭
+                      </button>
+                    </div>
+                  </>
                 )}
-              </>
+              </div>
+            )}
+
+            {/* Reply Button */}
+            {onReply && depth < 2 && (
+              <button
+                onClick={() => {
+                  onReply(message.id, user.username);
+                  setIsCollapsed(false);
+                }}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
+              >
+                Reply
+              </button>
             )}
 
             {/* Collapse/Expand Toggle (if has replies) */}
@@ -460,6 +511,7 @@ export function MessageCard({
                   parentname={user.name}
                   isConsecutive={isReplyConsecutive}
                   isLastInGroup={isReplyLastInGroup}
+                  roomCategory={roomCategory}
                 />
               );
             })}
@@ -472,8 +524,8 @@ export function MessageCard({
         <div className="opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0 self-start ml-2">
           <DropdownMenu>
             <DropdownMenuTrigger>
-              <button className="flex items-center justify-center w-6 h-6 rounded-md text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer">
-                <EllipsisHorizontalIcon className="w-3 h-3" />
+              <button className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground/60 hover:bg-secondary hover:text-foreground transition-all cursor-pointer">
+                <EllipsisHorizontalIcon className="w-5 h-5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-40 rounded-xl p-1 shadow-xl border-border/50 bg-card">

@@ -145,7 +145,7 @@ export class CreateCommunityHandler {
       // Creator automatically becomes owner
       await this.membershipRepo.create(
         {
-          role: "owner",
+          role: "OWNER",
           user: { connect: { id: command.userId } },
           community: { connect: { id: community.id } },
         },
@@ -299,7 +299,7 @@ export class TransferOwnershipHandler {
       // 2. Promote target membership to owner
       await this.membershipRepo.update(
         targetMembership.id,
-        { role: "owner" },
+        { role: "OWNER" },
         tx,
       );
 
@@ -312,7 +312,7 @@ export class TransferOwnershipHandler {
       if (oldMembership) {
         await this.membershipRepo.update(
           oldMembership.id,
-          { role: "admin" },
+          { role: "ADMIN" },
           tx,
         );
       }
@@ -344,7 +344,7 @@ export class JoinCommunityHandler {
     }
 
     await this.membershipRepo.create({
-      role: "member",
+      role: "MEMBER",
       user: { connect: { id: command.userId } },
       community: { connect: { id: command.communityId } },
     });
@@ -374,7 +374,7 @@ export class LeaveCommunityHandler {
     );
     if (!membership) throw new NotFoundError("Membership not found");
 
-    if (membership.role === "owner") {
+    if (membership.role === "OWNER") {
       throw new BadRequestError(
         "The community owner cannot leave without transferring ownership first",
       );

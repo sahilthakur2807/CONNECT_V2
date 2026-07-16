@@ -1,6 +1,6 @@
 import axios from "axios";
 import { store } from "@/store";
-import { setAccessToken, logout } from "@/store/slices/authSlice";
+import { setAccessToken, logout, setUserRestriction } from "@/store/slices/authSlice";
 
 export const apiClient = axios.create({
   baseURL: "/api",
@@ -41,14 +41,6 @@ const processQueue = (error, token = null) => {
 // Response Interceptor: Handle automatic token refresh and global error formatting
 apiClient.interceptors.response.use(
   (response) => {
-    // If the backend response is wrapped in { success: true, data: ... }, unwrap it
-    if (
-      response.data &&
-      typeof response.data === "object" &&
-      "success" in response.data
-    ) {
-      return response;
-    }
     return response;
   },
   async (error) => {
@@ -115,6 +107,16 @@ apiClient.interceptors.response.use(
 
     // Format server error payloads consistently
     const serverError = error.response?.data;
+    
+    if (error.response?.status === 403 && (serverError?.error?.code === "USER_BANNED" || serverError?.error?.code === "USER_SUSPENDED")) {
+      store.dispatch(setUserRestriction({
+        isBanned: serverError.error.code === "USER_BANNED",
+        isSuspended: serverError.error.code === "USER_SUSPENDED",
+        reason: serverError.error.reason || serverError.error.message || "Platform restriction active",
+        actionId: serverError.error.actionId,
+      }));
+    }
+
     const formattedError = new Error(
       serverError?.error?.message ||
         serverError?.message ||

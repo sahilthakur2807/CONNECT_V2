@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 import { Hash } from "../../../shared/utils/Hash.js";
+import { ForbiddenError } from "../../../shared/errors/AppError.js";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
 
 // Ensure uploads directory exists at server root
@@ -45,6 +46,7 @@ export function createUserRouter() {
   router.post("/avatar", authenticateJWT, (req, res, next) => {
     upload.single("avatar")(req, res, (err) => {
       if (err) {
+        console.error("Avatar upload library error:", err);
         if (err.code === "LIMIT_FILE_SIZE") {
           return res.status(400).json({
             success: false,
@@ -58,6 +60,7 @@ export function createUserRouter() {
       }
 
       if (!req.file) {
+        console.error("Avatar upload error: No file in request");
         return res.status(400).json({ success: false, error: "No file uploaded" });
       }
 
@@ -176,6 +179,49 @@ export function createUserRouter() {
     }
   });
 
+  // GET / - List all users on the platform with pagination and optional role filter (Platform staff only)
+  router.get("/", authenticateJWT, async (req, res, next) => {
+    const actorRole = req.user.role?.toUpperCase();
+    if (!["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(actorRole)) {
+      return next(new ForbiddenError("Only platform administrators/staff can list all users"));
+    }
+
+    const schema = z.object({
+      role: z.enum(["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD", "MEMBER", "ALL"]).default("ALL"),
+      limit: z.preprocess((val) => parseInt(val) || 100, z.number().min(1).max(100)),
+      page: z.preprocess((val) => parseInt(val) || 1, z.number().min(1)),
+    });
+
+    try {
+      const parsed = schema.parse(req.query);
+      const where = {};
+      if (parsed.role !== "ALL") {
+        where.role = parsed.role;
+      }
+
+      const users = await prisma.user.findMany({
+        where,
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          name: true,
+          avatar: true,
+          role: true,
+          status: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (parsed.page - 1) * parsed.limit,
+        take: parsed.limit,
+      });
+
+      res.json({ success: true, data: users });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 3. Get profile details (Friendship status, block status, etc.)
   router.get("/:id", authenticateJWT, async (req, res, next) => {
     try {
@@ -203,7 +249,7 @@ export function createUserRouter() {
             isDeleted: true
           }
         });
-        if (!user || user.role === "banned") {
+        if (!user || user.isDeleted) {
           return res.status(404).json({ success: false, error: "User not found" });
         }
         return res.json({
@@ -238,7 +284,17 @@ export function createUserRouter() {
         }
       });
 
-      if (!user || user.role === "banned") {
+      const activeBan = await prisma.moderationAction.findFirst({
+        where: {
+          userId: targetUserId,
+          communityId: null,
+          type: "ban",
+          active: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
+
+      if (!user || user.isDeleted || activeBan) {
         return res.status(404).json({ success: false, error: "User not found" });
       }
 
@@ -291,7 +347,7 @@ export function createUserRouter() {
         }
       }
 
-      const isAdmin = req.user.role === "admin" || req.user.role === "moderator" || req.user.role === "superadmin";
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(req.user.role);
       const userPaused = user.isPaused;
       res.json({
         success: true,
@@ -333,6 +389,52 @@ export function createUserRouter() {
       const rooms = await prisma.room.findMany({
         where: {
           createdById: targetUserId,
+          deleted: false,
+          title: { not: "World Chat" }
+        },
+        include: {
+          community: { select: { id: true, name: true } },
+          _count: { select: { members: true, messages: true } }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      res.json({ success: true, data: rooms });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 4b. Get rooms joined by user
+  router.get("/:id/rooms-joined", authenticateJWT, async (req, res, next) => {
+    try {
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check block first (only if viewing another user's rooms)
+      if (targetUserId !== currentUserId) {
+        const blocked = await prisma.block.findUnique({
+          where: {
+            userId_blockedId: {
+              userId: targetUserId,
+              blockedId: currentUserId
+            }
+          }
+        });
+        if (blocked) {
+          return res.status(403).json({ success: false, error: "Access denied. You have been blocked by this user." });
+        }
+      }
+
+      const rooms = await prisma.room.findMany({
+        where: {
+          members: {
+            some: {
+              userId: targetUserId,
+              status: { in: ["joined", "ROOM_MOD"] }
+            }
+          },
+          createdById: { not: targetUserId }, // only rooms they joined but do not own
           deleted: false,
           title: { not: "World Chat" }
         },
@@ -491,6 +593,70 @@ export function createUserRouter() {
 
         res.json({ success: true, message: "Account profile deleted. Data preserved." });
       }
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 8. PUT /:id/role - Promote/demote user platform role (SUPER_ADMIN only)
+  router.put("/:id/role", authenticateJWT, async (req, res, next) => {
+    const targetUserId = req.params.id;
+    const actorUserId = req.user.id;
+    const actorRole = req.user.role;
+
+    if (actorRole !== "SUPER_ADMIN") {
+      return next(new ForbiddenError("Only SUPER_ADMIN can promote or demote platform roles"));
+    }
+
+    const schema = z.object({
+      role: z.enum(["PLATFORM_ADMIN", "PLATFORM_MOD", "MEMBER"])
+    });
+
+    try {
+      const parsed = schema.parse(req.body);
+      const targetUser = await prisma.user.findUnique({ where: { id: targetUserId } });
+      if (!targetUser) {
+        return res.status(404).json({ success: false, error: "User not found" });
+      }
+
+      if (targetUser.role === "SUPER_ADMIN") {
+        return res.status(400).json({ success: false, error: "SUPER_ADMIN accounts cannot be altered" });
+      }
+
+      const updatedUser = await prisma.$transaction(async (tx) => {
+        const u = await tx.user.update({
+          where: { id: targetUserId },
+          data: { role: parsed.role },
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            name: true,
+            avatar: true,
+            bio: true,
+            banner: true,
+            verified: true,
+            badges: true,
+            reputation: true,
+            role: true,
+            createdAt: true
+          }
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: "user.role_change",
+            targetId: targetUserId,
+            targetType: "User",
+            details: `Promoted/demoted User ${targetUserId} (@${u.username}) from ${targetUser.role} to ${parsed.role}`,
+            actorId: actorUserId
+          }
+        });
+
+        return u;
+      });
+
+      res.json({ success: true, data: updatedUser, message: `User role successfully updated to ${parsed.role}` });
     } catch (err) {
       next(err);
     }

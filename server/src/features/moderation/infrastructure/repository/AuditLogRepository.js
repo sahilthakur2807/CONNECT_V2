@@ -28,9 +28,13 @@ export class AuditLogRepository extends BaseRepository {
   /**
    * Queries paginated audit logs with backward cursor-based pagination.
    */
-  async findAuditRecords(limit = 50, beforeCursor, tx) {
+  async findAuditRecords(limit = 50, beforeCursor, actorId, tx) {
     const delegate = this.getDelegate(tx);
     const where = {};
+
+    if (actorId) {
+      where.actorId = actorId;
+    }
 
     if (beforeCursor) {
       const cursorLog = await delegate.findUnique({

@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
+import { ForbiddenError } from "../../../shared/errors/AppError.js";
+import { CommunityPolicy } from "../application/CommunityPolicy.js";
+import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 
 // Repositories
 import { CommunityRepository } from "../infrastructure/repository/CommunityRepository.js";
@@ -73,6 +76,30 @@ export function createCommunitiesRouter() {
       const query = new GetCommunitiesQuery();
       const result = await getCommunitiesHandler.execute(query);
       res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 1b. Get moderated communities
+  router.get("/moderated", authenticateJWT, async (req, res, next) => {
+    try {
+      const userId = req.user.id;
+      const memberships = await prisma.communityMember.findMany({
+        where: {
+          userId,
+          role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+          banned: false,
+        },
+        include: {
+          community: true
+        }
+      });
+      const communities = memberships.map(m => ({
+        ...m.community,
+        myRole: m.role
+      }));
+      res.json({ success: true, data: communities });
     } catch (err) {
       next(err);
     }
@@ -224,6 +251,70 @@ export function createCommunitiesRouter() {
       const query = new GetCommunityMembersQuery(req.params.id, page, limit);
       const result = await getCommunityMembersHandler.execute(query);
       res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // 11. PUT /:id/members/:userId/role — Promote/demote community member role
+  router.put("/:id/members/:userId/role", authenticateJWT, async (req, res, next) => {
+    const communityId = req.params.id;
+    const targetUserId = req.params.userId;
+    const actorUserId = req.user.id;
+    const actorUserRole = req.user.role;
+
+    const schema = z.object({
+      role: z.enum(["ADMIN", "MODERATOR", "ROOM_MOD", "MEMBER"])
+    });
+
+    try {
+      const parsed = schema.parse(req.body);
+
+      const community = await communityRepo.findById(communityId);
+      if (!community || community.deleted) {
+        return res.status(404).json({ success: false, error: "Community not found" });
+      }
+
+      const targetMembership = await membershipRepo.findMember(targetUserId, communityId);
+      if (!targetMembership || targetMembership.banned) {
+        return res.status(400).json({ success: false, error: "Target user is not an active member of this community" });
+      }
+
+      const actorMembership = await membershipRepo.findMember(actorUserId, communityId);
+
+      const allowed = CommunityPolicy.canAssignCommunityRole(
+        { id: actorUserId, role: actorUserRole },
+        actorMembership || undefined,
+        parsed.role
+      );
+
+      if (!allowed) {
+        return next(new ForbiddenError("You do not have permission to assign this community role"));
+      }
+
+      const updatedCm = await prisma.$transaction(async (tx) => {
+        const cm = await tx.communityMember.update({
+          where: { id: targetMembership.id },
+          data: { role: parsed.role },
+          include: {
+            user: { select: { id: true, username: true, name: true, avatar: true } }
+          }
+        });
+
+        await tx.auditLog.create({
+          data: {
+            action: "community.role_change",
+            targetId: targetMembership.id,
+            targetType: "CommunityMember",
+            details: `Updated Community Member ${targetUserId} (@${cm.user.username}) role from ${targetMembership.role} to ${parsed.role} inside Community ${communityId} (${community.name})`,
+            actorId: actorUserId
+          }
+        });
+
+        return cm;
+      });
+
+      res.json({ success: true, data: updatedCm, message: `Member role successfully updated to ${parsed.role}` });
     } catch (err) {
       next(err);
     }

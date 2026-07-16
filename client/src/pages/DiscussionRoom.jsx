@@ -20,6 +20,8 @@ import {
   PhotoIcon,
   ArrowUpTrayIcon,
   BoltIcon,
+  ShieldCheckIcon,
+  FaceSmileIcon,
 } from "@heroicons/react/24/outline";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -106,11 +108,59 @@ const hasVisibleContent = (text) => {
   return cleaned.length > 0;
 };
 
+const formatCompactNumber = (val) => {
+  if (val === undefined || val === null || isNaN(val)) return "0";
+  if (val < 10000) {
+    return val.toString();
+  }
+  if (val < 1000000) {
+    return Math.floor(val / 1000) + "k";
+  }
+  if (val < 1000000000) {
+    return Math.floor(val / 1000000) + "M";
+  }
+  return Math.floor(val / 1000000000) + "B";
+};
+
+const POPULAR_EMOJIS = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", 
+  "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", 
+  "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", 
+  "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", 
+  "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", 
+  "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", 
+  "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", 
+  "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐",
+  "👍", "👎", "👊", "✊", "👏", "🙏", "💪", "🔥", "❤️", "✨"
+];
 
 export function DiscussionRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const handleInsertEmoji = (emoji) => {
+    const textarea = inputRef.current;
+    if (!textarea) {
+      setMessageText((prev) => prev + emoji);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const before = text.substring(0, start);
+    const after = text.substring(end, text.length);
+
+    setMessageText(before + emoji + after);
+    
+    // Reset cursor position after React updates the value
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    }, 0);
+  };
 
   const {
     useRoomQuery,
@@ -121,9 +171,8 @@ export function DiscussionRoom() {
 
 
   const isActualModeratorOrAdmin =
-    currentUser?.role === "moderator" ||
-    currentUser?.role === "admin" ||
-    currentUser?.role === "superadmin";
+    currentUser &&
+    ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(currentUser.role);
 
   const { data: messages = [], isLoading: messagesLoading } =
     useMessagesQuery(roomId);
@@ -251,12 +300,43 @@ export function DiscussionRoom() {
   const [pendingBannerFile, setPendingBannerFile] = useState(null);
   const [isUpdatingBanner, setIsUpdatingBanner] = useState(false);
 
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [newRoomTitle, setNewRoomTitle] = useState("");
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  const handleRenameRoom = async () => {
+    if (!newRoomTitle.trim() || newRoomTitle.trim().length < 10) {
+      toast.error("Room title must be at least 10 characters long");
+      return;
+    }
+    setIsRenaming(true);
+    const isStaff = currentUser && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(currentUser.role);
+    const renameToast = toast.loading(isStaff ? "Renaming room..." : "Submitting rename request...");
+    try {
+      await updateRoomMutation.mutateAsync({
+        roomId: room.id,
+        data: { title: newRoomTitle.trim() },
+      });
+      setIsRenameModalOpen(false);
+      if (isStaff) {
+        toast.success("Room renamed successfully!", { id: renameToast });
+      } else {
+        toast.success("Rename request submitted for admin approval!", { id: renameToast });
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to rename room", { id: renameToast });
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   const [messageText, setMessageText] = useState("");
   const [replyingTo, setReplyingTo] = useState(null);
   const [isJoined, setIsJoined] = useState(false);
   const [activeVoices, setActiveVoices] = useState([]);
   const [typingUsers, setTypingUsers] = useState([]);
   const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
   
   const feedRef = useRef(null);
   const inputRef = useRef(null);
@@ -275,7 +355,12 @@ export function DiscussionRoom() {
   // Auto scroll to bottom when messages load or change
   useEffect(() => {
     if (messages.length > 0 && feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+      const scrollTimer = setTimeout(() => {
+        if (feedRef.current) {
+          feedRef.current.scrollTop = feedRef.current.scrollHeight;
+        }
+      }, 150);
+      return () => clearTimeout(scrollTimer);
     }
   }, [messages, messagesLoading]);
 
@@ -295,18 +380,9 @@ export function DiscussionRoom() {
     // Rejoin on connection recovery / reconnection
     socket.on("connect", joinRoom);
 
-    // Custom stats/active users updates
-    const handleActiveUsersUpdate = (data) => {
-      if (data && data.roomId === roomId) {
-        setActiveVoices(data.activeUsers || []);
-      }
-    };
-    socket.on("room_active_users_update", handleActiveUsersUpdate);
-
     return () => {
       socket.emit("chat.room.left", { roomId });
       socket.off("connect", joinRoom);
-      socket.off("room_active_users_update", handleActiveUsersUpdate);
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
@@ -327,6 +403,11 @@ export function DiscussionRoom() {
     },
     onTypingStopped: (data) => {
       setTypingUsers((prev) => prev.filter((u) => u !== data.username));
+    },
+    onRoomActiveUsersUpdate: (data) => {
+      if (data && data.roomId === roomId) {
+        setActiveVoices(data.activeUsers || []);
+      }
     },
   });
 
@@ -354,6 +435,7 @@ export function DiscussionRoom() {
       await sendMessageMutation.mutateAsync({
         content: text,
         parentId: replyTargetId || null,
+        category: room?.category,
       });
       // Auto scroll
       setTimeout(() => {
@@ -364,7 +446,11 @@ export function DiscussionRoom() {
       inputRef.current?.focus();
     } catch (error) {
       setMessageText(text);
-      toast.error(error.message || "Failed to publish take");
+      if (error.message?.includes("restricted from sending messages to this room")) {
+        setShowRestrictionModal(true);
+      } else {
+        toast.error(error.message || "Failed to publish take");
+      }
     }
   };
 
@@ -446,10 +532,9 @@ export function DiscussionRoom() {
     );
   }
 
-  const isCreator =
-    room?.createdBy?.id === currentUser?.id ||
-    currentUser?.role === "superadmin" ||
-    currentUser?.role === "admin";
+  const isActualCreator = room?.createdBy?.id === currentUser?.id;
+  const isStaff = currentUser && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(currentUser.role);
+  const isCreator = isActualCreator || isStaff;
   const showPrivateBarrier = room.isPrivate && !isJoined && !isCreator;
 
   if (showPrivateBarrier) {
@@ -504,6 +589,24 @@ export function DiscussionRoom() {
   // Right sidebar widgets markup (reused on desktop sidebar & mobile popup dialog)
   const sidebarWidgetsContent = (
     <>
+      {isActualCreator && (
+        <div className="p-4 bg-purple-950/5 dark:bg-purple-950/20 border border-purple-200/30 dark:border-purple-900/30 rounded-[20px] space-y-3">
+          <div className="flex items-center gap-1.5 text-purple-600 dark:text-purple-400">
+            <ShieldCheckIcon className="w-4 h-4" />
+            <h4 className="text-[10px] font-black uppercase tracking-wider font-mono">Room Control</h4>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            You own this discussion room. You can review user reports and enforce room policy.
+          </p>
+          <button
+            onClick={() => navigate(`/moderator?roomId=${roomId}`)}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-1.5 font-bold text-xs uppercase transition-all cursor-pointer border-none"
+          >
+            Moderate Room
+          </button>
+        </div>
+      )}
+
       {isActualModeratorOrAdmin && (
         <div className="p-4 bg-zinc-900 text-white rounded-[20px] border border-neutral-800 space-y-3 relative overflow-hidden dark:bg-[#151515]">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
@@ -567,10 +670,13 @@ export function DiscussionRoom() {
           <div className="space-y-1.5">
             <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               <span>Heat score</span>
-              <span className="text-primary font-mono">85%</span>
+              <span className="text-primary font-mono">{room?.heatScore ?? 0}%</span>
             </div>
             <div className="h-1 bg-border/50 rounded-full overflow-hidden">
-              <div className="h-full bg-primary w-[85%] rounded-full animate-pulse" />
+              <div
+                className="h-full bg-primary rounded-full animate-pulse transition-all duration-500"
+                style={{ width: `${room?.heatScore ?? 0}%` }}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -579,7 +685,7 @@ export function DiscussionRoom() {
                 Takes
               </span>
               <p className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                {messages.length}
+                {formatCompactNumber(messages.length)}
               </p>
             </div>
             <div className="p-2.5 bg-card/65 rounded-xl border border-border/30">
@@ -587,7 +693,7 @@ export function DiscussionRoom() {
                 Impact
               </span>
               <p className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                {messages.length * 3}
+                {formatCompactNumber(messages.length * 3)}
               </p>
             </div>
           </div>
@@ -733,7 +839,7 @@ export function DiscussionRoom() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48 bg-card border border-border shadow-lg rounded-xl">
-                    {isJoined && (
+                    {isJoined && !isActualCreator && (
                       <DropdownMenuItem
                         onClick={handleJoinLeaveRoom}
                         className="flex items-center gap-2 text-xs text-red-600 focus:text-red-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg cursor-pointer font-medium"
@@ -744,6 +850,17 @@ export function DiscussionRoom() {
 
                     {isCreator && (
                       <>
+                        {isActualCreator && (
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setNewRoomTitle(room.title);
+                              setIsRenameModalOpen(true);
+                            }}
+                            className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
+                          >
+                            <span className="w-3.5 h-3.5 flex items-center justify-center font-bold text-foreground">✎</span> Rename Room
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={openBannerModal}
                           className="flex items-center gap-2 text-xs rounded-lg cursor-pointer text-foreground font-medium"
@@ -856,6 +973,7 @@ export function DiscussionRoom() {
                       depth={0}
                       isConsecutive={isConsecutive}
                       isLastInGroup={isLastInGroup}
+                      roomCategory={room?.category}
                     />
                   </div>
                 );
@@ -930,6 +1048,46 @@ export function DiscussionRoom() {
                       {messageText.length}/200
                     </span>
                   )}
+
+                  {/* Emoji Picker Button */}
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className="flex items-center justify-center h-8 w-8 text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground rounded-xl transition-all cursor-pointer"
+                      title="Insert Emoji"
+                    >
+                      <FaceSmileIcon className="w-4 h-4" />
+                    </button>
+
+                    {showEmojiPicker && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowEmojiPicker(false)}
+                        />
+                        <div className="absolute bottom-full right-0 mb-2 z-50 w-64 p-3 bg-popover border border-border shadow-2xl rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 mb-2 block font-mono">
+                            Emoji Picker
+                          </span>
+                          <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                            {POPULAR_EMOJIS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => {
+                                  handleInsertEmoji(emoji);
+                                }}
+                                className="w-7 h-7 flex items-center justify-center hover:bg-secondary rounded-lg text-base cursor-pointer transition-colors"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                   <Button
                     onClick={handleSend}
@@ -1082,6 +1240,99 @@ export function DiscussionRoom() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Rename Room Modal */}
+      <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
+        <DialogContent className="rounded-[24px] max-h-[85vh] overflow-y-auto max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle className="font-bold text-lg font-serif">Rename Room</DialogTitle>
+            <DialogDescription className="text-xs">
+              Enter a new name for this discussion room. Only room owners can rename rooms.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-4">
+            {room.pendingNameRequest && !isStaff ? (
+              <div className="space-y-4">
+                <div className="bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 p-4 rounded-xl text-xs space-y-1.5 border border-amber-200/50">
+                  <p className="font-black uppercase tracking-wider text-[10px]">Awaiting Admin Approval</p>
+                  <p>You have requested to rename this room to: <strong>{room.pendingNameRequest}</strong>. Please wait for an administrator to approve it.</p>
+                </div>
+                <div className="flex gap-3 justify-end pt-4 border-t border-border/40">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsRenameModalOpen(false)}
+                    className="rounded-xl font-bold text-xs h-9 cursor-pointer"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="room-title-input" className="text-[10px] font-black text-muted-foreground uppercase tracking-widest font-mono">
+                    Room Name / Title
+                  </label>
+                  <input
+                    id="room-title-input"
+                    type="text"
+                    value={newRoomTitle}
+                    onChange={(e) => setNewRoomTitle(e.target.value)}
+                    placeholder="Enter new room title..."
+                    className="w-full bg-secondary/40 border border-border/60 rounded-xl px-4 py-2 text-sm font-medium text-foreground focus:outline-none focus:border-primary/30"
+                  />
+                  <p className="text-[10px] text-muted-foreground italic font-medium mt-1.5 leading-normal">
+                    * Owners can request to update the room name if there is some error in the name of the room. This request will be sent to the administrator for approval.
+                  </p>
+                </div>
+                
+                <div className="flex gap-3 justify-end pt-4 border-t border-border/40">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsRenameModalOpen(false)}
+                    className="rounded-xl font-bold text-xs h-9 cursor-pointer"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleRenameRoom}
+                    disabled={isRenaming || !newRoomTitle.trim() || newRoomTitle.trim().length < 10}
+                    size="sm"
+                    className="rounded-xl font-bold text-xs h-9 px-5 cursor-pointer animate-in fade-in"
+                  >
+                    {isRenaming ? "Requesting..." : isStaff ? "Save Changes" : "Request Rename"}
+                  </Button>
+                </div>
+              </>
+            )}
+            </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Room Restriction Alert Modal */}
+      {showRestrictionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-in fade-in">
+          <div className="bg-card text-card-foreground rounded-[32px] max-w-sm w-full p-8 text-center space-y-6 relative shadow-2xl border border-border/50">
+            <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-2xl flex items-center justify-center mx-auto">
+              <LockClosedIcon className="w-8 h-8" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-black font-serif">Room Access Restricted</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Your account has been restricted from sending messages to this room by a platform moderator or administrator due to reported behavior.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowRestrictionModal(false)}
+              className="w-full py-3 text-xs font-bold uppercase tracking-wider bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-all cursor-pointer border-none"
+            >
+              Acknowledge
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/services/apiClient";
+import { useAppDispatch } from "@/store";
+import { addOptimisticContribution, rollbackOptimisticContribution } from "@/store/slices/reputationSlice";
 
 // --- Standalone Queries ---
 
@@ -36,6 +38,7 @@ export const useRepliesQuery = (messageId) =>
 
 export const useSendMessageMutation = (roomId) => {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   return useMutation({
     mutationFn: async (data) => {
       if (!roomId) throw new Error("Room ID required");

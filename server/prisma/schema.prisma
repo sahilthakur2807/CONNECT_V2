@@ -16,7 +16,7 @@ model User {
   avatar          String?
   bio             String?
   banner          String?           @default("from-red-600 via-red-500 to-red-800")
-  role            String            @default("user")
+  role            String            @default("MEMBER")
   status          String            @default("offline")
   verified                  Boolean           @default(false)
   emailVerified             Boolean           @default(false)
@@ -61,6 +61,8 @@ model User {
   activitiesFeed       ActivityFeedItem[] @relation("UserActivities")
   reputationLogs       ReputationLog[]
 
+  @@index([status])
+  @@index([isDeleted])
   @@map("users")
 }
 
@@ -91,7 +93,7 @@ model CommunityMember {
   id          String   @id @default(cuid())
   userId      String
   communityId String
-  role        String   @default("member")
+  role        String   @default("MEMBER")
   joinedAt    DateTime @default(now())
   nickname    String?
   muted       Boolean  @default(false)
@@ -119,6 +121,7 @@ model Room {
   archived    Boolean  @default(false)
   deleted     Boolean  @default(false)
   isPrivate   Boolean  @default(false)
+  pendingNameRequest String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   communityId String?
@@ -133,6 +136,7 @@ model Room {
   activities  Activity[]
   activitiesFeed ActivityFeedItem[] @relation("RoomActivities")
   hashtags    Hashtag[] @relation("RoomHashtags")
+  moderationActions ModerationAction[]
 
   @@index([communityId])
   @@index([articleId])
@@ -172,7 +176,7 @@ model Message {
   reactions Reaction[]
   reports   Report[]
 
-  @@index([roomId])
+  @@index([roomId, createdAt])
   @@index([userId])
   @@index([parentId])
   @@map("messages")
@@ -207,7 +211,7 @@ model Notification {
   triggerId   String?
   trigger     User?    @relation("TriggeredNotifications", fields: [triggerId], references: [id], onDelete: SetNull)
 
-  @@index([userId])
+  @@index([userId, createdAt])
   @@index([triggerId])
   @@map("notifications")
 }
@@ -361,11 +365,14 @@ model ModerationAction {
   actor       User     @relation("ModeratorActions", fields: [actorId], references: [id], onDelete: Cascade)
   communityId String?
   community   Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
+  roomId      String?
+  room        Room?      @relation(fields: [roomId], references: [id], onDelete: SetNull)
   appeals     Appeal[]
 
-  @@index([userId])
+  @@index([userId, active])
   @@index([actorId])
   @@index([communityId])
+  @@index([roomId])
   @@map("moderation_actions")
 }
 
@@ -399,7 +406,8 @@ model AuditLog {
   actorId    String
   actor      User     @relation("AuditLogsInitiated", fields: [actorId], references: [id], onDelete: Cascade)
 
-  @@index([actorId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
   @@map("audit_logs")
 }
 

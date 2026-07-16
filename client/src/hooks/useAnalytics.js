@@ -41,6 +41,17 @@ export const useUserContributionsQuery = (userId) =>
     enabled: !!userId,
   });
 
+export const useUserCategoryContributionsQuery = (userId) =>
+  useQuery({
+    queryKey: ["analytics", "user", userId, "category-contributions"],
+    queryFn: async () => {
+      if (!userId) throw new Error("User ID required");
+      const res = await apiClient.get(`/users/${userId}/category-contributions`);
+      return res.data.data;
+    },
+    enabled: !!userId,
+  });
+
 export const useCommunityStatsQuery = (communityId) =>
   useQuery({
     queryKey: ["analytics", "community", communityId, "stats"],
@@ -110,6 +121,7 @@ export function useAnalytics() {
     useUserStatsQuery,
     useUserFeedQuery,
     useUserContributionsQuery,
+    useUserCategoryContributionsQuery,
     useCommunityStatsQuery,
     useCommunityFeedQuery,
     useAdminMetricsQuery,

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
+import { apiClient } from "@/services/apiClient";
 import {
   BellIcon,
   MagnifyingGlassIcon,
@@ -39,6 +40,29 @@ export function Navbar() {
   const navigate = useNavigate();
   const { user, accessToken, isLoading, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const [hasModeratedCommunities, setHasModeratedCommunities] = useState(false);
+  const [hasAdminCommunities, setHasAdminCommunities] = useState(false);
+  const [hasOwnedRooms, setHasOwnedRooms] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      apiClient.get("/communities/moderated")
+        .then(res => {
+          const list = res.data.data || [];
+          setHasModeratedCommunities(list.length > 0);
+          setHasAdminCommunities(list.some(c => ["OWNER", "ADMIN"].includes(c.myRole?.toUpperCase())));
+        })
+        .catch(err => console.error("Failed to load moderated communities in navbar:", err));
+
+      apiClient.get(`/users/${user.id}/rooms-owned`)
+        .then(res => {
+          const list = res.data.data || [];
+          setHasOwnedRooms(list.length > 0);
+        })
+        .catch(err => console.error("Failed to load owned rooms in navbar:", err));
+    }
+  }, [user]);
 
   const unreadCount = useAppSelector(
     (state) => state.ui.unreadNotificationsCount,
@@ -187,89 +211,86 @@ export function Navbar() {
                   )}
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 sm:w-96 bg-card border border-border shadow-xl rounded-2xl p-4 z-50 text-left space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-border/40">
-                  <h3 className="text-sm font-black text-foreground uppercase tracking-wider font-serif">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          await markAllReadMutation.mutateAsync();
-                          toast.success("All notifications marked as read!");
-                        } catch (err) {
-                          toast.error(err.message || "Failed to mark all as read");
-                        }
-                      }}
-                      className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider cursor-pointer"
-                    >
-                      Mark all read
-                    </button>
-                  )}
-                </div>
-                <div className="max-h-[380px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-2 pr-1">
-                  {isLoadingNotifications ? (
-                    <div className="py-8 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
-                      Retrieving updates...
-                    </div>
-                  ) : notifications.length > 0 ? (
-                    notifications.map((n) => (
-                      <div
-                        key={n.id}
-                        onClick={async () => {
+              <DropdownMenuContent align="end" className="w-80 sm:w-96 bg-card border border-border shadow-xl rounded-2xl p-4 z-50 text-left">
+                <div
+                  onClick={(e) => {
+                    if (e.target.closest(".view-all-notifications-btn")) {
+                      return;
+                    }
+                    e.stopPropagation();
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="flex justify-between items-center pb-2 border-b border-border/40">
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-wider font-serif">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           try {
-                            if (!n.read) {
-                              await markReadMutation.mutateAsync(n.id);
-                            }
-                            if (n.roomId) {
-                              navigate(`/room/${n.roomId}`);
-                            }
+                            await markAllReadMutation.mutateAsync();
+                            toast.success("All notifications marked as read!");
                           } catch (err) {
-                            console.error(err);
+                            toast.error(err.message || "Failed to mark all as read");
                           }
                         }}
-                        className={cn(
-                          "flex gap-3 p-3 rounded-xl cursor-pointer hover:bg-muted/50 transition-all border border-transparent",
-                          !n.read && "bg-primary/[0.08] border-primary/20 hover:bg-primary/[0.12]"
-                        )}
+                        className="text-[10px] font-black text-primary hover:underline uppercase tracking-wider cursor-pointer"
                       >
-                        <Avatar
-                          src={n.trigger?.avatar}
-                          name={n.title || "System"}
-                          size="sm"
-                          className="w-8 h-8 shrink-0"
-                          userId={n.trigger?.id}
-                        />
-                        <div className="space-y-0.5 flex-1 min-w-0">
-                          <p className={cn("text-xs leading-snug text-foreground", !n.read ? "font-bold" : "font-medium")}>
-                            {n.body || n.title}
-                          </p>
-                          <p className="text-[9px] text-muted-foreground font-mono uppercase">
-                            {(() => {
-                              if (!n.createdAt) return "";
-                              const d = new Date(n.createdAt);
-                              return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " - " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-                            })()}
-                          </p>
-                        </div>
-                        {!n.read && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 self-center" />
-                        )}
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-[380px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-2 pr-1">
+                    {isLoadingNotifications ? (
+                      <div className="py-8 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest animate-pulse">
+                        Retrieving updates...
                       </div>
-                    ))
-                  ) : (
-                    <div className="py-8 text-center text-xs text-muted-foreground italic font-medium">
-                      No notifications yet.
-                    </div>
-                  )}
-                </div>
-                <div className="pt-2 border-t border-border/40">
-                  <Button
-                    onClick={() => navigate("/notifications")}
-                    className="w-full rounded-xl font-bold uppercase text-[10px] tracking-widest h-9 bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border/40"
-                  >
-                    View All Notifications
-                  </Button>
+                    ) : notifications.length > 0 ? (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={cn(
+                            "flex gap-3 p-3 rounded-xl transition-all border border-transparent",
+                            !n.read && "bg-primary/[0.08] border-primary/20"
+                          )}
+                        >
+                          <Avatar
+                            src={n.trigger?.avatar}
+                            name={n.title || "System"}
+                            size="sm"
+                            className="w-8 h-8 shrink-0"
+                          />
+                          <div className="space-y-0.5 flex-1 min-w-0">
+                            <p className={cn("text-xs leading-snug text-foreground", !n.read ? "font-bold" : "font-medium")}>
+                              {n.body || n.title}
+                            </p>
+                            <p className="text-[9px] text-muted-foreground font-mono uppercase">
+                              {(() => {
+                                if (!n.createdAt) return "";
+                                const d = new Date(n.createdAt);
+                                return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " - " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+                              })()}
+                            </p>
+                          </div>
+                          {!n.read && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 self-center" />
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-8 text-center text-xs text-muted-foreground italic font-medium">
+                        No notifications yet.
+                      </div>
+                    )}
+                  </div>
+                  <div className="pt-2 border-t border-border/40">
+                    <Button
+                      onClick={() => navigate("/notifications")}
+                      className="w-full rounded-xl font-bold uppercase text-[10px] tracking-widest h-9 bg-secondary hover:bg-secondary/80 text-secondary-foreground border border-border/40 cursor-pointer view-all-notifications-btn"
+                    >
+                      View All Notifications
+                    </Button>
+                  </div>
                 </div>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -337,13 +358,13 @@ export function Navbar() {
                     {user.verified && (
                       <Badge variant="verified" size="sm" className="h-5" />
                     )}
-                    {user.role === "superadmin" && (
+                    {user.role === "SUPER_ADMIN" && (
                       <Badge variant="superadmin" size="sm" className="h-5" />
                     )}
-                    {user.role === "admin" && (
+                    {user.role === "PLATFORM_ADMIN" && (
                       <Badge variant="admin" size="sm" className="h-5" />
                     )}
-                    {user.role === "moderator" && (
+                    {user.role === "PLATFORM_MOD" && (
                       <Badge variant="moderator" size="sm" className="h-5" />
                     )}
                   </div>
@@ -364,21 +385,19 @@ export function Navbar() {
                     </span>
                   )}
                 </DropdownMenuItem>
-                {(user.role === "moderator" ||
-                  user.role === "admin" ||
-                  user.role === "superadmin") && (
+                {(["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role) || hasModeratedCommunities || hasOwnedRooms) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/moderator")}
-                    className="text-purple-600 dark:text-purple-400"
+                    className="text-purple-600 dark:text-purple-400 font-bold"
                   >
                     <ShieldCheckIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Moderator Panel</span>
                   </DropdownMenuItem>
                 )}
-                {(user.role === "admin" || user.role === "superadmin") && (
+                {(["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(user.role) || hasAdminCommunities) && (
                   <DropdownMenuItem
                     onClick={() => navigate("/admin")}
-                    className="text-blue-600 dark:text-blue-400"
+                    className="text-blue-600 dark:text-blue-400 font-bold"
                   >
                     <Cog6ToothIcon className="w-4 h-4" />
                     <span className="font-medium text-sm">Admin Settings</span>

@@ -66,14 +66,14 @@ export class RegisterHandler {
 
     // 2. Existence check
     const existingUser =
-      await this.userRepo.findByEmailOrUsername(sanitizedUsername);
+      await this.userRepo.findByUsername(sanitizedUsername);
     if (existingUser) {
-      throw new BadRequestError("Username or email is already registered");
+      throw new BadRequestError("Username is already taken");
     }
     const existingEmail =
-      await this.userRepo.findByEmailOrUsername(sanitizedEmail);
+      await this.userRepo.findByEmail(sanitizedEmail);
     if (existingEmail) {
-      throw new BadRequestError("Username or email is already registered");
+      throw new BadRequestError("Email is already registered");
     }
 
     // 3. Argon2id Hash

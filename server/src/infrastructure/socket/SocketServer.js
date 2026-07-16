@@ -8,6 +8,7 @@ import { prisma } from "../db/PrismaClient.js";
 export let io = null;
 export let httpServer = null;
 export const activeUserConnections = new Map();
+export const pendingDisconnectTimeouts = new Map();
 
 // Registry interface for dynamic event bindings
 
@@ -37,7 +38,7 @@ export function initializeSocketServer(app) {
   });
 
   // Authentication handshake middleware
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
     if (!token) {
       Logger.warn(
@@ -47,6 +48,25 @@ export function initializeSocketServer(app) {
     }
     try {
       const decoded = jwt.verify(token, config.JWT_SECRET);
+
+      // Check active platform bans/suspensions
+      const activeBan = await prisma.moderationAction.findFirst({
+        where: {
+          userId: decoded.id,
+          communityId: null,
+          type: { in: ["ban", "suspend"] },
+          active: true,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+      });
+
+      if (activeBan) {
+        Logger.warn(
+          `Socket connection rejected: User ${decoded.id} is platform-${activeBan.type}ed. Socket ID: ${socket.id}`,
+        );
+        return next(new Error(`Authentication failed: User is platform-${activeBan.type}ed`));
+      }
+
       socket.user = decoded;
       Logger.debug(
         `Socket connection authenticated: User ID ${decoded.id}, Socket ID: ${socket.id}`,
@@ -67,17 +87,56 @@ export function initializeSocketServer(app) {
     );
 
     if (user) {
+      // Clear any pending disconnect timeout for this user (reconnection grace period check)
+      let isReconnecting = false;
+      const pendingTimeout = pendingDisconnectTimeouts.get(user.id);
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        pendingDisconnectTimeouts.delete(user.id);
+        isReconnecting = true;
+        Logger.debug(`Cancelled pending disconnect timeout for User ID: ${user.id}`);
+      }
+
       // 1. Join user-specific private channel for direct notifications
       socket.join(user.id);
 
       // 1b. Join moderators dashboard channel if authorized admin/moderator
       if (
-        user.role === "admin" ||
-        user.role === "superadmin" ||
-        user.role === "moderator"
+        ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role)
       ) {
         socket.join("moderators");
       }
+
+      // Join community-specific moderator rooms
+      prisma.communityMember.findMany({
+        where: {
+          userId: user.id,
+          role: { in: ["OWNER", "ADMIN", "MODERATOR"] },
+          banned: false
+        },
+        select: { communityId: true }
+      }).then(memberships => {
+        for (const membership of memberships) {
+          socket.join(`community_moderators_${membership.communityId}`);
+        }
+      }).catch(err => {
+        console.error("Failed to join community moderator rooms:", err);
+      });
+
+      // Join room-specific moderator rooms
+      prisma.roomMember.findMany({
+        where: {
+          userId: user.id,
+          status: "ROOM_MOD"
+        },
+        select: { roomId: true }
+      }).then(roomMemberships => {
+        for (const rm of roomMemberships) {
+          socket.join(`room_moderators_${rm.roomId}`);
+        }
+      }).catch(err => {
+        console.error("Failed to join room moderator rooms:", err);
+      });
 
       // 2. Track connection set
       let connections = activeUserConnections.get(user.id);
@@ -87,49 +146,49 @@ export function initializeSocketServer(app) {
       }
       connections.add(socket.id);
 
-      // 3. Update database presence if this is the user's first active tab
-      if (connections.size === 1) {
+      // 3. Update database presence if this is the user's first active tab and NOT a reconnect
+      if (connections.size === 1 && !isReconnecting) {
         prisma.user.findUnique({
           where: { id: user.id },
           select: { isPaused: true }
         })
-        .then((dbUser) => {
-          const isPaused = dbUser?.isPaused || false;
-          return prisma.user.update({
-            where: { id: user.id },
-            data: { status: isPaused ? "paused" : "online" },
-          })
-          .then(() => {
-            if (isPaused) {
-              io?.to("moderators").emit("presence.online", { userId: user.id, isPaused: true });
-            } else {
-              io?.emit("presence.online", { userId: user.id });
-            }
+          .then((dbUser) => {
+            const isPaused = dbUser?.isPaused || false;
+            return prisma.user.update({
+              where: { id: user.id },
+              data: { status: isPaused ? "paused" : "online" },
+            })
+              .then(() => {
+                if (isPaused) {
+                  io?.to("moderators").emit("presence.online", { userId: user.id, isPaused: true });
+                } else {
+                  io?.emit("presence.online", { userId: user.id });
+                }
 
-            // Find friends to broadcast presence change
-            return prisma.friendship.findMany({
-              where: {
-                status: "accepted",
-                OR: [{ userId: user.id }, { friendId: user.id }],
-              },
-            });
+                // Find friends to broadcast presence change
+                return prisma.friendship.findMany({
+                  where: {
+                    status: "accepted",
+                    OR: [{ userId: user.id }, { friendId: user.id }],
+                  },
+                });
+              })
+              .then((friendships) => {
+                if (!friendships || isPaused) return;
+                const friendIds = friendships.map((f) =>
+                  f.userId === user.id ? f.friendId : f.userId,
+                );
+                for (const friendId of friendIds) {
+                  io?.to(friendId).emit("presence.online", { userId: user.id });
+                }
+              });
           })
-          .then((friendships) => {
-            if (!friendships || isPaused) return;
-            const friendIds = friendships.map((f) =>
-              f.userId === user.id ? f.friendId : f.userId,
-            );
-            for (const friendId of friendIds) {
-              io?.to(friendId).emit("presence.online", { userId: user.id });
-            }
-          });
-        })
-        .catch((err) =>
-          Logger.error(
-            `Failed to update user ${user.id} presence to online:`,
-            err,
-          ),
-        );
+          .catch((err) =>
+            Logger.error(
+              `Failed to update user ${user.id} presence to online:`,
+              err,
+            ),
+          );
       }
     }
 
@@ -173,49 +232,59 @@ export function initializeSocketServer(app) {
           if (connections.size === 0) {
             activeUserConnections.delete(user.id);
 
-            prisma.user.findUnique({
-              where: { id: user.id },
-              select: { isPaused: true }
-            })
-            .then((dbUser) => {
-              const isPaused = dbUser?.isPaused || false;
-              return prisma.user.update({
-                where: { id: user.id },
-                data: { status: "offline", lastSeen: new Date() },
-              })
-              .then(() => {
-                if (isPaused) {
-                  io?.to("moderators").emit("presence.offline", { userId: user.id, isPaused: true });
-                } else {
-                  io?.emit("presence.offline", { userId: user.id });
-                }
+            // Debounce offline updates to handle transient disconnection / reconnection cycles (heartbeat grace period)
+            const timeoutId = setTimeout(() => {
+              pendingDisconnectTimeouts.delete(user.id);
 
-                // Find friends to broadcast presence change
-                return prisma.friendship.findMany({
-                  where: {
-                    status: "accepted",
-                    OR: [{ userId: user.id }, { friendId: user.id }],
-                  },
-                });
-              })
-              .then((friendships) => {
-                if (!friendships || isPaused) return;
-                const friendIds = friendships.map((f) =>
-                  f.userId === user.id ? f.friendId : f.userId,
-                );
-                for (const friendId of friendIds) {
-                  io?.to(friendId).emit("presence.offline", {
-                    userId: user.id,
-                  });
-                }
-              });
-            })
-              .catch((err) =>
-                Logger.error(
-                  `Failed to update user ${user.id} presence to offline:`,
-                  err,
-                ),
-              );
+              const currentConns = activeUserConnections.get(user.id);
+              if (!currentConns || currentConns.size === 0) {
+                prisma.user.findUnique({
+                  where: { id: user.id },
+                  select: { isPaused: true }
+                })
+                  .then((dbUser) => {
+                    const isPaused = dbUser?.isPaused || false;
+                    return prisma.user.update({
+                      where: { id: user.id },
+                      data: { status: "offline", lastSeen: new Date() },
+                    })
+                      .then(() => {
+                        if (isPaused) {
+                          io?.to("moderators").emit("presence.offline", { userId: user.id, isPaused: true });
+                        } else {
+                          io?.emit("presence.offline", { userId: user.id });
+                        }
+
+                        // Find friends to broadcast presence change
+                        return prisma.friendship.findMany({
+                          where: {
+                            status: "accepted",
+                            OR: [{ userId: user.id }, { friendId: user.id }],
+                          },
+                        });
+                      })
+                      .then((friendships) => {
+                        if (!friendships || isPaused) return;
+                        const friendIds = friendships.map((f) =>
+                          f.userId === user.id ? f.friendId : f.userId,
+                        );
+                        for (const friendId of friendIds) {
+                          io?.to(friendId).emit("presence.offline", {
+                            userId: user.id,
+                          });
+                        }
+                      });
+                  })
+                  .catch((err) =>
+                    Logger.error(
+                      `Failed to update user ${user.id} presence to offline:`,
+                      err,
+                    ),
+                  );
+              }
+            }, 5000); // 5-second grace period
+
+            pendingDisconnectTimeouts.set(user.id, timeoutId);
           }
         }
       }
@@ -259,6 +328,27 @@ export async function broadcastRoomActiveUsers(roomId, excludeSocketId) {
     activeCount: activeUsers.length,
     activeUsers,
   });
+
+  // Emit globally to everyone
+  io.emit("room.active.count.updated", {
+    roomId,
+    activeCount: activeUsers.length,
+  });
+}
+
+export function getActiveRoomUsersCount(roomId) {
+  if (!io) return 0;
+  const roomSockets = io.sockets.adapter.rooms.get(roomId);
+  if (!roomSockets) return 0;
+  const seenUserIds = new Set();
+  for (const socketId of roomSockets) {
+    const clientSocket = io.sockets.sockets.get(socketId);
+    const u = clientSocket?.user;
+    if (u) {
+      seenUserIds.add(u.id);
+    }
+  }
+  return seenUserIds.size;
 }
 
 // Graceful WS Server Shutdown hook

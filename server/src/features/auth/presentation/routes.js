@@ -2,6 +2,18 @@ import { Router } from "express";
 import { z } from "zod";
 import { config } from "../../../config/index.js";
 import { optionalJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
+import { prisma } from "../../../infrastructure/db/PrismaClient.js";
+import { moderationActionRepository } from "../../moderation/infrastructure/repository/ModerationActionRepository.js";
+
+const getUserRestriction = async (userId) => {
+  const activeBan = await moderationActionRepository.findActivePlatformBan(userId);
+  return activeBan ? {
+    isBanned: activeBan.type === "ban",
+    isSuspended: activeBan.type === "suspend",
+    reason: activeBan.reason,
+    actionId: activeBan.id,
+  } : null;
+};
 
 // Repositories & Service
 import { UserRepository } from "../../user/infrastructure/repository/UserRepository.js";
@@ -110,11 +122,14 @@ export function createAuthRouter() {
       const result = await registerHandler.execute(command);
       setRefreshTokenCookie(res, result.tokens.refreshToken);
 
+      const userRestriction = await getUserRestriction(result.user.id);
+
       res.status(201).json({
         success: true,
         data: {
           accessToken: result.tokens.accessToken,
           user: result.user,
+          userRestriction,
         },
       });
     } catch (err) {
@@ -141,11 +156,14 @@ export function createAuthRouter() {
       const result = await loginHandler.execute(command);
       setRefreshTokenCookie(res, result.tokens.refreshToken);
 
+      const userRestriction = await getUserRestriction(result.user.id);
+
       res.json({
         success: true,
         data: {
           accessToken: result.tokens.accessToken,
           user: result.user,
+          userRestriction,
         },
       });
     } catch (err) {
@@ -172,11 +190,14 @@ export function createAuthRouter() {
       const result = await oauthSignInHandler.execute(command);
       setRefreshTokenCookie(res, result.tokens.refreshToken);
 
+      const userRestriction = await getUserRestriction(result.user.id);
+
       res.json({
         success: true,
         data: {
           accessToken: result.tokens.accessToken,
           user: result.user,
+          userRestriction,
         },
       });
     } catch (err) {
@@ -206,13 +227,17 @@ export function createAuthRouter() {
         req.ip,
       );
 
-      const tokens = await refreshTokenHandler.execute(command);
-      setRefreshTokenCookie(res, tokens.refreshToken);
+      const result = await refreshTokenHandler.execute(command);
+      setRefreshTokenCookie(res, result.refreshToken);
+
+      const userRestriction = await getUserRestriction(result.user.id);
 
       res.json({
         success: true,
         data: {
-          accessToken: tokens.accessToken,
+          accessToken: result.accessToken,
+          user: result.user,
+          userRestriction,
         },
       });
     } catch (err) {

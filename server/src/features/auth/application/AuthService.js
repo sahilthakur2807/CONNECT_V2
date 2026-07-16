@@ -51,8 +51,9 @@ export class AuthService {
     );
 
     const accessToken = this.generateAccessToken(user);
+    const { password: _, verificationToken: __, ...sanitizedUser } = user;
 
-    return { accessToken, refreshToken };
+    return { accessToken, refreshToken, user: sanitizedUser };
   }
 
   /**

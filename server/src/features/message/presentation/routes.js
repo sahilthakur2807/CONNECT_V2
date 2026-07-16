@@ -66,6 +66,7 @@ export function createMessagesRouter() {
           parsed.content,
           parsed.clientMessageId,
           parsed.parentId,
+          req.user.role,
         );
 
         const result = await sendMessageHandler.execute(command);
@@ -146,7 +147,7 @@ export function createMessagesRouter() {
     authenticateJWT,
     async (req, res, next) => {
       try {
-        const command = new RestoreMessageCommand(req.user.id, req.params.id);
+        const command = new RestoreMessageCommand(req.user.id, req.params.id, req.user.role);
 
         const result = await restoreMessageHandler.execute(command);
         res.json({ success: true, data: result });

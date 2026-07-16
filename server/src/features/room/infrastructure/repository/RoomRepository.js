@@ -1,5 +1,6 @@
 import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 import { BaseRepository } from "../../../../infrastructure/repository/BaseRepository.js";
+import { getActiveRoomUsersCount } from "../../../../infrastructure/socket/SocketServer.js";
 
 export class RoomRepository extends BaseRepository {
   constructor() {
@@ -68,9 +69,9 @@ export class RoomRepository extends BaseRepository {
     if (!room) return null;
     const members = Array.isArray(room.members) ? room.members : [];
     const membership = userId ? members.find((m) => m.userId === userId) : null;
-    const isJoined = membership ? membership.status === "joined" : false;
+    const isJoined = membership ? ["joined", "ROOM_MOD"].includes(membership.status) : false;
     const isPending = membership ? membership.status === "pending" : false;
-    const activeNow = members.filter((m) => m.user?.status === "online").length;
+    const activeNow = getActiveRoomUsersCount(room.id);
 
     const isNew = badgeInfo ? badgeInfo.newIds.has(room.id) : (room.isNew ?? false);
     const trending = badgeInfo ? badgeInfo.trendingIds.has(room.id) : (room.trending ?? false);
@@ -90,6 +91,32 @@ export class RoomRepository extends BaseRepository {
   /**
    * Finds visible rooms filtered by optional community or category, ignoring soft-deleted rooms.
    */
+  async getPrivateRoomFilter(userId) {
+    if (!userId) {
+      return {
+        isPrivate: false
+      };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true }
+    });
+
+    const isPlatformStaff = user && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD"].includes(user.role?.toUpperCase());
+    if (isPlatformStaff) {
+      return {};
+    }
+
+    return {
+      OR: [
+        { isPrivate: false },
+        { createdById: userId },
+        { members: { some: { userId, status: { in: ["joined", "ROOM_MOD"] } } } }
+      ]
+    };
+  }
+
   async findVisibleRooms(
     communityId,
     category,
@@ -102,6 +129,7 @@ export class RoomRepository extends BaseRepository {
     const delegate = this.getDelegate(tx);
     const skip = (page - 1) * limit;
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
 
     const where = {
       deleted: false,
@@ -109,6 +137,7 @@ export class RoomRepository extends BaseRepository {
         { archived: false },
         ...(userId ? [{ createdById: userId }] : []),
       ],
+      ...privateFilter,
     };
     if (!includeWorldChat) {
       where.title = { not: "World Chat" };
@@ -124,7 +153,10 @@ export class RoomRepository extends BaseRepository {
         },
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       skip,
@@ -143,6 +175,7 @@ export class RoomRepository extends BaseRepository {
   async findTrending(limit = 20, userId, tx) {
     const delegate = this.getDelegate(tx);
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
@@ -151,11 +184,15 @@ export class RoomRepository extends BaseRepository {
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
         ],
+        ...privateFilter,
       },
       include: {
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       orderBy: {
@@ -169,12 +206,29 @@ export class RoomRepository extends BaseRepository {
     return rooms.map((room) => this.mapRoom(room, userId, badgeInfo));
   }
 
+  async countVisibleRooms(userId, tx) {
+    const delegate = this.getDelegate(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
+    return delegate.count({
+      where: {
+        deleted: false,
+        title: { not: "World Chat" },
+        OR: [
+          { archived: false },
+          ...(userId ? [{ createdById: userId }] : []),
+        ],
+        ...privateFilter,
+      }
+    });
+  }
+
   /**
    * Database-level hot rooms query, sorted by total message count.
    */
   async findHot(limit = 20, userId, tx) {
     const delegate = this.getDelegate(tx);
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
     const rooms = await delegate.findMany({
       where: {
         deleted: false,
@@ -183,11 +237,15 @@ export class RoomRepository extends BaseRepository {
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
         ],
+        ...privateFilter,
       },
       include: {
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       orderBy: {
@@ -206,6 +264,7 @@ export class RoomRepository extends BaseRepository {
    */
   async findNewest(limit = 20, userId, tx) {
     const badgeInfo = await this.getGlobalBadgesInfo(tx);
+    const privateFilter = await this.getPrivateRoomFilter(userId);
     const rooms = await this.getDelegate(tx).findMany({
       where: {
         deleted: false,
@@ -214,11 +273,15 @@ export class RoomRepository extends BaseRepository {
           { archived: false },
           ...(userId ? [{ createdById: userId }] : []),
         ],
+        ...privateFilter,
       },
       include: {
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
       orderBy: {
@@ -244,12 +307,46 @@ export class RoomRepository extends BaseRepository {
         },
         members: this.getMembersInclude(userId),
         _count: {
-          select: { members: true, messages: true },
+          select: {
+            members: true,
+            messages: { where: { deleted: false } }
+          },
         },
       },
     });
 
-    return this.mapRoom(room, userId, badgeInfo);
+    if (!room) return null;
+
+    // Calculate dynamic average takes (messages count) across all active rooms
+    const allRoomsCounts = await delegate.findMany({
+      where: { deleted: false },
+      select: {
+        _count: {
+          select: {
+            messages: { where: { deleted: false } }
+          }
+        }
+      }
+    });
+
+    const totalRooms = allRoomsCounts.length;
+    const totalMessages = allRoomsCounts.reduce((sum, r) => sum + (r._count?.messages || 0), 0);
+    const avgMessages = totalRooms > 0 ? (totalMessages / totalRooms) : 0;
+
+    const roomMessagesCount = room._count?.messages || 0;
+    // Calculate heat score compared to average
+    let heatScore = 0;
+    if (avgMessages > 0) {
+      heatScore = Math.min(100, Math.round((roomMessagesCount / avgMessages) * 100));
+    } else if (roomMessagesCount > 0) {
+      heatScore = 100;
+    }
+
+    const mapped = this.mapRoom(room, userId, badgeInfo);
+    return {
+      ...mapped,
+      heatScore,
+    };
   }
 
   /**

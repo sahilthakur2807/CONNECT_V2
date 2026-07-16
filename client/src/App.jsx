@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router";
 import { useAppSelector } from "@/store";
 import { AppLayout } from "@/components/layout/AppLayout";
+import AppealsView from "@/components/shared/AppealsView";
 import LandingPage from "@/pages/LandingPage";
 import AuthPage from "@/pages/AuthPage";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -27,48 +28,44 @@ function ProtectedRoute({ children }) {
 
 // Route protection wrapper for moderator actions
 function ModeratorRoute({ children }) {
-  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
-  }
-  const isMod =
-    user?.role === "moderator" ||
-    user?.role === "admin" ||
-    user?.role === "superadmin";
-  if (!isMod) {
-    return <Navigate to="/home" replace />;
   }
   return <>{children}</>;
 }
 
 // Route protection wrapper for admin controls
 function AdminRoute({ children }) {
-  const { isAuthenticated, user } = useAppSelector((state) => state.auth);
+  const { isAuthenticated } = useAppSelector((state) => state.auth);
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
-  }
-  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
-  if (!isAdmin) {
-    return <Navigate to="/home" replace />;
   }
   return <>{children}</>;
 }
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useRoomDiscoverySocket } from "@/hooks/useRooms";
 
 export function App() {
-  const { refreshSession, user } = useAuth();
+  const { refreshSession } = useAuth();
   const [initialized, setInitialized] = useState(false);
+  const { userRestriction } = useAppSelector((state) => state.auth);
+
+  // Synchronize real-time room discovery events (creation/update/archive/deletion)
+  useRoomDiscoverySocket();
 
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (user) {
+        if (localStorage.getItem("newsconnect_user_id")) {
           await refreshSession();
         }
       } catch (err) {
-        console.error("Failed to refresh session on startup:", err);
+        if (err.response?.status !== 401) {
+          console.error("Failed to refresh session on startup:", err);
+        }
       } finally {
         setInitialized(true);
       }
@@ -77,7 +74,7 @@ export function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!initialized && user) {
+  if (!initialized && localStorage.getItem("newsconnect_user_id")) {
     return (
       <div className="min-h-screen bg-background flex flex-col justify-center items-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -86,6 +83,10 @@ export function App() {
         </p>
       </div>
     );
+  }
+
+  if (userRestriction) {
+    return <AppealsView />;
   }
 
   return (

@@ -5,6 +5,7 @@ import {
   setSocketConnected,
   incrementUnreadNotificationsCount,
 } from "@/store/slices/uiSlice";
+import { fetchReputationData } from "@/store/slices/reputationSlice";
 import { getSocket } from "@/services/socketService";
 import { toast } from "sonner";
 
@@ -17,6 +18,8 @@ export function useGlobalSocketEvents() {
 
     const handleConnect = () => {
       dispatch(setSocketConnected(true));
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
     };
 
     const handleDisconnect = () => {
@@ -52,9 +55,89 @@ export function useGlobalSocketEvents() {
       });
     };
 
+    const updateRoomInCache = (roomId, updateFn) => {
+      const activeQueries = queryClient.getQueryCache().findAll({
+        queryKey: ["rooms"]
+      });
+
+      activeQueries.forEach((query) => {
+        queryClient.setQueryData(query.queryKey, (oldData) => {
+          if (!oldData) return oldData;
+          if (oldData.rooms) {
+            return {
+              ...oldData,
+              rooms: oldData.rooms.map((room) =>
+                room.id === roomId ? { ...room, ...updateFn(room) } : room
+              ),
+            };
+          } else if (Array.isArray(oldData)) {
+            return oldData.map((room) =>
+              room.id === roomId ? { ...room, ...updateFn(room) } : room
+            );
+          }
+          return oldData;
+        });
+      });
+    };
+
     const handleMessageCreatedGlobal = () => {
       // Invalidate rooms list to refresh unread indicators / active counts globally
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
+    };
+
+    const handleRoomMemberCountUpdated = ({ roomId, memberCount }) => {
+      updateRoomInCache(roomId, (room) => ({
+        _count: {
+          ...room._count,
+          members: memberCount,
+        },
+      }));
+    };
+
+    const handleRoomMessageCountUpdated = ({ roomId, messageCount }) => {
+      updateRoomInCache(roomId, (room) => ({
+        _count: {
+          ...room._count,
+          messages: messageCount,
+        },
+      }));
+    };
+
+    const handleRoomActiveCountUpdated = ({ roomId, activeCount }) => {
+      updateRoomInCache(roomId, () => ({
+        activeNow: activeCount,
+      }));
+    };
+
+    const handleRoomDeleted = ({ roomId }) => {
+      const queryKeys = [
+        ["rooms", "trending"],
+        ["rooms", "hot"],
+        ["rooms", "new"],
+      ];
+
+      queryKeys.forEach((keyPrefix) => {
+        queryClient.setQueriesData({ queryKey: keyPrefix }, (oldData) => {
+          if (!oldData) return oldData;
+          if (oldData.rooms) {
+            return {
+              ...oldData,
+              rooms: oldData.rooms.filter((room) => room.id !== roomId),
+              total: Math.max(0, oldData.total - (oldData.rooms.some(r => r.id === roomId) ? 1 : 0)),
+            };
+          } else if (Array.isArray(oldData)) {
+            return oldData.filter((room) => room.id !== roomId);
+          }
+          return oldData;
+        });
+      });
+    };
+
+    const handleReputationUpdated = (data) => {
+      const currentUserId = localStorage.getItem("newsconnect_user_id");
+      if (data && data.userId === currentUserId) {
+        dispatch(fetchReputationData(currentUserId));
+      }
     };
 
     socket.on("connect", handleConnect);
@@ -65,6 +148,11 @@ export function useGlobalSocketEvents() {
     socket.on("friend.request.accepted", handleFriendRequestAccepted);
     socket.on("notification.created", handleNotificationCreated);
     socket.on("chat.message.created", handleMessageCreatedGlobal);
+    socket.on("room.member.count.updated", handleRoomMemberCountUpdated);
+    socket.on("room.message.count.updated", handleRoomMessageCountUpdated);
+    socket.on("room.active.count.updated", handleRoomActiveCountUpdated);
+    socket.on("room.deleted", handleRoomDeleted);
+    socket.on("user.reputation.updated", handleReputationUpdated);
 
     return () => {
       socket.off("connect", handleConnect);
@@ -75,6 +163,11 @@ export function useGlobalSocketEvents() {
       socket.off("friend.request.accepted", handleFriendRequestAccepted);
       socket.off("notification.created", handleNotificationCreated);
       socket.off("chat.message.created", handleMessageCreatedGlobal);
+      socket.off("room.member.count.updated", handleRoomMemberCountUpdated);
+      socket.off("room.message.count.updated", handleRoomMessageCountUpdated);
+      socket.off("room.active.count.updated", handleRoomActiveCountUpdated);
+      socket.off("room.deleted", handleRoomDeleted);
+      socket.off("user.reputation.updated", handleReputationUpdated);
     };
   }, [queryClient, dispatch]);
 }

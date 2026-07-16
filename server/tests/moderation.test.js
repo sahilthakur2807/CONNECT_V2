@@ -18,17 +18,35 @@ import { prisma } from "../src/infrastructure/db/PrismaClient.js";
 import { ForbiddenError } from "../src/shared/errors/AppError.js";
 
 // Mock Prisma
-vi.mock("../src/infrastructure/db/PrismaClient.js", () => ({
-  prisma: {
-    $transaction: vi.fn((cb) => cb(prisma)),
+vi.mock("../src/infrastructure/db/PrismaClient.js", () => {
+  const mockPrisma = {
+    $transaction: vi.fn((cb) => cb(mockPrisma)),
     user: {
+      findUnique: vi.fn().mockResolvedValue({ id: "usr_1", role: "MEMBER" }),
       update: vi.fn().mockResolvedValue({}),
+    },
+    message: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    room: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    communityMember: {
+      findMany: vi.fn().mockResolvedValue([]),
     },
     auditLog: {
       findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
     },
-  },
-}));
+    roomMember: {
+      findUnique: vi.fn().mockResolvedValue(null),
+    },
+    moderationAction: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+  };
+  return { prisma: mockPrisma };
+});
 
 // Mock Socket.IO
 vi.mock("../src/infrastructure/socket/SocketServer.js", () => {
@@ -58,6 +76,10 @@ describe("CONNECT Phase 6 Moderation & Governance Unit Tests", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    prisma.user.findUnique.mockResolvedValue({ id: "usr_target", role: "MEMBER" });
+    prisma.message.findUnique.mockResolvedValue(null);
+    prisma.room.findUnique.mockResolvedValue(null);
+    prisma.communityMember.findMany.mockResolvedValue([]);
 
     mockReportRepo = {
       create: vi.fn(),

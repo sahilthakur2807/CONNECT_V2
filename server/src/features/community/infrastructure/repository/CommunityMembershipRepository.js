@@ -80,7 +80,7 @@ export class CommunityMembershipRepository extends BaseRepository {
         communityId,
         banned: true,
         banReason: reason,
-        role: "member",
+        role: "MEMBER",
       },
     });
   }
