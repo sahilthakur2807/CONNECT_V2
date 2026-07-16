@@ -414,7 +414,39 @@ export function RoomDiscovery() {
           )}
         </div>
       </div>
+
+      {/* Have a perspective to share? CTA */}
+      <div className="bg-muted border border-border/50 rounded-3xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 mt-8">
+        <div className="space-y-2 text-center md:text-left">
+          <h3
+            className="text-xl font-bold text-foreground"
+            style={{ fontFamily: "'Playfair Display', serif" }}
+          >
+            Have a perspective to share?
+          </h3>
+          <p className="text-xs text-muted-foreground font-medium max-w-md">
+            Launch a debate room to discuss news stories, share opinions, or
+            host discussions with citizens across the network.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button
+            onClick={() => navigate("/home?createCommunity=true")}
+            variant="outline"
+            className="rounded-xl font-bold border-2 h-11 px-6 cursor-pointer"
+          >
+            + Sphere
+          </Button>
+          <Button
+            onClick={() => navigate("/home?createRoom=true")}
+            className="rounded-xl font-bold h-11 px-6 cursor-pointer"
+          >
+            + Launch Room
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
+
 export default RoomDiscovery;

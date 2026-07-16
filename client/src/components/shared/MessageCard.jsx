@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppDispatch } from "@/store";
 import { addOptimisticContribution, rollbackOptimisticContribution } from "@/store/slices/reputationSlice";
@@ -61,29 +61,48 @@ export function MessageCard({
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
+  // Helper to parse reactions from database array if available
+  const initialCounts = useMemo(() => {
+    const counts = { like: 0, fire: 0, heart: 0 };
+    if (message.reactions) {
+      for (const r of message.reactions) {
+        if (counts[r.emoji] !== undefined) {
+          counts[r.emoji]++;
+        }
+      }
+    } else if (message.reactionCounts) {
+      return message.reactionCounts;
+    }
+    return counts;
+  }, [message.reactions, message.reactionCounts]);
+
+  const initialActive = useMemo(() => {
+    const active = { like: false, fire: false, heart: false };
+    if (message.reactions && currentUserId) {
+      for (const r of message.reactions) {
+        if (r.userId === currentUserId && active[r.emoji] !== undefined) {
+          active[r.emoji] = true;
+        }
+      }
+    }
+    return active;
+  }, [message.reactions, currentUserId]);
 
   // Simulated interactive reactions - default 0 and hidden
-  const [reactionCounts, setReactionCounts] = useState(
-    message.reactionCounts || {
-      like: 0,
-      fire: 0,
-      heart: 0,
-    }
-  );
-  const [activeReactions, setActiveReactions] = useState({
-    like: false,
-    fire: false,
-    heart: false,
-  });
+  const [reactionCounts, setReactionCounts] = useState(initialCounts);
+  const [activeReactions, setActiveReactions] = useState(initialActive);
   const [showEmojiPanel, setShowEmojiPanel] = useState(false);
 
-  // Sync reactions when cache changes (e.g. from real-time sockets)
+  // Sync reactions when cache changes (e.g. from real-time sockets or database load)
   useEffect(() => {
-    if (message.reactionCounts) {
-      setReactionCounts(message.reactionCounts);
-    }
-  }, [message.reactionCounts]);
+    setReactionCounts(initialCounts);
+  }, [initialCounts]);
+
+  useEffect(() => {
+    setActiveReactions(initialActive);
+  }, [initialActive]);
 
   const editMessageMutation = useEditMessageMutation();
   const deleteMessageMutation = useDeleteMessageMutation(message.roomId);
@@ -376,7 +395,10 @@ export function MessageCard({
             {/* Reply Button */}
             {onReply && depth < 2 && (
               <button
-                onClick={() => onReply(message.id, user.username)}
+                onClick={() => {
+                  onReply(message.id, user.username);
+                  setIsCollapsed(false);
+                }}
                 className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-bold text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground transition-all cursor-pointer"
               >
                 Reply

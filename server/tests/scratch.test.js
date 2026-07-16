@@ -1,7 +1,7 @@
 import { describe, it } from "vitest";
 import { prisma } from "../src/infrastructure/db/PrismaClient.js";
 
-describe("Scratch DB inspector", () => {
+describe.skip("Scratch DB inspector", () => {
   it("inspects contributions for yps_Admin", async () => {
     let user;
     try {

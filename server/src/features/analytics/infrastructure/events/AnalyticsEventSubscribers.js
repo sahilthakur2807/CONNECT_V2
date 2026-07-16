@@ -133,6 +133,12 @@ export function registerAnalyticsSubscribers() {
           metadata: JSON.stringify({ messageId: message.id }),
         });
 
+        await reputationLogRepository.logAward(
+          message.userId,
+          REPUTATION_RULESETS["message.created"],
+          "message.posted",
+        );
+
         // Award 15 EXP to the parent author if this is a reply to their message (excluding self-replies)
         if (message.parentId) {
           const parentMsg = await prisma.message.findUnique({

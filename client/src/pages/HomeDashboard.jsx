@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowTrendingUpIcon,
   SparklesIcon,
@@ -41,6 +41,7 @@ const CATEGORIES = [
 
 export function HomeDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const activeFriendsRef = useRef(null);
   const { user: currentUser } = useAuth();
   const {
@@ -98,6 +99,19 @@ export function HomeDashboard() {
   // Dialog states
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [showCreateCommunity, setShowCreateCommunity] = useState(false);
+
+  // Open creation dialogs if query parameters are set (e.g. when coming from Discover page CTA)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("createRoom") === "true") {
+      setShowCreateRoom(true);
+      navigate(location.pathname, { replace: true });
+    } else if (params.get("createCommunity") === "true") {
+      setShowCreateCommunity(true);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, navigate, location.pathname]);
+
   const [roomForm, setRoomForm] = useState({
     title: "",
     description: "",

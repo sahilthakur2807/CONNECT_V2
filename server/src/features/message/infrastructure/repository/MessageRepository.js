@@ -42,6 +42,7 @@ export class MessageRepository extends BaseRepository {
         user: {
           select: { id: true, username: true, name: true, avatar: true },
         },
+        reactions: true,
       },
       orderBy: {
         createdAt: "asc",
@@ -78,6 +79,7 @@ export class MessageRepository extends BaseRepository {
         user: {
           select: { id: true, username: true, name: true, avatar: true },
         },
+        reactions: true,
       },
       orderBy: {
         createdAt: "desc",
@@ -102,6 +104,7 @@ export class MessageRepository extends BaseRepository {
         user: {
           select: { id: true, username: true, name: true, avatar: true },
         },
+        reactions: true,
       },
       orderBy: {
         createdAt: "asc",
