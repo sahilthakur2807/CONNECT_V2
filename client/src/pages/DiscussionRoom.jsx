@@ -21,6 +21,7 @@ import {
   ArrowUpTrayIcon,
   BoltIcon,
   ShieldCheckIcon,
+  FaceSmileIcon,
 } from "@heroicons/react/24/outline";
 
 import { Avatar } from "@/components/shared/Avatar";
@@ -107,11 +108,59 @@ const hasVisibleContent = (text) => {
   return cleaned.length > 0;
 };
 
+const formatCompactNumber = (val) => {
+  if (val === undefined || val === null || isNaN(val)) return "0";
+  if (val < 10000) {
+    return val.toString();
+  }
+  if (val < 1000000) {
+    return Math.floor(val / 1000) + "k";
+  }
+  if (val < 1000000000) {
+    return Math.floor(val / 1000000) + "M";
+  }
+  return Math.floor(val / 1000000000) + "B";
+};
+
+const POPULAR_EMOJIS = [
+  "😀", "😃", "😄", "😁", "😆", "😅", "😂", "🤣", "😊", "😇", 
+  "🙂", "🙃", "😉", "😌", "😍", "🥰", "😘", "😗", "😙", "😚", 
+  "😋", "😛", "😝", "😜", "🤪", "🤨", "🧐", "🤓", "😎", "🤩", 
+  "🥳", "😏", "😒", "😞", "😔", "😟", "😕", "🙁", "☹️", "😣", 
+  "😖", "😫", "😩", "🥺", "😢", "😭", "😤", "😠", "😡", "🤬", 
+  "🤯", "😳", "🥵", "🥶", "😱", "😨", "😰", "😥", "😓", "🤗", 
+  "🤔", "🤭", "🤫", "🤥", "😶", "😐", "😑", "😬", "🙄", "😯", 
+  "😦", "😧", "😮", "😲", "🥱", "😴", "🤤", "😪", "😵", "🤐",
+  "👍", "👎", "👊", "✊", "👏", "🙏", "💪", "🔥", "❤️", "✨"
+];
 
 export function DiscussionRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const handleInsertEmoji = (emoji) => {
+    const textarea = inputRef.current;
+    if (!textarea) {
+      setMessageText((prev) => prev + emoji);
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const before = text.substring(0, start);
+    const after = text.substring(end, text.length);
+
+    setMessageText(before + emoji + after);
+    
+    // Reset cursor position after React updates the value
+    setTimeout(() => {
+      textarea.focus();
+      textarea.selectionStart = textarea.selectionEnd = start + emoji.length;
+    }, 0);
+  };
 
   const {
     useRoomQuery,
@@ -621,10 +670,13 @@ export function DiscussionRoom() {
           <div className="space-y-1.5">
             <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-muted-foreground">
               <span>Heat score</span>
-              <span className="text-primary font-mono">85%</span>
+              <span className="text-primary font-mono">{room?.heatScore ?? 0}%</span>
             </div>
             <div className="h-1 bg-border/50 rounded-full overflow-hidden">
-              <div className="h-full bg-primary w-[85%] rounded-full animate-pulse" />
+              <div
+                className="h-full bg-primary rounded-full animate-pulse transition-all duration-500"
+                style={{ width: `${room?.heatScore ?? 0}%` }}
+              />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -633,7 +685,7 @@ export function DiscussionRoom() {
                 Takes
               </span>
               <p className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                {messages.length}
+                {formatCompactNumber(messages.length)}
               </p>
             </div>
             <div className="p-2.5 bg-card/65 rounded-xl border border-border/30">
@@ -641,7 +693,7 @@ export function DiscussionRoom() {
                 Impact
               </span>
               <p className="text-xl font-bold text-foreground mt-0.5 font-mono">
-                {messages.length * 3}
+                {formatCompactNumber(messages.length * 3)}
               </p>
             </div>
           </div>
@@ -996,6 +1048,46 @@ export function DiscussionRoom() {
                       {messageText.length}/200
                     </span>
                   )}
+
+                  {/* Emoji Picker Button */}
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className="flex items-center justify-center h-8 w-8 text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground rounded-xl transition-all cursor-pointer"
+                      title="Insert Emoji"
+                    >
+                      <FaceSmileIcon className="w-4 h-4" />
+                    </button>
+
+                    {showEmojiPicker && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setShowEmojiPicker(false)}
+                        />
+                        <div className="absolute bottom-full right-0 mb-2 z-50 w-64 p-3 bg-popover border border-border shadow-2xl rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 mb-2 block font-mono">
+                            Emoji Picker
+                          </span>
+                          <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                            {POPULAR_EMOJIS.map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => {
+                                  handleInsertEmoji(emoji);
+                                }}
+                                className="w-7 h-7 flex items-center justify-center hover:bg-secondary rounded-lg text-base cursor-pointer transition-colors"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
 
                   <Button
                     onClick={handleSend}

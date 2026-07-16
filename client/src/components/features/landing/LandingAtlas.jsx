@@ -28,34 +28,34 @@ export function LandingAtlas() {
   const ref = useRef(null);
   const inView = useInView(ref, { once: false, margin: "-100px" });
 
-  const [trendingRooms, setTrendingRooms] = useState([]);
+  const [hotRooms, setHotRooms] = useState([]);
   const [activeTopics, setActiveTopics] = useState([]);
 
   const topicCounter = useRef(0);
   const usedSectors = useRef(new Set());
 
   useEffect(() => {
-    const fetchTrending = async () => {
+    const fetchHotRooms = async () => {
       try {
-        const res = await fetch("/api/rooms/trending");
+        const res = await fetch("/api/rooms/hot");
         const resData = await res.json();
         const data = resData.data || resData;
 
         if (Array.isArray(data) && data.length > 0) {
-          setTrendingRooms(data);
+          setHotRooms(data);
         } else {
           throw new Error("No data");
         }
       } catch (error) {
-        console.error("Failed to fetch trending rooms:", error);
+        console.error("Failed to fetch hot rooms:", error);
       }
     };
 
-    fetchTrending();
+    fetchHotRooms();
   }, []);
 
   useEffect(() => {
-    if (!inView || trendingRooms.length === 0) return;
+    if (!inView || hotRooms.length === 0) return;
 
     const interval = setInterval(() => {
       if (usedSectors.current.size >= SLOTS.length) return;
@@ -76,7 +76,7 @@ export function LandingAtlas() {
       const y = 500 + Math.sin(jitterAngle) * jitterR;
 
       const room =
-        trendingRooms[Math.floor(Math.random() * trendingRooms.length)];
+        hotRooms[Math.floor(Math.random() * hotRooms.length)];
 
       const newTopic = {
         ...room,
@@ -107,7 +107,7 @@ export function LandingAtlas() {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [inView, trendingRooms]);
+  }, [inView, hotRooms]);
 
   return (
     <section ref={ref} className="bg-[#f5f4ef] py-32 overflow-hidden">

@@ -312,9 +312,7 @@ export function HomeDashboard() {
 
       const newRoom = await createRoomMutation.mutateAsync({
         title: roomForm.title,
-        description:
-          roomForm.description.trim() ||
-          "No description provided for this room.",
+        description: roomForm.description.trim() || "",
         category: roomForm.category,
         tags: tagsArray,
         sourceUrl: normalizedSourceUrl,

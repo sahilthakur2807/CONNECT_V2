@@ -65,7 +65,7 @@ export function MessageCard({
 
   // Helper to parse reactions from database array if available
   const initialCounts = useMemo(() => {
-    const counts = { like: 0, fire: 0, heart: 0 };
+    const counts = { like: 0, fire: 0, heart: 0, laugh: 0, cry: 0 };
     if (message.reactions) {
       for (const r of message.reactions) {
         if (counts[r.emoji] !== undefined) {
@@ -79,7 +79,7 @@ export function MessageCard({
   }, [message.reactions, message.reactionCounts]);
 
   const initialActive = useMemo(() => {
-    const active = { like: false, fire: false, heart: false };
+    const active = { like: false, fire: false, heart: false, laugh: false, cry: false };
     if (message.reactions && currentUserId) {
       for (const r of message.reactions) {
         if (r.userId === currentUserId && active[r.emoji] !== undefined) {
@@ -323,7 +323,16 @@ export function MessageCard({
             {/* Active reaction pills (only displayed if count > 0) */}
             {Object.entries(reactionCounts).map(([type, count]) => {
               if (count === 0) return null;
-              const emoji = type === "like" ? "👍" : type === "fire" ? "🔥" : "❤️";
+              const emoji =
+                type === "like"
+                  ? "👍"
+                  : type === "fire"
+                  ? "🔥"
+                  : type === "heart"
+                  ? "❤️"
+                  : type === "laugh"
+                  ? "😂"
+                  : "😭";
               const isActive = activeReactions[type];
               return (
                 <button
@@ -385,6 +394,24 @@ export function MessageCard({
                         className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
                       >
                         ❤️
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("laugh");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        😂
+                      </button>
+                      <button
+                        onClick={() => {
+                          toggleReaction("cry");
+                          setShowEmojiPanel(false);
+                        }}
+                        className="p-1.5 hover:bg-secondary rounded-lg text-sm cursor-pointer"
+                      >
+                        😭
                       </button>
                     </div>
                   </>

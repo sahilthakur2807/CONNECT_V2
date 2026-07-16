@@ -315,7 +315,38 @@ export class RoomRepository extends BaseRepository {
       },
     });
 
-    return this.mapRoom(room, userId, badgeInfo);
+    if (!room) return null;
+
+    // Calculate dynamic average takes (messages count) across all active rooms
+    const allRoomsCounts = await delegate.findMany({
+      where: { deleted: false },
+      select: {
+        _count: {
+          select: {
+            messages: { where: { deleted: false } }
+          }
+        }
+      }
+    });
+
+    const totalRooms = allRoomsCounts.length;
+    const totalMessages = allRoomsCounts.reduce((sum, r) => sum + (r._count?.messages || 0), 0);
+    const avgMessages = totalRooms > 0 ? (totalMessages / totalRooms) : 0;
+
+    const roomMessagesCount = room._count?.messages || 0;
+    // Calculate heat score compared to average
+    let heatScore = 0;
+    if (avgMessages > 0) {
+      heatScore = Math.min(100, Math.round((roomMessagesCount / avgMessages) * 100));
+    } else if (roomMessagesCount > 0) {
+      heatScore = 100;
+    }
+
+    const mapped = this.mapRoom(room, userId, badgeInfo);
+    return {
+      ...mapped,
+      heatScore,
+    };
   }
 
   /**
