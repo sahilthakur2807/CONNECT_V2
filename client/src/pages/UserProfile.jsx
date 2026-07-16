@@ -275,9 +275,12 @@ export function UserProfile() {
   const [ownedRooms, setOwnedRooms] = useState([]);
   const [isLoadingRooms, setIsLoadingRooms] = useState(false);
   const [visibleRooms, setVisibleRooms] = useState(6);
+  const [joinedRooms, setJoinedRooms] = useState([]);
+  const [isLoadingJoinedRooms, setIsLoadingJoinedRooms] = useState(false);
+  const [visibleJoinedRooms, setVisibleJoinedRooms] = useState(6);
   const [blockedUsers, setBlockedUsers] = useState([]);
   const [isLoadingBlocked, setIsLoadingBlocked] = useState(false);
-  const [activeTab, setActiveTab] = useState("rooms");
+  const [activeTab, setActiveTab] = useState("rooms_owned");
 
   // Modal states
   const [modal, setModal] = useState(null); // null | 'edit' | 'banner' | 'blocked' | 'settings' | 'delete'
@@ -321,6 +324,15 @@ export function UserProfile() {
       .then(res => setOwnedRooms(res.data.data))
       .catch(err => console.error(err))
       .finally(() => setIsLoadingRooms(false));
+  }, [targetId]);
+
+  useEffect(() => {
+    if (!targetId) return;
+    setIsLoadingJoinedRooms(true);
+    apiClient.get(`/users/${targetId}/rooms-joined`)
+      .then(res => setJoinedRooms(res.data.data))
+      .catch(err => console.error(err))
+      .finally(() => setIsLoadingJoinedRooms(false));
   }, [targetId]);
 
   /* ── Handlers ── */
@@ -456,6 +468,10 @@ export function UserProfile() {
 
   const profileUser = resolvedUser || currentUser;
   if (!profileUser) return null;
+
+  const unlockedAchievementsCount = ACHIEVEMENT_BADGES.filter(ach =>
+    ach.checkUnlock(profileUser, stats)
+  ).length;
 
   const bannerClass = (() => {
     const b = profileUser.banner || "bg-gradient-to-r from-red-600 via-red-500 to-red-800";
@@ -794,17 +810,18 @@ export function UserProfile() {
           TABS
       ══════════════════════════════════════════ */}
       <div className="mt-8 space-y-6">
-        {/* Custom tab bar — underline style */}
-        <div className="border-b border-border/50 flex gap-1">
+        <div className="border-b border-border/50 flex gap-1 overflow-x-auto scrollbar-none">
           {[
-            { id: "rooms", label: "Rooms" },
-            { id: "badges", label: "Badges" },
+            { id: "rooms_owned", label: `Rooms Owned (${ownedRooms.length})` },
+            { id: "rooms_joined", label: `Rooms Joined (${joinedRooms.length})` },
+            { id: "badges", label: `Badges (${profileUser?.badges?.length || 0})` },
+            { id: "achievements", label: `Achievements (${unlockedAchievementsCount}/${ACHIEVEMENT_BADGES.length})` },
           ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "relative px-5 py-3 text-sm transition-colors",
+                "relative px-5 py-3 text-sm transition-colors whitespace-nowrap",
                 activeTab === tab.id
                   ? "text-foreground font-medium"
                   : "text-muted-foreground hover:text-foreground font-normal"
@@ -819,8 +836,8 @@ export function UserProfile() {
           ))}
         </div>
 
-        {/* ── Rooms ── */}
-        {activeTab === "rooms" && (
+        {/* ── Rooms Owned ── */}
+        {activeTab === "rooms_owned" && (
           <div>
             {isLoadingRooms ? (
               <div className="flex items-center justify-center py-24">
@@ -877,8 +894,124 @@ export function UserProfile() {
           </div>
         )}
 
+        {/* ── Rooms Joined ── */}
+        {activeTab === "rooms_joined" && (
+          <div>
+            {isLoadingJoinedRooms ? (
+              <div className="flex items-center justify-center py-24">
+                <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
+              </div>
+            ) : joinedRooms.length > 0 ? (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {joinedRooms.slice(0, visibleJoinedRooms).map(room => (
+                    <div
+                      key={room.id}
+                      onClick={() => navigate(`/room/${room.id}`)}
+                      className="group rounded-2xl border border-border/50 bg-card p-5 cursor-pointer hover:border-primary/25 hover:shadow-sm transition-all space-y-3"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-primary">{room.category}</span>
+                            {room.isPrivate && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">Private</span>
+                            )}
+                          </div>
+                          <h4 className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors leading-snug">
+                            {room.title}
+                          </h4>
+                        </div>
+                        <ChevronRightIcon className="w-3.5 h-3.5 text-muted-foreground/40 group-hover:text-primary transition-colors flex-shrink-0 mt-1" />
+                      </div>
+                      <p className="text-xs text-muted-foreground font-light line-clamp-2 leading-relaxed">
+                        {room.description}
+                      </p>
+                      <Divider />
+                      <div className="flex gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><UsersIcon className="w-3 h-3" /> {room._count?.members || 0} members</span>
+                        <span className="flex items-center gap-1"><ChatBubbleLeftRightIcon className="w-3 h-3" /> {room._count?.messages || 0} takes</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {joinedRooms.length > visibleJoinedRooms && (
+                  <div className="text-center">
+                    <Button variant="outline" onClick={() => setVisibleJoinedRooms(p => p + 6)} className="rounded-xl px-8 text-sm font-medium">
+                      Load more
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-2xl border border-border/40 bg-card/50 text-center">
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-muted-foreground/30" />
+                <p className="text-sm font-medium text-muted-foreground">No rooms joined yet.</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Badges ── */}
         {activeTab === "badges" && (
+          <div className="space-y-6">
+            <div className="flex flex-col gap-1.5">
+              <h3 
+                className="text-2xl text-foreground"
+                style={{ fontFamily: "'DM Serif Display', serif" }}
+              >
+                Earned Badges
+              </h3>
+              <p className="text-sm text-muted-foreground font-light">
+                Official badges assigned to your account by the platform administrators.
+              </p>
+            </div>
+
+            {profileUser.badges?.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {profileUser.badges.map(b => {
+                  let description = "Official platform badge.";
+                  if (b.toLowerCase() === "verified") {
+                    description = "Identity verified by the consensus network moderation team.";
+                  } else if (
+                    b.toLowerCase() === "early member" || 
+                    b.toLowerCase() === "early adopter" || 
+                    b.toLowerCase() === "early-member"
+                  ) {
+                    description = "Joined the network in its early days to shape its foundation.";
+                  } else if (
+                    b.toLowerCase() === "top-contributor" || 
+                    b.toLowerCase() === "top contributor"
+                  ) {
+                    description = "Recognized for highly active debate participation.";
+                  }
+                  
+                  return (
+                    <div
+                      key={b}
+                      className="relative overflow-hidden rounded-2xl border border-border/55 bg-card p-6 flex flex-col gap-3 shadow-xs hover:shadow-md transition-all duration-300"
+                    >
+                      <div className="flex items-center justify-between">
+                        <Badge variant={b.toLowerCase().replace(" ", "-")} size="lg" />
+                      </div>
+                      <p className="text-sm text-muted-foreground font-light leading-relaxed mt-2">
+                        {description}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-24 gap-4 rounded-2xl border border-border/40 bg-card/50 text-center">
+                <ShieldCheckIcon className="w-8 h-8 text-muted-foreground/30" />
+                <p className="text-sm font-medium text-muted-foreground">No badges assigned yet.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Achievements ── */}
+        {activeTab === "achievements" && (
           <div className="space-y-6">
             <div className="flex flex-col gap-1.5">
               <h3 

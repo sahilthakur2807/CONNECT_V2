@@ -405,6 +405,52 @@ export function createUserRouter() {
     }
   });
 
+  // 4b. Get rooms joined by user
+  router.get("/:id/rooms-joined", authenticateJWT, async (req, res, next) => {
+    try {
+      const targetUserId = req.params.id;
+      const currentUserId = req.user.id;
+
+      // Check block first (only if viewing another user's rooms)
+      if (targetUserId !== currentUserId) {
+        const blocked = await prisma.block.findUnique({
+          where: {
+            userId_blockedId: {
+              userId: targetUserId,
+              blockedId: currentUserId
+            }
+          }
+        });
+        if (blocked) {
+          return res.status(403).json({ success: false, error: "Access denied. You have been blocked by this user." });
+        }
+      }
+
+      const rooms = await prisma.room.findMany({
+        where: {
+          members: {
+            some: {
+              userId: targetUserId,
+              status: { in: ["joined", "ROOM_MOD"] }
+            }
+          },
+          createdById: { not: targetUserId }, // only rooms they joined but do not own
+          deleted: false,
+          title: { not: "World Chat" }
+        },
+        include: {
+          community: { select: { id: true, name: true } },
+          _count: { select: { members: true, messages: true } }
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      res.json({ success: true, data: rooms });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   // 5. Toggle Pause Account
   router.post("/pause", authenticateJWT, async (req, res, next) => {
     try {
