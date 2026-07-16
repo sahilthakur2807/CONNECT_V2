@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAppSelector, useAppDispatch } from "@/store";
+import { useAuth } from "@/hooks/useAuth";
 import { logout } from "@/store/slices/authSlice";
 import { apiClient } from "@/services/apiClient";
 import {
@@ -12,7 +13,8 @@ import {
 
 export default function AppealsView() {
   const dispatch = useAppDispatch();
-  const { user, userRestriction } = useAppSelector((state) => state.auth);
+  const { user } = useAuth();
+  const { userRestriction } = useAppSelector((state) => state.auth);
   
   const [appealReason, setAppealReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

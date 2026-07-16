@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppSelector } from "@/store";
+import { useAuth } from "@/hooks/useAuth";
 import { apiClient } from "@/services/apiClient";
 import { getSocket } from "@/services/socketService";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 export function ModeratorDashboard() {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAuth();
   const userRole = user?.role?.toUpperCase();
   const navigate = useNavigate();
 

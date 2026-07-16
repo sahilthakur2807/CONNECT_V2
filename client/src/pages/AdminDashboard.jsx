@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppSelector } from "@/store";
+import { useAuth } from "@/hooks/useAuth";
 import { apiClient } from "@/services/apiClient";
 import { toast } from "sonner";
 import {
@@ -20,7 +21,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 export function AdminDashboard() {
-  const { user } = useAppSelector((state) => state.auth);
+  const { user } = useAuth();
   const userRole = user?.role?.toUpperCase();
   const navigate = useNavigate();
 
