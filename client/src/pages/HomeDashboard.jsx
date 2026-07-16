@@ -193,7 +193,7 @@ export function HomeDashboard() {
   // Fetch Room Feeds
   const { data: trendingData, isLoading: trendingLoading } =
     useTrendingRoomsQuery(visibleLimits.trending, { enabled: activeTab === "trending" });
-  const { data: hotData, isLoading: hotLoading } = useHotRoomsQuery(visibleLimits.hot, { enabled: activeTab === "hot" });
+  const { data: hotData, isLoading: hotLoading } = useHotRoomsQuery(visibleLimits.hot);
   const { data: newData, isLoading: newLoading } = useNewRoomsQuery(visibleLimits.new, { enabled: activeTab === "new" });
 
   const trendingRooms = trendingData?.rooms || [];
@@ -690,7 +690,7 @@ export function HomeDashboard() {
       </div>
 
       {/* Debate of the Day Hero Banner */}
-      {trendingRooms.length > 0 && (
+      {hotRooms.length > 0 && (
         <div className="relative bg-foreground rounded-3xl text-background p-8 sm:p-10 overflow-hidden group shadow-xl dark:bg-[#1a1a1a] dark:text-foreground animate-in fade-in duration-500">
           <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/20 rounded-full blur-[120px] -mr-32 -mt-32 pointer-events-none" />
 
@@ -713,7 +713,7 @@ export function HomeDashboard() {
                 className="text-2xl sm:text-3xl lg:text-4xl leading-tight max-w-3xl font-black text-background dark:text-foreground"
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
-                "{trendingRooms[0].title}"
+                "{hotRooms[0].title}"
               </h2>
 
               <p
@@ -723,7 +723,7 @@ export function HomeDashboard() {
                   lineHeight: 1.6,
                 }}
               >
-                {trendingRooms[0].description}
+                {hotRooms[0].description}
               </p>
             </div>
 
@@ -740,7 +740,7 @@ export function HomeDashboard() {
                     className="text-base font-bold text-background dark:text-foreground"
                     style={{ fontFamily: "'Playfair Display', serif" }}
                   >
-                    {trendingRooms[0]._count?.members || 0} Citizens
+                    {hotRooms[0]._count?.members || 0} Citizens
                   </span>
                 </div>
                 <div className="space-y-1">
@@ -754,13 +754,13 @@ export function HomeDashboard() {
                     className="text-base font-bold text-background dark:text-foreground"
                     style={{ fontFamily: "'Playfair Display', serif" }}
                   >
-                    {trendingRooms[0]._count?.messages || 0} Replies
+                    {hotRooms[0]._count?.messages || 0} Replies
                   </span>
                 </div>
               </div>
 
               <Button
-                onClick={() => navigate(`/room/${trendingRooms[0].id}`)}
+                onClick={() => navigate(`/room/${hotRooms[0].id}`)}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl h-11 px-6 font-black uppercase text-[10px] tracking-widest cursor-pointer transition-all"
               >
                 Branch in →
