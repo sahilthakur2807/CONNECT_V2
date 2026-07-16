@@ -2,6 +2,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import { useDispatch, useSelector } from "react-redux";
 import authReducer from "./slices/authSlice";
 import uiReducer from "./slices/uiSlice";
+import reputationReducer from "./slices/reputationSlice";
 
 import { disconnectSocket } from "@/services/socketService";
 
@@ -18,6 +19,7 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     ui: uiReducer,
+    reputation: reputationReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

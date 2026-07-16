@@ -176,6 +176,7 @@ export function WorldChatPage() {
       await sendMessageMutation.mutateAsync({
         content: text,
         parentId: null,
+        category: "World Affairs",
       });
 
       // Start 30 seconds rate-limit cooldown

@@ -5,6 +5,7 @@ import {
   setSocketConnected,
   incrementUnreadNotificationsCount,
 } from "@/store/slices/uiSlice";
+import { fetchReputationData } from "@/store/slices/reputationSlice";
 import { getSocket } from "@/services/socketService";
 import { toast } from "sonner";
 
@@ -132,6 +133,13 @@ export function useGlobalSocketEvents() {
       });
     };
 
+    const handleReputationUpdated = (data) => {
+      const currentUserId = localStorage.getItem("newsconnect_user_id");
+      if (data && data.userId === currentUserId) {
+        dispatch(fetchReputationData(currentUserId));
+      }
+    };
+
     socket.on("connect", handleConnect);
     socket.on("disconnect", handleDisconnect);
     socket.on("presence.online", handlePresenceOnline);
@@ -144,6 +152,7 @@ export function useGlobalSocketEvents() {
     socket.on("room.message.count.updated", handleRoomMessageCountUpdated);
     socket.on("room.active.count.updated", handleRoomActiveCountUpdated);
     socket.on("room.deleted", handleRoomDeleted);
+    socket.on("user.reputation.updated", handleReputationUpdated);
 
     return () => {
       socket.off("connect", handleConnect);
@@ -158,6 +167,7 @@ export function useGlobalSocketEvents() {
       socket.off("room.message.count.updated", handleRoomMessageCountUpdated);
       socket.off("room.active.count.updated", handleRoomActiveCountUpdated);
       socket.off("room.deleted", handleRoomDeleted);
+      socket.off("user.reputation.updated", handleReputationUpdated);
     };
   }, [queryClient, dispatch]);
 }

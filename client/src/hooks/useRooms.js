@@ -149,12 +149,26 @@ export const useLeaveCommunityMutation = () => {
   });
 };
 
+import { useAppDispatch } from "@/store";
+import { addOptimisticContribution, rollbackOptimisticContribution } from "@/store/slices/reputationSlice";
+
 export const useCreateRoomMutation = () => {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
   return useMutation({
     mutationFn: async (data) => {
       const res = await apiClient.post("/rooms", data);
       return res.data.data;
+    },
+    onMutate: async (data) => {
+      if (data.category) {
+        dispatch(addOptimisticContribution({ category: data.category, type: "room" }));
+      }
+    },
+    onError: (err, data) => {
+      if (data.category) {
+        dispatch(rollbackOptimisticContribution());
+      }
     },
     onSuccess: (newRoom) => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });

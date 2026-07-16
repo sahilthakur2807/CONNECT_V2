@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAppDispatch } from "@/store";
+import { addOptimisticContribution, rollbackOptimisticContribution } from "@/store/slices/reputationSlice";
 import { getSocket } from "@/services/socketService";
 import {
   FlagIcon,
@@ -53,7 +55,9 @@ export function MessageCard({
   parentname,
   isConsecutive = false,
   isLastInGroup = true,
+  roomCategory,
 }) {
+  const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
@@ -173,6 +177,8 @@ export function MessageCard({
       roomId: message.roomId,
       messageId: message.id,
       reactionCounts: newReactionCounts,
+      emoji: type,
+      active: newActive,
     });
   };
 
@@ -456,6 +462,7 @@ export function MessageCard({
                   parentname={user.name}
                   isConsecutive={isReplyConsecutive}
                   isLastInGroup={isReplyLastInGroup}
+                  roomCategory={roomCategory}
                 />
               );
             })}

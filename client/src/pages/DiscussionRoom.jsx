@@ -386,6 +386,7 @@ export function DiscussionRoom() {
       await sendMessageMutation.mutateAsync({
         content: text,
         parentId: replyTargetId || null,
+        category: room?.category,
       });
       // Auto scroll
       setTimeout(() => {
@@ -920,6 +921,7 @@ export function DiscussionRoom() {
                       depth={0}
                       isConsecutive={isConsecutive}
                       isLastInGroup={isLastInGroup}
+                      roomCategory={room?.category}
                     />
                   </div>
                 );
