@@ -70,12 +70,17 @@ export function createAuthRouter() {
   const router = Router();
 
   // Helper to attach secure refresh token cookie
-  const setRefreshTokenCookie = (res, token) => {
+  const setRefreshTokenCookie = (res, token, userRole) => {
+    const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(userRole?.toUpperCase());
+    const maxAge = isAdmin
+      ? 3 * 60 * 60 * 1000 // 3 hours
+      : 100 * 365 * 24 * 60 * 60 * 1000; // 100 years
+
     res.cookie("refreshToken", token, {
       httpOnly: true,
       secure: config.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 3 * 24 * 60 * 60 * 1000, // 3 days
+      maxAge,
     });
   };
 
@@ -120,7 +125,7 @@ export function createAuthRouter() {
       );
 
       const result = await registerHandler.execute(command);
-      setRefreshTokenCookie(res, result.tokens.refreshToken);
+      setRefreshTokenCookie(res, result.tokens.refreshToken, result.user.role);
 
       const userRestriction = await getUserRestriction(result.user.id);
 
@@ -154,7 +159,7 @@ export function createAuthRouter() {
       );
 
       const result = await loginHandler.execute(command);
-      setRefreshTokenCookie(res, result.tokens.refreshToken);
+      setRefreshTokenCookie(res, result.tokens.refreshToken, result.user.role);
 
       const userRestriction = await getUserRestriction(result.user.id);
 
@@ -188,7 +193,7 @@ export function createAuthRouter() {
       );
 
       const result = await oauthSignInHandler.execute(command);
-      setRefreshTokenCookie(res, result.tokens.refreshToken);
+      setRefreshTokenCookie(res, result.tokens.refreshToken, result.user.role);
 
       const userRestriction = await getUserRestriction(result.user.id);
 
@@ -228,7 +233,7 @@ export function createAuthRouter() {
       );
 
       const result = await refreshTokenHandler.execute(command);
-      setRefreshTokenCookie(res, result.refreshToken);
+      setRefreshTokenCookie(res, result.refreshToken, result.user.role);
 
       const userRestriction = await getUserRestriction(result.user.id);
 
