@@ -11,19 +11,22 @@ export function registerRoomEventSubscribers() {
       if (io) {
         const room = await prisma.room.findUnique({
           where: { id: event.roomId },
-          select: {
-            id: true,
-            title: true,
-            description: true,
-            category: true,
-            tags: true,
-            imageUrl: true,
-            isPrivate: true,
-            archived: true,
-            createdAt: true,
-            createdById: true,
-            communityId: true
-          }
+          include: {
+            createdBy: {
+              select: {
+                id: true,
+                username: true,
+                name: true,
+                avatar: true,
+              },
+            },
+            _count: {
+              select: {
+                members: true,
+                messages: true,
+              },
+            },
+          },
         });
         if (room) {
           io.emit("room.created", { success: true, data: room });

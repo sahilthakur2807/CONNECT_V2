@@ -7,6 +7,7 @@ import {
   LockClosedIcon,
   ChevronLeftIcon,
   BoltIcon,
+  FaceSmileIcon,
 } from "@heroicons/react/24/outline";
 import { buildMessageTree } from "@/utils/tree";
 import { Avatar } from "@/components/shared/Avatar";
@@ -20,6 +21,11 @@ import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { getSocket } from "@/services/socketService";
 import { cn } from "@/utils/cn";
 
+const POPULAR_EMOJIS = [
+  "👍", "❤️", "🔥", "😂", "👏", "🎉", "🚀", "💡",
+  "🙌", "💯", "🙏", "😍", "🤔", "😮", "😢", "😡",
+  "⭐", "✅", "❌", "📌", "💬", "🎯", "⚡", "✨",
+];
 
 export function WorldChatPage() {
   const navigate = useNavigate();
@@ -33,11 +39,18 @@ export function WorldChatPage() {
   const [messageText, setMessageText] = useState("");
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [activeUsers, setActiveUsers] = useState([]);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
 
   const feedRef = useRef(null);
   const inputRef = useRef(null);
   const cooldownIntervalRef = useRef(null);
+
+  const handleInsertEmoji = (emoji) => {
+    setMessageText((prev) => prev + emoji);
+    setShowEmojiPicker(false);
+    inputRef.current?.focus();
+  };
 
   // 1. Resolve or Auto-Create the global "World Chat" room
   useEffect(() => {
@@ -201,7 +214,8 @@ export function WorldChatPage() {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if ((e.key === "Enter" || e.keyCode === 13) && !e.shiftKey) {
+      if (e.nativeEvent?.isComposing) return;
       e.preventDefault();
       handleSend();
     }
@@ -358,7 +372,7 @@ export function WorldChatPage() {
 
         {/* Message Input Composer */}
         <div className="p-5 border-t border-border bg-card shrink-0">
-          <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
+          <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 relative">
             <div className="flex items-end gap-3 px-3.5 py-2">
               <div className="hidden sm:block shrink-0 mb-1">
                 <Avatar
@@ -397,6 +411,45 @@ export function WorldChatPage() {
                     </span>
                   )
                 )}
+
+                {/* Emoji Picker Button */}
+                <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                    disabled={cooldownRemaining > 0}
+                    className="flex items-center justify-center h-8 w-8 text-muted-foreground/50 hover:bg-secondary/60 hover:text-foreground rounded-xl transition-all cursor-pointer disabled:opacity-50"
+                    title="Insert Emoji"
+                  >
+                    <FaceSmileIcon className="w-4 h-4" />
+                  </button>
+
+                  {showEmojiPicker && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setShowEmojiPicker(false)}
+                      />
+                      <div className="absolute bottom-full right-0 mb-2 z-50 w-64 p-3 bg-popover border border-border shadow-2xl rounded-2xl animate-in fade-in slide-in-from-bottom-2">
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest pl-1 mb-2 block font-mono">
+                          Emoji Picker
+                        </span>
+                        <div className="grid grid-cols-8 gap-1 max-h-48 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+                          {POPULAR_EMOJIS.map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => handleInsertEmoji(emoji)}
+                              className="w-7 h-7 flex items-center justify-center hover:bg-secondary rounded-lg text-base cursor-pointer transition-colors"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 <Button
                   onClick={handleSend}

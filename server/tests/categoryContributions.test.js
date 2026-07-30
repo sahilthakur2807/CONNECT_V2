@@ -35,7 +35,7 @@ describe("Category Rank Logic Unit Tests", () => {
     it("should return Newcomer for 15 EXP", () => {
       const info = getCategoryRankInfo(15);
       expect(info.rank).toBe("Newcomer");
-      expect(info.medal).toBeNull();
+      expect(info.medal).toBe("novice");
       expect(info.currentExp).toBe(15);
       expect(info.percentage).toBe(29); // (15-1) / 49 * 100
       expect(info.nextThreshold).toBe(50);
@@ -96,13 +96,9 @@ describe("Category Rank Logic Unit Tests", () => {
       const handler = new GetUserCategoryContributionsHandler();
       const query = new GetUserCategoryContributionsQuery("usr_test_999");
 
-      // Mock user messages (each = 15 EXP)
-      // Politics: 2 messages => 30 EXP
-      // Technology: 1 message => 15 EXP
+      // Mock user replies received (0 EXP for messages/replies)
       prisma.message.findMany.mockResolvedValue([
         { room: { category: "Politics" } },
-        { room: { category: "Politics" } },
-        { room: { category: "Technology" } },
       ]);
 
       // Mock user created rooms (each = 50 EXP)
@@ -112,34 +108,29 @@ describe("Category Rank Logic Unit Tests", () => {
       ]);
 
       // Mock user received reactions (each = 15 EXP)
-      prisma.reaction.findMany.mockResolvedValue([]);
+      // Technology: 1 reaction => 15 EXP
+      prisma.reaction.findMany.mockResolvedValue([
+        { message: { room: { category: "Technology" } } },
+      ]);
 
       const result = await handler.execute(query);
 
       // We expect the result sorted by EXP descending.
-      // Technology: 1 msg (15) + 1 room (50) = 65 EXP -> rank Contributor
-      // Politics: 2 msg (30) + 0 room (0) = 30 EXP -> rank Newcomer
-      // Economy, Environment, World Affairs, etc. have 0 EXP -> Unranked
+      // Technology: 1 reaction (15) + 1 room (50) = 65 EXP -> rank Contributor
+      // Politics, Economy, etc. have 0 EXP -> Unranked
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThanOrEqual(9);
 
-      // Verify Technology is first (65 EXP > 30 EXP)
+      // Verify Technology is first (65 EXP > 0 EXP)
       expect(result[0].category).toBe("Technology");
       expect(result[0].currentExp).toBe(65);
-      expect(result[0].messageCount).toBe(1);
+      expect(result[0].reactionsReceivedCount).toBe(1);
       expect(result[0].roomsCreatedCount).toBe(1);
       expect(result[0].rank).toBe("Contributor");
 
-      // Verify Politics is second (30 EXP)
-      expect(result[1].category).toBe("Politics");
-      expect(result[1].currentExp).toBe(30);
-      expect(result[1].messageCount).toBe(2);
-      expect(result[1].roomsCreatedCount).toBe(0);
-      expect(result[1].rank).toBe("Newcomer");
-
       // Verify others are unranked/0
-      const unrankedTopics = result.slice(2);
+      const unrankedTopics = result.slice(1);
       unrankedTopics.forEach((topic) => {
         expect(topic.currentExp).toBe(0);
         expect(topic.rank).toBe("Unranked");

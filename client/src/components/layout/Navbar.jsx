@@ -466,8 +466,8 @@ export function Navbar() {
           />
 
           {/* Menu Card */}
-          <div className="relative ml-auto flex h-full w-full max-w-xs flex-col bg-card py-4 shadow-xl animate-in slide-in-from-right duration-200">
-            <div className="px-6 pb-4 border-b border-border flex items-center justify-between">
+          <div className="relative ml-auto flex h-full w-full max-w-xs flex-col bg-card shadow-xl animate-in slide-in-from-right duration-200">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
               <span className="font-bold text-xl">Menu</span>
               <Button
                 variant="ghost"
@@ -478,7 +478,8 @@ export function Navbar() {
                 <XMarkIcon className="w-5 h-5" />
               </Button>
             </div>
-            <div className="px-6 py-4 space-y-6">
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
               <div className="relative">
                 <MagnifyingGlassIcon
                   className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -499,7 +500,8 @@ export function Navbar() {
                   className="pl-11 h-12 bg-secondary/50 border-none rounded-2xl"
                 />
               </div>
-              <nav className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+
+              <nav className="flex flex-col gap-1.5">
                 {[
                   { to: "/home", label: "Home", icon: <HomeIcon className="w-5 h-5 shrink-0" /> },
                   { to: "/discover", label: "Discover", icon: <GlobeAltIcon className="w-5 h-5 shrink-0" /> },
@@ -539,7 +541,7 @@ export function Navbar() {
                     Categories
                   </span>
                 </div>
-                <div className="flex flex-col gap-1 max-h-[25vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="flex flex-col gap-1">
                   {categoriesList.map((cat) => (
                     <NavLink
                       key={cat}
@@ -561,7 +563,8 @@ export function Navbar() {
                 </div>
               </div>
             </div>
-            <div className="mt-auto p-6 border-t border-border bg-secondary/20">
+
+            <div className="mt-auto p-6 border-t border-border bg-secondary/20 shrink-0">
               <div className="flex items-center gap-4 mb-6">
                 <Avatar
                   src={user.avatar || undefined}

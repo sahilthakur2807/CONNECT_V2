@@ -30,7 +30,7 @@ export function getCategoryRankInfo(exp) {
   }
 
   const levels = [
-    { level: 1, min: 1, max: 50, rank: "Newcomer", medal: null },
+    { level: 1, min: 1, max: 50, rank: "Newcomer", medal: "novice" },
     { level: 2, min: 50, max: 100, rank: "Contributor", medal: "bronze1" },
     { level: 3, min: 100, max: 200, rank: "Active Contributor", medal: "bronze2" },
     { level: 4, min: 200, max: 300, rank: "Senior Contributor", medal: "bronze3" },
@@ -70,7 +70,8 @@ export function getCategoryRankInfo(exp) {
 
 // Global EXP config rules
 const EXP_RULES = {
-  message: 15,
+  message: 0,
+  reply: 0,
   room: 50,
   reaction: 15,
 };

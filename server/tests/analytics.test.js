@@ -90,7 +90,7 @@ describe("CONNECT Phase 8 Analytics & Reputation Unit Tests", () => {
       );
     });
 
-    it("should log message posted and award 5 reputation points", async () => {
+    it("should log message posted and not award message reputation points", async () => {
       registerAnalyticsSubscribers();
 
       vi.mocked(prisma.message.findUnique).mockResolvedValue({
@@ -120,11 +120,7 @@ describe("CONNECT Phase 8 Analytics & Reputation Unit Tests", () => {
         metadata: JSON.stringify({ messageId: "msg_123" }),
       });
 
-      expect(reputationLogRepository.logAward).toHaveBeenCalledWith(
-        "usr_poster",
-        5,
-        "message.posted",
-      );
+      expect(reputationLogRepository.logAward).not.toHaveBeenCalled();
     });
   });
 

@@ -9,7 +9,7 @@ const REPUTATION_RULESETS = {
   "auth.user.registered": 10,
   "community.created": 50,
   "membership.created": 10,
-  "message.created": 5,
+  "message.created": 0,
   "friend.request.accepted": 15,
 };
 
@@ -162,33 +162,6 @@ export function registerAnalyticsSubscribers() {
           metadata: JSON.stringify({ messageId: message.id }),
         });
 
-        await reputationLogRepository.logAward(
-          message.userId,
-          REPUTATION_RULESETS["message.created"],
-          "message.posted",
-        );
-
-        // Award 15 EXP to the parent author if this is a reply to their message (excluding self-replies)
-        if (message.parentId) {
-          const parentMsg = await prisma.message.findUnique({
-            where: { id: message.parentId },
-            select: { userId: true },
-          });
-          if (parentMsg && parentMsg.userId !== message.userId) {
-            await reputationLogRepository.logAward(
-              parentMsg.userId,
-              15,
-              "reply.received",
-            );
-            if (io) {
-              io.to(parentMsg.userId).emit("user.reputation.updated", { userId: parentMsg.userId });
-            }
-          }
-        }
-
-        if (io) {
-          io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
-        }
         await broadcastStats();
       }
     } catch (err) {
@@ -260,25 +233,6 @@ export function registerAnalyticsSubscribers() {
   // 8. Message Deleted
   EventBus.subscribe("message.deleted", async (event) => {
     try {
-      const message = await prisma.message.findFirst({
-        where: { id: event.messageId },
-        select: { userId: true, parentId: true, parent: { select: { userId: true } } },
-      });
-      if (message) {
-        if (message.parentId && message.parent && message.parent.userId !== message.userId) {
-          await reputationLogRepository.logAward(
-            message.parent.userId,
-            -15,
-            "reply.deleted",
-          );
-          if (io) {
-            io.to(message.parent.userId).emit("user.reputation.updated", { userId: message.parent.userId });
-          }
-        }
-        if (io) {
-          io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
-        }
-      }
       await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process message.deleted:", err);

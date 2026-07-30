@@ -100,12 +100,7 @@ function PendingRequestsList({ roomId }) {
 // Helper to check for actual visible text content (ignores zero-width/invisible Unicode spaces and Braille blank spaces)
 const hasVisibleContent = (text) => {
   if (!text) return false;
-  // Remove normal whitespaces, zero-width chars, formatting symbols, and Braille blanks
-  const cleaned = text
-    .replace(/[\s\u200B-\u200D\uFEFF\u2000-\u200F\u2028\u2029\u202F\u205F\u3000\u2800]/g, "")
-    .replace(/\p{Z}/gu, "")
-    .replace(/\p{C}/gu, "");
-  return cleaned.length > 0;
+  return text.trim().length > 0;
 };
 
 const formatCompactNumber = (val) => {
@@ -455,11 +450,10 @@ export function DiscussionRoom() {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if ((e.key === "Enter" || e.keyCode === 13) && !e.shiftKey) {
+      if (e.nativeEvent?.isComposing) return;
       e.preventDefault();
-      if (hasVisibleContent(messageText)) {
-        handleSend();
-      }
+      handleSend();
     }
   };
 
@@ -1013,7 +1007,7 @@ export function DiscussionRoom() {
             )}
 
             {/* Premium Composer Box */}
-            <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
+            <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 relative">
               {/* Textarea Input area */}
               <div className="flex items-end gap-3 px-3.5 py-2">
                 <div className="hidden sm:block shrink-0 mb-1">
