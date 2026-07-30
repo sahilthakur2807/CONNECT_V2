@@ -26,7 +26,7 @@ export class AuthService {
   /**
    * Creates a new session in the database and generates token pairs.
    */
-  async createSession(userId, deviceInfo, ipAddress, tx) {
+  async createSession(userId, deviceInfo, ipAddress, tx, customExpiresAt) {
     const user = await this.userRepo.findById(userId, tx);
     if (!user) {
       throw new UnauthorizedError(
@@ -35,8 +35,18 @@ export class AuthService {
     }
 
     const refreshToken = crypto.randomBytes(40).toString("hex");
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 3); // Expires in 3 days
+    let expiresAt;
+    if (customExpiresAt) {
+      expiresAt = new Date(customExpiresAt);
+    } else {
+      expiresAt = new Date();
+      const isAdmin = ["SUPER_ADMIN", "PLATFORM_ADMIN", "ADMIN", "SUPERADMIN"].includes(user.role?.toUpperCase());
+      if (isAdmin) {
+        expiresAt.setHours(expiresAt.getHours() + 3); // Expires in 3 hours
+      } else {
+        expiresAt.setFullYear(expiresAt.getFullYear() + 100); // Expires in 100 years
+      }
+    }
 
     await this.sessionRepo.create(
       {
@@ -85,7 +95,7 @@ export class AuthService {
     // Revoke the old token
     await this.sessionRepo.revokeSession(session.id, tx);
 
-    // Create a new session
-    return this.createSession(session.userId, deviceInfo, ipAddress, tx);
+    // Create a new session, preserving the original absolute expiration date
+    return this.createSession(session.userId, deviceInfo, ipAddress, tx, session.expiresAt);
   }
 }

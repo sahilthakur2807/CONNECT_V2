@@ -42,10 +42,11 @@ describe("Email Notification System (Gmail OAuth2)", () => {
     expect(result.messageId).toBe("mock-gmail-id-success");
   });
 
-  it("should trigger sendVerificationEmail when auth.user.registered event is published", async () => {
+  it("should trigger sendVerificationEmail and sendWelcomeEmail when auth.user.registered event is published", async () => {
     registerEmailSubscribers();
 
-    const spy = vi.spyOn(EmailService, "sendVerificationEmail").mockResolvedValue({ messageId: "mock-gmail-id-success" });
+    const verifySpy = vi.spyOn(EmailService, "sendVerificationEmail").mockResolvedValue({ messageId: "mock-gmail-id-success" });
+    const welcomeSpy = vi.spyOn(EmailService, "sendWelcomeEmail").mockResolvedValue({ messageId: "mock-gmail-id-success" });
 
     const event = {
       eventName: "auth.user.registered",
@@ -58,13 +59,19 @@ describe("Email Notification System (Gmail OAuth2)", () => {
 
     await EventBus.publish(event);
 
-    expect(spy).toHaveBeenCalledWith(
+    expect(verifySpy).toHaveBeenCalledWith(
       "spy@example.com",
       "eventspy",
       "spy-token-xyz"
     );
 
-    spy.mockRestore();
+    expect(welcomeSpy).toHaveBeenCalledWith(
+      "spy@example.com",
+      "eventspy"
+    );
+
+    verifySpy.mockRestore();
+    welcomeSpy.mockRestore();
   });
 
   it("should trigger sendPasswordResetEmail when auth.password.reset_requested event is published", async () => {
