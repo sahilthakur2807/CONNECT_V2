@@ -57,7 +57,10 @@ export function RoomDiscovery() {
     setVisibleRoomsCount(6);
   }, [activeCategory, searchQuery, sortBy]);
 
-  const { useRoomsQuery, joinRoomMutation, leaveRoomMutation } = useRooms();
+  const { useRoomsQuery, joinRoomMutation, leaveRoomMutation, useCategoriesQuery } = useRooms();
+  const { data: serverCategories } = useCategoriesQuery();
+  const categoriesList = serverCategories ? ["All Topics", ...serverCategories] : CATEGORIES;
+
   const { data: rooms = [], isLoading } = useRoomsQuery({
     category: activeCategory !== "All Topics" ? activeCategory : undefined,
   });
@@ -314,6 +317,30 @@ export function RoomDiscovery() {
       <div className="flex flex-col lg:flex-row gap-10">
         {/* Results Area */}
         <div ref={resultsRef} className="flex-1 min-h-[85vh] space-y-8 animate-in fade-in duration-300">
+          {/* Mobile Categories Selector (Visible only below lg breakpoint) */}
+          <div className="lg:hidden w-full overflow-x-auto pb-4 flex gap-2 scroll-smooth shrink-0 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            {categoriesList.map((cat) => {
+              const isActive = activeCategory.toLowerCase() === cat.toLowerCase();
+              return (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setActiveCategory(cat);
+                    navigate(`/discover?category=${encodeURIComponent(cat)}`);
+                  }}
+                  className={cn(
+                    "px-4 py-2 text-xs font-bold rounded-full transition-all shrink-0 cursor-pointer border",
+                    isActive
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-secondary text-muted-foreground border-border hover:text-foreground hover:bg-secondary/80"
+                  )}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="flex items-center justify-between border-b border-border pb-6">
             <div className="space-y-1">
               <h2

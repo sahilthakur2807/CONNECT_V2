@@ -13,6 +13,32 @@ const REPUTATION_RULESETS = {
   "friend.request.accepted": 15,
 };
 
+async function broadcastStats() {
+  try {
+    if (!prisma || !prisma.user || !prisma.room || !prisma.message || !prisma.community) {
+      Logger.debug("AnalyticsSubscriber: prisma or model properties undefined (probably mocked in tests). Skipping stats broadcast.");
+      return;
+    }
+    const [totalUsers, totalRooms, totalMessages, totalCommunities] = await Promise.all([
+      prisma.user.count({ where: { role: { not: "banned" } } }),
+      prisma.room.count({ where: { deleted: false } }),
+      prisma.message.count({ where: { deleted: false } }),
+      prisma.community.count({ where: { deleted: false } }),
+    ]);
+    if (io) {
+      io.emit("stats_update", {
+        totalUsers,
+        totalRooms,
+        totalMessages,
+        totalCommunities,
+      });
+      Logger.debug(`AnalyticsEventSubscribers: Broadcasted stats_update: rooms=${totalRooms}, messages=${totalMessages}, communities=${totalCommunities}, users=${totalUsers}`);
+    }
+  } catch (err) {
+    Logger.error("AnalyticsSubscriber: failed to broadcast stats update:", err);
+  }
+}
+
 export function registerAnalyticsSubscribers() {
   // 1. User Registered
   EventBus.subscribe("auth.user.registered", async (event) => {
@@ -30,6 +56,7 @@ export function registerAnalyticsSubscribers() {
       if (io) {
         io.to(event.userId).emit("user.reputation.updated", { userId: event.userId });
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process auth.user.registered:",
@@ -54,6 +81,7 @@ export function registerAnalyticsSubscribers() {
       if (io) {
         io.to(event.ownerId).emit("user.reputation.updated", { userId: event.ownerId });
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process community.created:",
@@ -110,6 +138,7 @@ export function registerAnalyticsSubscribers() {
       if (io) {
         io.to(event.creatorId).emit("user.reputation.updated", { userId: event.creatorId });
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process room.created:", err);
     }
@@ -160,6 +189,7 @@ export function registerAnalyticsSubscribers() {
         if (io) {
           io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
         }
+        await broadcastStats();
       }
     } catch (err) {
       Logger.error(
@@ -221,6 +251,7 @@ export function registerAnalyticsSubscribers() {
           io.to(room.createdById).emit("user.reputation.updated", { userId: room.createdById });
         }
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process room.deleted:", err);
     }
@@ -248,8 +279,18 @@ export function registerAnalyticsSubscribers() {
           io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
         }
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process message.deleted:", err);
+    }
+  });
+
+  // 9. Community Deleted
+  EventBus.subscribe("community.deleted", async (event) => {
+    try {
+      await broadcastStats();
+    } catch (err) {
+      Logger.error("AnalyticsSubscriber: failed to process community.deleted:", err);
     }
   });
 }

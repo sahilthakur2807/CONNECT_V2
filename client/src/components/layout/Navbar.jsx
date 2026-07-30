@@ -14,10 +14,16 @@ import {
   MoonIcon,
   XMarkIcon,
   ChevronDownIcon,
+  GlobeAltIcon,
+  ChatBubbleLeftRightIcon,
+  UserGroupIcon,
+  GlobeAmericasIcon,
+  HashtagIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useRooms } from "@/hooks/useRooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,12 +40,29 @@ import { useAppSelector } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 
+const CATEGORIES = [
+  "All Topics",
+  "Politics",
+  "Technology",
+  "Economy",
+  "Environment",
+  "World Affairs",
+  "Science",
+  "Health",
+  "Culture",
+  "Sports",
+];
+
 export function Navbar() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user, accessToken, isLoading, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const { useCategoriesQuery } = useRooms();
+  const { data: serverCategories } = useCategoriesQuery();
+  const categoriesList = serverCategories ? ["All Topics", ...serverCategories] : CATEGORIES;
 
   const [hasModeratedCommunities, setHasModeratedCommunities] = useState(false);
   const [hasAdminCommunities, setHasAdminCommunities] = useState(false);
@@ -476,25 +499,67 @@ export function Navbar() {
                   className="pl-11 h-12 bg-secondary/50 border-none rounded-2xl"
                 />
               </div>
-              <nav className="flex flex-col gap-2">
-                {navLinks.map((link) => (
+              <nav className="flex flex-col gap-1.5 max-h-[50vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                {[
+                  { to: "/home", label: "Home", icon: <HomeIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/discover", label: "Discover", icon: <GlobeAltIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/discussions", label: "Discussions", icon: <ChatBubbleLeftRightIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/communities", label: "Communities", icon: <UserGroupIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/world-chat", label: "World Chat", icon: <GlobeAmericasIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/notifications", label: "Notifications", icon: <BellIcon className="w-5 h-5 shrink-0" />, badge: unreadCount },
+                  { to: `/profile/${user.id}`, label: "Your Profile", icon: <UserCircleIcon className="w-5 h-5 shrink-0" /> },
+                ].map((link) => (
                   <NavLink
                     key={link.to}
                     to={link.to}
                     onClick={() => setMobileMenuOpen(false)}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 px-4 py-3.5 rounded-2xl text-base font-bold transition-all",
+                        "flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer",
                         isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-foreground hover:bg-secondary",
+                          ? "bg-primary/10 text-primary font-black"
+                          : "text-foreground hover:bg-secondary/80",
                       )
                     }
                   >
-                    {link.label}
+                    {link.icon}
+                    <span>{link.label}</span>
+                    {link.badge !== undefined && link.badge > 0 && (
+                      <span className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                        {link.badge}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               </nav>
+
+              <div className="border-t border-border/50 pt-4 mt-2">
+                <div className="flex items-center gap-2 px-4 mb-2">
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] font-mono">
+                    Categories
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1 max-h-[25vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  {categoriesList.map((cat) => (
+                    <NavLink
+                      key={cat}
+                      to={`/discover?category=${encodeURIComponent(cat)}`}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                          location.pathname === "/discover" && new URLSearchParams(location.search).get("category")?.toLowerCase() === cat.toLowerCase()
+                            ? "bg-primary/10 text-primary font-black"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/80",
+                        )
+                      }
+                    >
+                      <HashtagIcon className="w-4 h-4 shrink-0 text-muted-foreground/50" />
+                      <span>{cat}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="mt-auto p-6 border-t border-border bg-secondary/20">
               <div className="flex items-center gap-4 mb-6">

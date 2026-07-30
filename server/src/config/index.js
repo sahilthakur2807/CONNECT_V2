@@ -12,6 +12,7 @@ try {
     DATABASE_URL: process.env.DATABASE_URL,
     JWT_SECRET: process.env.JWT_SECRET,
     CORS_ORIGIN: process.env.CORS_ORIGIN,
+    CLIENT_URL: process.env.CLIENT_URL,
     GMAIL_USER: process.env.GMAIL_USER,
     GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
     GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,

@@ -135,6 +135,7 @@ export function HomeDashboard() {
 
   const { data: serverCategories } = useCategoriesQuery();
   const categories = serverCategories || CATEGORIES.filter(c => c !== "All Topics");
+  const categoriesList = serverCategories ? ["All Topics", ...serverCategories] : CATEGORIES;
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -477,6 +478,21 @@ export function HomeDashboard() {
           </div>
         }
       />
+
+      {/* Mobile Categories Selector (Visible only below lg breakpoint) */}
+      <div className="lg:hidden w-full overflow-x-auto pb-4 flex gap-2 scroll-smooth shrink-0 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {categoriesList.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => {
+              navigate(`/discover?category=${encodeURIComponent(cat)}`);
+            }}
+            className="px-4 py-2 text-xs font-bold rounded-full transition-all shrink-0 cursor-pointer border bg-secondary text-muted-foreground border-border hover:text-foreground hover:bg-secondary/80"
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
 
       {/* Active Friends Banner */}
       <div className="space-y-1 bg-card border border-border/50 p-6 rounded-3xl shadow-sm pb-0">
