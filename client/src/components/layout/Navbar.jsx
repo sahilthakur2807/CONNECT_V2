@@ -19,6 +19,7 @@ import {
   UserGroupIcon,
   GlobeAmericasIcon,
   HashtagIcon,
+  PuzzlePieceIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
@@ -91,8 +92,13 @@ export function Navbar() {
     (state) => state.ui.unreadNotificationsCount,
   );
 
-  const { useNotificationsQuery, markReadMutation, markAllReadMutation } = useNotifications();
+  const { useNotificationsQuery, markAllReadMutation } = useNotifications();
   const { data: notifications = [], isLoading: isLoadingNotifications } = useNotificationsQuery(40);
+
+  const handleDownloadExtension = () => {
+    window.location.href = "/api/extension/download";
+    toast.success("Downloading CONNECT Browser Extension package (.zip)...");
+  };
 
   const navLinks = [
     { to: "/home", label: "Home" },
@@ -216,6 +222,18 @@ export function Navbar() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {/* Get Extension Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadExtension}
+              className="hidden sm:flex items-center gap-2 h-10 px-3.5 rounded-xl border-border/80 hover:bg-secondary transition-all cursor-pointer text-xs font-bold text-foreground hover:text-primary shrink-0"
+              title="Download CONNECT Browser Extension package (.zip)"
+            >
+              <PuzzlePieceIcon className="w-4 h-4 text-primary" />
+              <span className="hidden lg:inline">Get Extension</span>
+            </Button>
+
             {/* Notifications Dropdown Overlay */}
             <DropdownMenu>
               <DropdownMenuTrigger>
@@ -394,6 +412,13 @@ export function Navbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={handleDownloadExtension}
+                  className="text-primary font-bold cursor-pointer"
+                >
+                  <PuzzlePieceIcon className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-sm">Download Extension</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => navigate(`/profile/${user.id}`)}
                 >
                   <UserCircleIcon className="w-4 h-4 text-muted-foreground" />
@@ -499,6 +524,19 @@ export function Navbar() {
                   }}
                   className="pl-11 h-12 bg-secondary/50 border-none rounded-2xl"
                 />
+              </div>
+
+              <div className="px-2">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleDownloadExtension();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-all cursor-pointer w-full text-left"
+                >
+                  <PuzzlePieceIcon className="w-5 h-5 shrink-0" />
+                  <span>Download Extension</span>
+                </button>
               </div>
 
               <nav className="flex flex-col gap-1.5">

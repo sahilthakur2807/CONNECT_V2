@@ -1,5 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
+import { execSync } from "child_process";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
 
 // Handlers
@@ -16,12 +20,50 @@ import {
   SuggestRoomHandler,
 } from "../application/queries/SuggestRoomQuery.js";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const extractHandler = new ExtractWebpageHandler();
 const matchHandler = new MatchRoomHandler();
 const suggestHandler = new SuggestRoomHandler();
 
 export function createExtensionRouter() {
   const router = Router();
+
+  /**
+   * GET /api/extension/download
+   * Serves the zipped CONNECT browser extension package.
+   */
+  router.get("/download", (req, res) => {
+    try {
+      const publicDir = path.resolve(__dirname, "../../../public");
+      const zipPath = path.join(publicDir, "connect-extension.zip");
+      const extDir = path.resolve(__dirname, "../../../../../extension");
+
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+
+      // Re-pack if zip doesn't exist
+      if (!fs.existsSync(zipPath)) {
+        try {
+          execSync(
+            `powershell -Command "Compress-Archive -Path '${extDir}\\*' -DestinationPath '${zipPath}' -Force"`
+          );
+        } catch (e) {
+          console.error("[CONNECT] Failed to compress extension directory:", e);
+        }
+      }
+
+      if (fs.existsSync(zipPath)) {
+        res.download(zipPath, "connect-extension.zip");
+      } else {
+        res.status(404).json({ success: false, message: "Extension package not found" });
+      }
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
 
   /**
    * POST /api/extension/extract
@@ -45,9 +87,6 @@ export function createExtensionRouter() {
   /**
    * POST /api/extension/match
    * Finds existing CONNECT rooms that match a selected text or a webpage URL.
-   * Supports two modes:
-   *   - Text mode: { selectedText: "..." }
-   *   - URL mode:  { url: "...", title: "..." }
    */
   router.post("/match", authenticateJWT, async (req, res, next) => {
     const schema = z.object({
