@@ -29,6 +29,7 @@ import { socialRouter } from "./features/social/presentation/routes.js";
 import { moderationRouter } from "./features/moderation/presentation/routes.js";
 import { discoveryRouter } from "./features/discovery/presentation/routes.js";
 import { analyticsRouter } from "./features/analytics/presentation/routes.js";
+import { extensionRouter } from "./features/extension/presentation/routes.js";
 import path from "path";
 import { userRouter } from "./features/user/presentation/routes.js";
 
@@ -109,6 +110,7 @@ app.use("/api", socialRouter);
 app.use("/api", moderationRouter);
 app.use("/api", discoveryRouter);
 app.use("/api", analyticsRouter);
+app.use("/api/extension", extensionRouter);
 app.use("/api/users", userRouter);
 
 // Standard global exception mappings
