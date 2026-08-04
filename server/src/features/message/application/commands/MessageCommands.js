@@ -8,7 +8,6 @@ import {
 import { EventBus } from "../../../../shared/event-bus/EventBus.js";
 import { io } from "../../../../infrastructure/socket/SocketServer.js";
 import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
-import { analyzeContent } from "../../../moderation/infrastructure/ContentModerationService.js";
 
 // --- Commands ---
 
@@ -205,24 +204,6 @@ export class SendMessageHandler {
     );
     if (!allowed)
       throw new ForbiddenError("You are banned or muted in this room/community");
-
-    // 3b. Server-side content moderation gate (XLM-R Large via ContentModerationService)
-    // Runs in parallel with any client-side check; catches evasion attempts,
-    // race conditions where client debounce hadn't fired, and API-direct submissions.
-    try {
-      const moderationResult = await analyzeContent(command.content);
-      if (!moderationResult.safe) {
-        const categories = moderationResult.categories?.join(", ") || "unsafe content";
-        throw new BadRequestError(
-          `Message blocked by content moderation (${categories}). Please revise and try again.`
-        );
-      }
-    } catch (err) {
-      // Re-throw BadRequestError (our moderation block)
-      if (err instanceof BadRequestError) throw err;
-      // All other errors (network/model unavailable) → fail open, log and continue
-      console.warn("[Moderation] Server-side check failed, failing open:", err.message);
-    }
 
     // 4. Persistence
     const message = await this.messageRepo.create({

@@ -3,7 +3,6 @@ import { z } from "zod";
 import { authenticateJWT } from "../../../presentation/middlewares/AuthMiddleware.js";
 import { prisma } from "../../../infrastructure/db/PrismaClient.js";
 import { ForbiddenError } from "../../../shared/errors/AppError.js";
-import { analyzeContent } from "../infrastructure/ContentModerationService.js";
 
 // Repositories
 import { ReportRepository } from "../infrastructure/repository/ReportRepository.js";
@@ -700,51 +699,6 @@ export function createModerationRouter() {
         next(err);
       }
     }
-  );
-
-  // 14. Real-time Content Moderation Analysis (for client-side pre-send check)
-  // Rate-limited to 60 requests per minute per user to prevent HF API abuse.
-  const analyzeLimiter = (() => {
-    const userCounts = new Map(); // userId → { count, windowStart }
-    const WINDOW_MS = 60_000;
-    const MAX_REQUESTS = 60;
-    return (userId) => {
-      const now = Date.now();
-      const entry = userCounts.get(userId);
-      if (!entry || now - entry.windowStart > WINDOW_MS) {
-        userCounts.set(userId, { count: 1, windowStart: now });
-        return true; // allowed
-      }
-      if (entry.count >= MAX_REQUESTS) return false; // blocked
-      entry.count++;
-      return true; // allowed
-    };
-  })();
-
-  router.post(
-    "/moderation/analyze",
-    authenticateJWT,
-    async (req, res, next) => {
-      try {
-        const schema = z.object({
-          text: z.string().min(1).max(5000),
-        });
-        const { text } = schema.parse(req.body);
-
-        // Per-user rate limiting
-        if (!analyzeLimiter(req.user.id)) {
-          return res.status(429).json({
-            success: false,
-            error: { code: "RATE_LIMITED", message: "Too many moderation checks. Please slow down." },
-          });
-        }
-
-        const result = await analyzeContent(text);
-        res.json({ success: true, data: result });
-      } catch (err) {
-        next(err);
-      }
-    },
   );
 
   return router;

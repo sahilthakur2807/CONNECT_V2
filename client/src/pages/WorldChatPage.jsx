@@ -19,8 +19,6 @@ import { useMessagesQuery, useSendMessageMutation } from "@/hooks/useMessages";
 import { useSocketEvents } from "@/hooks/useSocketEvents";
 import { getSocket } from "@/services/socketService";
 import { cn } from "@/utils/cn";
-import { useModerationCheck } from "@/hooks/useModerationCheck";
-import { ModerationWarning, ModerationCheckingIndicator } from "@/components/shared/ModerationWarning";
 
 
 export function WorldChatPage() {
@@ -36,10 +34,6 @@ export function WorldChatPage() {
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
   const [activeUsers, setActiveUsers] = useState([]);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
-
-  // Real-time content moderation
-  const { moderationState, checkText, checkNow, resetModeration } = useModerationCheck({ debounceMs: 500 });
-  const isMessageUnsafe = moderationState.status === "unsafe";
 
   const feedRef = useRef(null);
   const inputRef = useRef(null);
@@ -175,22 +169,8 @@ export function WorldChatPage() {
 
   const handleSend = async () => {
     if (!messageText.trim() || isAccessRestricted || cooldownRemaining > 0) return;
-    // Prevent send if moderation already flagged the content
-    if (isMessageUnsafe) return;
-
     const text = messageText.trim();
-
-    // Final pre-send moderation gate (catches debounce race conditions)
-    const isSafe = await checkNow(text);
-    if (!isSafe) {
-      toast.error("Message blocked: unsafe content detected. Please revise before sending.", {
-        duration: 4000,
-      });
-      return;
-    }
-
     setMessageText("");
-    resetModeration();
 
     try {
       await sendMessageMutation.mutateAsync({
@@ -378,18 +358,7 @@ export function WorldChatPage() {
 
         {/* Message Input Composer */}
         <div className="p-5 border-t border-border bg-card shrink-0">
-          <div className={cn(
-            "border rounded-xl transition-all duration-300 overflow-hidden",
-            isMessageUnsafe
-              ? "bg-red-500/5 border-red-500/30 focus-within:border-red-500/50"
-              : "bg-secondary/40 border-border/60 focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md"
-          )}>
-            {/* Moderation: Checking indicator */}
-            <ModerationCheckingIndicator moderationState={moderationState} />
-
-            {/* Moderation: Unsafe warning banner */}
-            <ModerationWarning moderationState={moderationState} />
-
+          <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
             <div className="flex items-end gap-3 px-3.5 py-2">
               <div className="hidden sm:block shrink-0 mb-1">
                 <Avatar
@@ -403,10 +372,7 @@ export function WorldChatPage() {
               <textarea
                 ref={inputRef}
                 value={messageText}
-                onChange={(e) => {
-                  setMessageText(e.target.value);
-                  if (cooldownRemaining === 0) checkText(e.target.value);
-                }}
+                onChange={(e) => setMessageText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={
                   cooldownRemaining > 0
@@ -434,13 +400,10 @@ export function WorldChatPage() {
 
                 <Button
                   onClick={handleSend}
-                  disabled={!messageText.trim() || cooldownRemaining > 0 || isMessageUnsafe || moderationState.status === "checking"}
+                  disabled={!messageText.trim() || cooldownRemaining > 0}
                   size="icon"
-                  className={cn(
-                    "rounded-xl h-8 w-8 shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0",
-                    isMessageUnsafe ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
-                  )}
-                  title={isMessageUnsafe ? "Cannot send: unsafe content detected" : "Send message"}
+                  className="rounded-xl h-8 w-8 cursor-pointer shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0"
+                  title="Send message"
                 >
                   <PaperAirplaneIcon className="w-3 h-3" />
                 </Button>
