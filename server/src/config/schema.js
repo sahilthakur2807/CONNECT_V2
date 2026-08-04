@@ -16,4 +16,5 @@ export const configSchema = z.object({
   GMAIL_CLIENT_ID: z.string().optional(),
   GMAIL_CLIENT_SECRET: z.string().optional(),
   GMAIL_REFRESH_TOKEN: z.string().optional(),
+  HUGGINGFACE_API_TOKEN: z.string().optional(),
 });
