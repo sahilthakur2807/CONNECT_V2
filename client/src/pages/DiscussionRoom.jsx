@@ -51,6 +51,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useModerationCheck } from "@/hooks/useModerationCheck";
+import { ModerationWarning, ModerationCheckingIndicator } from "@/components/shared/ModerationWarning";
 
 function PendingRequestsList({ roomId }) {
   const { data: pendingMembers = [], isLoading } = usePendingMembersQuery(roomId);
@@ -337,7 +339,11 @@ export function DiscussionRoom() {
   const [typingUsers, setTypingUsers] = useState([]);
   const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
-  
+
+  // Real-time content moderation
+  const { moderationState, checkText, checkNow, resetModeration } = useModerationCheck({ debounceMs: 500 });
+  const isMessageUnsafe = moderationState.status === "unsafe";
+
   const feedRef = useRef(null);
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -420,9 +426,22 @@ export function DiscussionRoom() {
 
   const handleSend = async () => {
     if (!hasVisibleContent(messageText) || !currentUser || !roomId) return;
+    // Prevent send if real-time check already flagged content as unsafe
+    if (isMessageUnsafe) return;
+
     const text = messageText.trim();
 
+    // Final pre-send moderation gate (catches debounce race conditions)
+    const isSafe = await checkNow(text);
+    if (!isSafe) {
+      toast.error("Message blocked: unsafe content detected. Please revise before sending.", {
+        duration: 4000,
+      });
+      return;
+    }
+
     setMessageText("");
+    resetModeration();
     const replyTargetId = replyingTo?.id;
     setReplyingTo(null);
 
@@ -1013,7 +1032,18 @@ export function DiscussionRoom() {
             )}
 
             {/* Premium Composer Box */}
-            <div className="bg-secondary/40 border border-border/60 rounded-xl focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md transition-all duration-300 overflow-hidden">
+            <div className={cn(
+              "border rounded-xl transition-all duration-300 overflow-hidden",
+              isMessageUnsafe
+                ? "bg-red-500/5 border-red-500/30 focus-within:border-red-500/50"
+                : "bg-secondary/40 border-border/60 focus-within:border-primary/30 focus-within:bg-card focus-within:shadow-md"
+            )}>
+              {/* Moderation: Checking indicator (inside composer, above input) */}
+              <ModerationCheckingIndicator moderationState={moderationState} />
+
+              {/* Moderation: Unsafe warning banner (inside composer, above input) */}
+              <ModerationWarning moderationState={moderationState} />
+
               {/* Textarea Input area */}
               <div className="flex items-end gap-3 px-3.5 py-2">
                 <div className="hidden sm:block shrink-0 mb-1">
@@ -1030,6 +1060,7 @@ export function DiscussionRoom() {
                   onChange={(e) => {
                     setMessageText(e.target.value);
                     handleTyping();
+                    checkText(e.target.value);
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={replyingTo ? `Write your reply... (Shift + Enter for new lines)` : "Share your stance... (Shift + Enter for new lines)"}
@@ -1091,10 +1122,15 @@ export function DiscussionRoom() {
 
                   <Button
                     onClick={handleSend}
-                    disabled={!hasVisibleContent(messageText)}
+                    disabled={!hasVisibleContent(messageText) || isMessageUnsafe || moderationState.status === "checking"}
                     size="icon"
-                    className="rounded-xl h-8 w-8 cursor-pointer shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0"
-                    title="Send Take"
+                    className={cn(
+                      "rounded-xl h-8 w-8 shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0",
+                      isMessageUnsafe
+                        ? "opacity-40 cursor-not-allowed"
+                        : "cursor-pointer"
+                    )}
+                    title={isMessageUnsafe ? "Cannot send: unsafe content detected" : "Send Take"}
                   >
                     <PaperAirplaneIcon className="w-3 h-3" />
                   </Button>
