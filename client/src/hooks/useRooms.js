@@ -172,9 +172,55 @@ export const useCreateRoomMutation = () => {
     },
     onSuccess: (newRoom) => {
       queryClient.invalidateQueries({ queryKey: ["rooms"] });
-      if (newRoom.communityId) {
+      queryClient.invalidateQueries({ queryKey: ["communities"] });
+      if (newRoom?.communityId) {
         queryClient.invalidateQueries({
           queryKey: ["communities", newRoom.communityId],
+        });
+      }
+
+      if (newRoom && newRoom.id) {
+        const activeQueries = queryClient.getQueryCache().findAll({
+          queryKey: ["rooms"],
+        });
+
+        activeQueries.forEach((query) => {
+          queryClient.setQueryData(query.queryKey, (oldData) => {
+            if (!oldData) return oldData;
+
+            const filters = query.queryKey[1];
+            if (filters && typeof filters === "object") {
+              if (
+                filters.category &&
+                filters.category !== "All Topics" &&
+                filters.category !== newRoom.category
+              ) {
+                return oldData;
+              }
+              if (
+                filters.communityId &&
+                filters.communityId !== newRoom.communityId
+              ) {
+                return oldData;
+              }
+            }
+
+            if (Array.isArray(oldData)) {
+              if (oldData.some((r) => r.id === newRoom.id)) return oldData;
+              return [newRoom, ...oldData];
+            }
+
+            if (oldData.rooms && Array.isArray(oldData.rooms)) {
+              if (oldData.rooms.some((r) => r.id === newRoom.id)) return oldData;
+              return {
+                ...oldData,
+                rooms: [newRoom, ...oldData.rooms],
+                total: (oldData.total || oldData.rooms.length) + 1,
+              };
+            }
+
+            return oldData;
+          });
         });
       }
     },

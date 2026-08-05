@@ -325,4 +325,71 @@ describe("CONNECT IAM Subsystem Unit Tests", () => {
       "google-uid-oauth@example.com",
     );
   });
+
+  // 9. Session Lifetime Policies
+  it("should set a 3-hour absolute session duration for administrators", async () => {
+    mockUserRepo.findById.mockResolvedValue({
+      id: "usr_admin",
+      username: "admin_user",
+      email: "admin@example.com",
+      role: "ADMIN",
+    });
+
+    await authService.createSession("usr_admin", "device", "127.0.0.1");
+
+    expect(mockSessionRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expiresAt: expect.any(Date),
+      }),
+      undefined
+    );
+
+    const callArgs = mockSessionRepo.create.mock.calls[0][0];
+    const diffMs = callArgs.expiresAt.getTime() - Date.now();
+    expect(diffMs).toBeGreaterThan(10700000);
+    expect(diffMs).toBeLessThan(10900000);
+  });
+
+  it("should set a 100-year session duration for standard users", async () => {
+    mockUserRepo.findById.mockResolvedValue({
+      id: "usr_member",
+      username: "member_user",
+      email: "member@example.com",
+      role: "MEMBER",
+    });
+
+    await authService.createSession("usr_member", "device", "127.0.0.1");
+
+    const callArgs = mockSessionRepo.create.mock.calls[0][0];
+    const diffYears = (callArgs.expiresAt.getFullYear() - new Date().getFullYear());
+    expect(diffYears).toBe(100);
+  });
+
+  it("should preserve the original session expiration date during token rotation", async () => {
+    const originalExpiresAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+
+    mockSessionRepo.findByToken.mockResolvedValue({
+      id: "sess_rotation",
+      token: "old-refresh-token",
+      userId: "usr_admin",
+      revoked: false,
+      expiresAt: originalExpiresAt,
+    });
+
+    mockUserRepo.findById.mockResolvedValue({
+      id: "usr_admin",
+      username: "admin_user",
+      email: "admin@example.com",
+      role: "ADMIN",
+    });
+
+    await authService.rotateSession("old-refresh-token", "device", "127.0.0.1");
+
+    expect(mockSessionRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expiresAt: originalExpiresAt,
+      }),
+      undefined
+    );
+  });
 });

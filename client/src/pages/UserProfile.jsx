@@ -293,141 +293,373 @@ function getCardStyle(medal) {
 function MedalIcon({ medal, className = "w-20 h-20" }) {
   if (!medal) return null;
 
-  // Render Bronze I, II, III
-  if (medal.startsWith("bronze")) {
-    const num = medal === "bronze1" ? "I" : medal === "bronze2" ? "II" : "III";
+  // Level 1: Novice / Newcomer (Iron Hexagon Shield)
+  if (medal === "novice") {
     return (
       <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#b91c1c" />
-        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#b91c1c" />
-        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#7f1d1d" opacity="0.3" />
-        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#7f1d1d" opacity="0.3" />
-        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#ef4444" opacity="0.5" />
-        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#ef4444" opacity="0.5" />
-        <circle cx="50" cy="45" r="28" fill="url(#bronzeGrad)" stroke="#78350f" strokeWidth="2" />
-        <circle cx="50" cy="45" r="24" fill="none" stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 3" />
-        <circle cx="50" cy="45" r="22" fill="none" stroke="#78350f" strokeWidth="1" opacity="0.4" />
-        <text x="50" y="52" textAnchor="middle" fill="#78350f" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        <polygon points="50,12 82,28 82,72 50,88 18,72 18,28" fill="url(#noviceGrad)" stroke="#475569" strokeWidth="2" />
+        <polygon points="50,18 76,32 76,68 50,82 24,68 24,32" fill="none" stroke="#94a3b8" strokeWidth="1" strokeDasharray="3 3" />
+        <circle cx="50" cy="50" r="18" fill="#334155" stroke="#64748b" strokeWidth="1.5" />
+        <polygon points="50,38 53,46 62,46 55,51 57,59 50,54 43,59 45,51 38,46 47,46" fill="#e2e8f0" />
         <defs>
-          <radialGradient id="bronzeGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
-            <stop offset="0%" stopColor="#f59e0b" />
+          <linearGradient id="noviceGrad" x1="18" y1="12" x2="82" y2="88" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#64748b" />
+            <stop offset="50%" stopColor="#475569" />
+            <stop offset="100%" stopColor="#1e293b" />
+          </linearGradient>
+        </defs>
+      </svg>
+    );
+  }
+
+  // Level 2, 3, 4: Bronze (Contributor, Active Contributor, Senior Contributor)
+  if (medal.startsWith("bronze")) {
+    const isLevel2 = medal === "bronze1";
+    const isLevel3 = medal === "bronze2";
+    const isLevel4 = medal === "bronze3";
+
+    return (
+      <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Ribbon tails */}
+        <path d="M35 55 L25 88 L43 81 L35 55 Z" fill="#991b1b" />
+        <path d="M65 55 L75 88 L57 81 L65 55 Z" fill="#991b1b" />
+        <path d="M30 65 L27 82 L33 80 L35 55 Z" fill="#ef4444" opacity="0.4" />
+        <path d="M70 65 L73 82 L67 80 L65 55 Z" fill="#ef4444" opacity="0.4" />
+
+        {/* Level 3 & 4: Stylized Bronze Wings */}
+        {(isLevel3 || isLevel4) && (
+          <g fill="url(#bronzeWingGrad)">
+            <path d="M18 42 C10 32, 10 52, 24 55 Z" stroke="#78350f" strokeWidth="1" />
+            <path d="M82 42 C90 32, 90 52, 76 55 Z" stroke="#78350f" strokeWidth="1" />
+            {isLevel4 && (
+              <>
+                <path d="M14 36 C5 24, 5 46, 22 50 Z" opacity="0.8" />
+                <path d="M86 36 C95 24, 95 46, 78 50 Z" opacity="0.8" />
+              </>
+            )}
+          </g>
+        )}
+
+        {/* Shield Body */}
+        <circle cx="50" cy="45" r="28" fill="url(#bronzeBodyGrad)" stroke="#78350f" strokeWidth="2.5" />
+        <circle cx="50" cy="45" r="23" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="20" fill="none" stroke="#78350f" strokeWidth="1" opacity="0.5" />
+
+        {/* Stars */}
+        {isLevel2 && (
+          /* 1 Central Star */
+          <polygon points="50,34 53,42 61,42 54,47 57,55 50,50 43,55 46,47 39,42 47,42" fill="#fef08a" stroke="#78350f" strokeWidth="0.8" />
+        )}
+        {isLevel3 && (
+          /* 2 Stars */
+          <g fill="#fef08a" stroke="#78350f" strokeWidth="0.8">
+            <polygon points="41,41 43,46 48,46 44,49 46,54 41,51 36,54 38,49 34,46 39,46" />
+            <polygon points="59,41 61,46 66,46 62,49 64,54 59,51 54,54 56,49 52,46 57,46" />
+          </g>
+        )}
+        {isLevel4 && (
+          /* 3 Stars in Arc */
+          <g fill="#fef08a" stroke="#78350f" strokeWidth="0.8">
+            <polygon points="50,32 52,37 57,37 53,40 55,45 50,42 45,45 47,40 43,37 48,37" />
+            <polygon points="36,43 38,47 42,47 39,50 40,54 36,51 32,54 34,50 31,47 35,47" />
+            <polygon points="64,43 66,47 70,47 67,50 68,54 64,51 60,54 62,50 59,47 63,47" />
+          </g>
+        )}
+
+        <defs>
+          <radialGradient id="bronzeBodyGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#fbbf24" />
             <stop offset="40%" stopColor="#d97706" />
             <stop offset="100%" stopColor="#78350f" />
           </radialGradient>
+          <linearGradient id="bronzeWingGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#d97706" />
+            <stop offset="100%" stopColor="#451a03" />
+          </linearGradient>
         </defs>
       </svg>
     );
   }
 
-  // Render Silver I, II, III
+  // Level 5, 6, 7: Silver (Analyst, Senior Analyst, Specialist)
   if (medal.startsWith("silver")) {
-    const num = medal === "silver1" ? "I" : medal === "silver2" ? "II" : "III";
+    const isLevel5 = medal === "silver1";
+    const isLevel6 = medal === "silver2";
+    const isLevel7 = medal === "silver3";
+
     return (
       <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#1e3a8a" />
-        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#1e3a8a" />
-        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#172554" opacity="0.3" />
-        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#172554" opacity="0.3" />
-        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#3b82f6" opacity="0.5" />
-        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#3b82f6" opacity="0.5" />
-        <circle cx="50" cy="45" r="28" fill="url(#silverGrad)" stroke="#334155" strokeWidth="2" />
-        <circle cx="50" cy="45" r="24" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeDasharray="3 3" />
-        <circle cx="50" cy="45" r="22" fill="none" stroke="#334155" strokeWidth="1" opacity="0.4" />
-        <text x="50" y="52" textAnchor="middle" fill="#334155" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        {/* Ribbon tails */}
+        <path d="M35 55 L25 88 L43 81 L35 55 Z" fill="#1e3a8a" />
+        <path d="M65 55 L75 88 L57 81 L65 55 Z" fill="#1e3a8a" />
+        <path d="M30 65 L27 82 L33 80 L35 55 Z" fill="#60a5fa" opacity="0.4" />
+        <path d="M70 65 L73 82 L67 80 L65 55 Z" fill="#60a5fa" opacity="0.4" />
+
+        {/* Level 6 & 7: Silver Side Feathers / Wings */}
+        {(isLevel6 || isLevel7) && (
+          <g fill="url(#silverWingGrad)">
+            <path d="M16 40 C8 28, 8 52, 24 55 Z" stroke="#334155" strokeWidth="1" />
+            <path d="M84 40 C92 28, 92 52, 76 55 Z" stroke="#334155" strokeWidth="1" />
+            {isLevel7 && (
+              <>
+                <path d="M12 34 C3 20, 3 46, 22 50 Z" opacity="0.85" />
+                <path d="M88 34 C97 20, 97 46, 78 50 Z" opacity="0.85" />
+              </>
+            )}
+          </g>
+        )}
+
+        {/* Shield Body */}
+        <circle cx="50" cy="45" r="28" fill="url(#silverBodyGrad)" stroke="#334155" strokeWidth="2.5" />
+        <circle cx="50" cy="45" r="23" fill="none" stroke="#e2e8f0" strokeWidth="1.5" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="20" fill="none" stroke="#1e293b" strokeWidth="1" opacity="0.5" />
+
+        {/* Sapphire Gem Core */}
+        {isLevel5 && (
+          <polygon points="50,33 60,45 50,57 40,45" fill="url(#sapphireGrad)" stroke="#1e3a8a" strokeWidth="1" />
+        )}
+        {isLevel6 && (
+          <g>
+            <polygon points="42,35 50,45 42,55 34,45" fill="url(#sapphireGrad)" stroke="#1e3a8a" strokeWidth="1" />
+            <polygon points="58,35 66,45 58,55 50,45" fill="url(#sapphireGrad)" stroke="#1e3a8a" strokeWidth="1" />
+          </g>
+        )}
+        {isLevel7 && (
+          <g>
+            <polygon points="50,30 58,40 50,50 42,40" fill="url(#sapphireGrad)" stroke="#1e3a8a" strokeWidth="1" />
+            <polygon points="38,42 45,50 38,58 31,50" fill="url(#sapphireGrad)" stroke="#1e3a8a" strokeWidth="1" />
+            <polygon points="62,42 69,50 62,58 55,50" fill="url(#sapphireGrad)" stroke="#1e3a8a" strokeWidth="1" />
+          </g>
+        )}
+
         <defs>
-          <radialGradient id="silverGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
-            <stop offset="0%" stopColor="#e2e8f0" />
-            <stop offset="40%" stopColor="#94a3b8" />
-            <stop offset="100%" stopColor="#334155" />
+          <radialGradient id="silverBodyGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="40%" stopColor="#cbd5e1" />
+            <stop offset="100%" stopColor="#475569" />
           </radialGradient>
+          <linearGradient id="silverWingGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#f8fafc" />
+            <stop offset="100%" stopColor="#475569" />
+          </linearGradient>
+          <linearGradient id="sapphireGrad" x1="40" y1="33" x2="60" y2="57" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#60a5fa" />
+            <stop offset="100%" stopColor="#1e3a8a" />
+          </linearGradient>
         </defs>
       </svg>
     );
   }
 
-  // Render Gold I, II, III
+  // Level 8, 9, 10: Gold (Expert, Senior Expert, Authority)
   if (medal.startsWith("gold")) {
-    const num = medal === "gold1" ? "I" : medal === "gold2" ? "II" : "III";
+    const isLevel8 = medal === "gold1";
+    const isLevel9 = medal === "gold2";
+    const isLevel10 = medal === "gold3";
+
     return (
       <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#b91c1c" />
-        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#b91c1c" />
-        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#7f1d1d" opacity="0.3" />
-        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#7f1d1d" opacity="0.3" />
-        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#ef4444" opacity="0.5" />
-        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#ef4444" opacity="0.5" />
-        <circle cx="50" cy="45" r="28" fill="url(#goldGrad)" stroke="#78350f" strokeWidth="2" />
-        <circle cx="50" cy="45" r="24" fill="none" stroke="#fef08a" strokeWidth="1" strokeDasharray="3 3" />
-        <circle cx="50" cy="45" r="22" fill="none" stroke="#78350f" strokeWidth="1" opacity="0.4" />
-        <text x="50" y="52" textAnchor="middle" fill="#78350f" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        {/* Ribbon tails */}
+        <path d="M35 55 L25 88 L43 81 L35 55 Z" fill="#991b1b" />
+        <path d="M65 55 L75 88 L57 81 L65 55 Z" fill="#991b1b" />
+        <path d="M30 65 L27 82 L33 80 L35 55 Z" fill="#facc15" opacity="0.5" />
+        <path d="M70 65 L73 82 L67 80 L65 55 Z" fill="#facc15" opacity="0.5" />
+
+        {/* Level 9 & 10 Wings */}
+        {(isLevel9 || isLevel10) && (
+          <g fill="url(#goldWingGrad)">
+            <path d="M14 38 C4 24, 4 52, 24 55 Z" stroke="#78350f" strokeWidth="1" />
+            <path d="M86 38 C96 24, 96 52, 76 55 Z" stroke="#78350f" strokeWidth="1" />
+            {isLevel10 && (
+              <>
+                <path d="M10 30 C0 14, 0 46, 22 50 Z" opacity="0.9" />
+                <path d="M90 30 C100 14, 100 46, 78 50 Z" opacity="0.9" />
+              </>
+            )}
+          </g>
+        )}
+
+        {/* Level 10 Royal Crown */}
+        {isLevel10 && (
+          <path d="M38 18 L44 25 L50 16 L56 25 L62 18 L60 28 L40 28 Z" fill="url(#goldCrownGrad)" stroke="#78350f" strokeWidth="1" />
+        )}
+
+        {/* Shield Body */}
+        <circle cx="50" cy="45" r="28" fill="url(#goldBodyGrad)" stroke="#78350f" strokeWidth="2.5" />
+        <circle cx="50" cy="45" r="23" fill="none" stroke="#fef08a" strokeWidth="1.5" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="20" fill="none" stroke="#78350f" strokeWidth="1" opacity="0.4" />
+
+        {/* Ruby Gems */}
+        {isLevel8 && (
+          <polygon points="50,32 60,45 50,58 40,45" fill="url(#rubyGrad)" stroke="#7f1d1d" strokeWidth="1" />
+        )}
+        {isLevel9 && (
+          <g>
+            <polygon points="42,34 50,45 42,56 34,45" fill="url(#rubyGrad)" stroke="#7f1d1d" strokeWidth="1" />
+            <polygon points="58,34 66,45 58,56 50,45" fill="url(#rubyGrad)" stroke="#7f1d1d" strokeWidth="1" />
+          </g>
+        )}
+        {isLevel10 && (
+          <g>
+            <polygon points="50,29 58,39 50,49 42,39" fill="url(#rubyGrad)" stroke="#7f1d1d" strokeWidth="1" />
+            <polygon points="38,42 45,50 38,58 31,50" fill="url(#rubyGrad)" stroke="#7f1d1d" strokeWidth="1" />
+            <polygon points="62,42 69,50 62,58 55,50" fill="url(#rubyGrad)" stroke="#7f1d1d" strokeWidth="1" />
+          </g>
+        )}
+
         <defs>
-          <radialGradient id="goldGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
-            <stop offset="0%" stopColor="#fde047" />
-            <stop offset="45%" stopColor="#ca8a04" />
+          <radialGradient id="goldBodyGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="40%" stopColor="#eab308" />
             <stop offset="100%" stopColor="#78350f" />
           </radialGradient>
+          <linearGradient id="goldWingGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#fde047" />
+            <stop offset="100%" stopColor="#854d0e" />
+          </linearGradient>
+          <linearGradient id="goldCrownGrad" x1="38" y1="16" x2="62" y2="28" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#fef08a" />
+            <stop offset="100%" stopColor="#ca8a04" />
+          </linearGradient>
+          <linearGradient id="rubyGrad" x1="40" y1="32" x2="60" y2="58" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#f87171" />
+            <stop offset="100%" stopColor="#7f1d1d" />
+          </linearGradient>
         </defs>
       </svg>
     );
   }
 
-  // Render Platinum I, II
+  // Level 11, 12: Platinum (Distinguished Authority, Thought Leader)
   if (medal.startsWith("platinum")) {
-    const num = medal === "platinum1" ? "I" : "II";
+    const isLevel11 = medal === "platinum1";
+    const isLevel12 = medal === "platinum2";
+
     return (
       <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#581c87" />
-        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#581c87" />
-        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#3b0764" opacity="0.3" />
-        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#3b0764" opacity="0.3" />
-        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#a855f7" opacity="0.5" />
-        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#a855f7" opacity="0.5" />
-        <circle cx="50" cy="45" r="28" fill="url(#platinumGrad)" stroke="#3b0764" strokeWidth="2" />
-        <circle cx="50" cy="45" r="24" fill="none" stroke="#ffffff" strokeWidth="1" strokeDasharray="3 3" />
-        <circle cx="50" cy="45" r="22" fill="none" stroke="#3b0764" strokeWidth="1" opacity="0.4" />
-        <text x="50" y="52" textAnchor="middle" fill="#3b0764" fontSize="20" fontWeight="bold" fontFamily="'Georgia', serif">{num}</text>
+        {/* Ribbon tails */}
+        <path d="M35 55 L25 88 L43 81 L35 55 Z" fill="#581c87" />
+        <path d="M65 55 L75 88 L57 81 L65 55 Z" fill="#581c87" />
+        <path d="M30 65 L27 82 L33 80 L35 55 Z" fill="#c084fc" opacity="0.5" />
+        <path d="M70 65 L73 82 L67 80 L65 55 Z" fill="#c084fc" opacity="0.5" />
+
+        {/* Platinum Wings */}
+        <g fill="url(#platWingGrad)">
+          <path d="M12 36 C2 20, 2 52, 24 55 Z" stroke="#3b0764" strokeWidth="1" />
+          <path d="M88 36 C98 20, 98 52, 76 55 Z" stroke="#3b0764" strokeWidth="1" />
+          {isLevel12 && (
+            <>
+              <path d="M8 28 C-2 10, -2 46, 22 50 Z" opacity="0.95" />
+              <path d="M92 28 C102 10, 102 46, 78 50 Z" opacity="0.95" />
+            </>
+          )}
+        </g>
+
+        {/* Level 12 Platinum Crown */}
+        {isLevel12 && (
+          <path d="M36 16 L43 24 L50 14 L57 24 L64 16 L61 27 L39 27 Z" fill="url(#platCrownGrad)" stroke="#3b0764" strokeWidth="1" />
+        )}
+
+        {/* Shield Body */}
+        <circle cx="50" cy="45" r="28" fill="url(#platBodyGrad)" stroke="#3b0764" strokeWidth="2.5" />
+        <circle cx="50" cy="45" r="23" fill="none" stroke="#ffffff" strokeWidth="1.5" strokeDasharray="3 3" />
+        <circle cx="50" cy="45" r="20" fill="none" stroke="#3b0764" strokeWidth="1" opacity="0.4" />
+
+        {/* Amethyst / Platinum Star Gems */}
+        {isLevel11 && (
+          <polygon points="50,30 62,45 50,60 38,45" fill="url(#amethystGrad)" stroke="#3b0764" strokeWidth="1" />
+        )}
+        {isLevel12 && (
+          <g>
+            <polygon points="50,27 60,39 50,51 40,39" fill="url(#amethystGrad)" stroke="#3b0764" strokeWidth="1" />
+            <polygon points="38,42 46,51 38,60 30,51" fill="url(#amethystGrad)" stroke="#3b0764" strokeWidth="1" />
+            <polygon points="62,42 70,51 62,60 54,51" fill="url(#amethystGrad)" stroke="#3b0764" strokeWidth="1" />
+          </g>
+        )}
+
         <defs>
-          <radialGradient id="platinumGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+          <radialGradient id="platBodyGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
             <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="45%" stopColor="#cbd5e1" />
+            <stop offset="45%" stopColor="#e2e8f0" />
             <stop offset="100%" stopColor="#64748b" />
           </radialGradient>
+          <linearGradient id="platWingGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#f3e8ff" />
+            <stop offset="100%" stopColor="#581c87" />
+          </linearGradient>
+          <linearGradient id="platCrownGrad" x1="36" y1="14" x2="64" y2="27" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#a855f7" />
+          </linearGradient>
+          <linearGradient id="amethystGrad" x1="38" y1="30" x2="62" y2="60" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#e9d5ff" />
+            <stop offset="100%" stopColor="#581c87" />
+          </linearGradient>
         </defs>
       </svg>
     );
   }
 
-  // Render Diamond / Diamond+
+  // Level 13, 14: Diamond / Diamond+ (Community Icon, Visionary)
   if (medal.startsWith("diamond")) {
     const isPlus = medal === "diamondPlus";
+
     return (
       <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M35 55 L25 85 L45 80 L35 55 Z" fill="#0891b2" />
-        <path d="M65 55 L75 85 L55 80 L65 55 Z" fill="#0891b2" />
-        <path d="M35 55 L28 85 L35 83 L35 55 Z" fill="#164e63" opacity="0.3" />
-        <path d="M65 55 L58 85 L65 83 L65 55 Z" fill="#164e63" opacity="0.3" />
-        <path d="M30 65 L27 80 L32 78 L35 55 Z" fill="#22d3ee" opacity="0.5" />
-        <path d="M70 65 L73 80 L68 78 L65 55 Z" fill="#22d3ee" opacity="0.5" />
-        <circle cx="50" cy="45" r="28" fill="url(#diamondGrad)" stroke="#164e63" strokeWidth="2" />
-        <circle cx="50" cy="45" r="24" fill="none" stroke="#e0f2fe" strokeWidth="1" strokeDasharray="3 3" />
-        <circle cx="50" cy="45" r="22" fill="none" stroke="#164e63" strokeWidth="1" opacity="0.4" />
-        <polygon points="50,25 64,39 50,53 36,39" fill="url(#starDiamondGrad)" stroke="#0891b2" strokeWidth="1" />
-        <polygon points="50,25 50,53 36,39" fill="#ffffff" opacity="0.4" />
-        <circle cx="36" cy="27" r="1.5" fill="#ffffff" />
-        <circle cx="64" cy="27" r="1.5" fill="#ffffff" />
-        <circle cx="50" cy="39" r="2" fill="#ffffff" />
+        {/* Ribbon tails */}
+        <path d="M35 55 L25 88 L43 81 L35 55 Z" fill="#0e7490" />
+        <path d="M65 55 L75 88 L57 81 L65 55 Z" fill="#0e7490" />
+        <path d="M30 65 L27 82 L33 80 L35 55 Z" fill="#67e8f9" opacity="0.6" />
+        <path d="M70 65 L73 82 L67 80 L65 55 Z" fill="#67e8f9" opacity="0.6" />
+
+        {/* Radiant Wings */}
+        <g fill="url(#diaWingGrad)">
+          <path d="M10 34 C-2 16, -2 52, 24 55 Z" stroke="#164e63" strokeWidth="1" />
+          <path d="M90 34 C102 16, 102 52, 76 55 Z" stroke="#164e63" strokeWidth="1" />
+          {isPlus && (
+            <>
+              <path d="M6 24 C-6 4, -6 46, 22 50 Z" opacity="0.95" />
+              <path d="M94 24 C106 4, 106 46, 78 50 Z" opacity="0.95" />
+            </>
+          )}
+        </g>
+
+        {/* Level 14 Mythic Halo Ring */}
         {isPlus && (
-          <text x="50" y="51" textAnchor="middle" fill="#ca8a04" fontSize="18" fontWeight="bold" stroke="#78350f" strokeWidth="0.5">+</text>
+          <ellipse cx="50" cy="18" rx="22" ry="6" fill="none" stroke="#fde047" strokeWidth="2.5" opacity="0.9" />
         )}
+
+        {/* Shield Body */}
+        <circle cx="50" cy="45" r="28" fill="url(#diaBodyGrad)" stroke="#164e63" strokeWidth="2.5" />
+        <circle cx="50" cy="45" r="23" fill="none" stroke="#a5f3fc" strokeWidth="1.5" strokeDasharray="3 3" />
+
+        {/* Translucent Faceted Diamond Centerpiece */}
+        <polygon points="50,22 68,39 50,60 32,39" fill="url(#diamondFacetGrad)" stroke="#0891b2" strokeWidth="1.5" />
+        <polygon points="50,22 68,39 50,60" fill="#ffffff" opacity="0.35" />
+        <polygon points="50,22 50,60 32,39" fill="#0891b2" opacity="0.25" />
+
+        {/* Floating Starlight Sparkles */}
+        <circle cx="32" cy="27" r="2" fill="#ffffff" />
+        <circle cx="68" cy="27" r="2" fill="#ffffff" />
+        <circle cx="50" cy="39" r="2.5" fill="#ffffff" />
+
+        {isPlus && (
+          <text x="50" y="52" textAnchor="middle" fill="#fde047" fontSize="22" fontWeight="900" fontFamily="sans-serif" stroke="#78350f" strokeWidth="0.8">+</text>
+        )}
+
         <defs>
-          <radialGradient id="diamondGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
+          <radialGradient id="diaBodyGrad" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(38 33) rotate(45) scale(35)">
             <stop offset="0%" stopColor="#ecfeff" />
             <stop offset="45%" stopColor="#22d3ee" />
-            <stop offset="100%" stopColor="#164e63" />
+            <stop offset="100%" stopColor="#155e75" />
           </radialGradient>
-          <linearGradient id="starDiamondGrad" x1="50" y1="25" x2="50" y2="53" gradientUnits="userSpaceOnUse">
+          <linearGradient id="diaWingGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#cffafe" />
+            <stop offset="100%" stopColor="#0e7490" />
+          </linearGradient>
+          <linearGradient id="diamondFacetGrad" x1="50" y1="22" x2="50" y2="60" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor="#cffafe" />
+            <stop offset="100%" stopColor="#67e8f9" />
           </linearGradient>
         </defs>
       </svg>
@@ -1146,7 +1378,7 @@ export function UserProfile() {
                             {item.percentage}%
                           </span>
                         </div>
-                        
+
                         <p className="text-[11px] text-muted-foreground font-light">
                           {isTopUnranked ? (
                             `0 / ${item.nextThreshold} pts to Newcomer`
@@ -1165,7 +1397,7 @@ export function UserProfile() {
 
             {/* Section 2: Top Categories List */}
             <div className="space-y-4 pt-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="text-2xl text-foreground font-bold" style={{ fontFamily: "'DM Serif Display', serif" }}>
                     Top Categories
@@ -1176,86 +1408,88 @@ export function UserProfile() {
                 </div>
                 <button
                   onClick={() => navigate("/discover")}
-                  className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors"
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors self-start sm:self-auto shrink-0"
                 >
                   View all categories <ArrowRightIcon className="w-3 h-3" />
                 </button>
               </div>
 
-              <div className="rounded-3xl border border-border/50 bg-card overflow-hidden">
-                <div className="grid grid-cols-12 items-center bg-muted/30 px-6 py-3 border-b border-border/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                  <div className="col-span-4">Category</div>
-                  <div className="col-span-3">Current Rank</div>
-                  <div className="col-span-3">Progress</div>
-                  <div className="col-span-1 text-right">Points</div>
-                  <div className="col-span-1"></div>
-                </div>
+              <div className="rounded-3xl border border-border/50 bg-card overflow-x-auto">
+                <div className="min-w-[550px]">
+                  <div className="grid grid-cols-12 items-center bg-muted/30 px-5 py-3 border-b border-border/40 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                    <div className="col-span-4">Category</div>
+                    <div className="col-span-3">Current Rank</div>
+                    <div className="col-span-3">Progress</div>
+                    <div className="col-span-1 text-right">Points</div>
+                    <div className="col-span-1"></div>
+                  </div>
 
-                {remainingCategories.map((item, idx) => {
-                  const cardTheme = getCardStyle(item.medal);
-                  const isUnranked = item.currentExp === 0;
-                  const rowNumber = idx + 4;
+                  {remainingCategories.map((item, idx) => {
+                    const cardTheme = getCardStyle(item.medal);
+                    const isUnranked = item.currentExp === 0;
+                    const rowNumber = idx + 4;
 
-                  return (
-                    <div
-                      key={item.category}
-                      onClick={() => navigate(`/discover?category=${encodeURIComponent(item.category)}`)}
-                      className="grid grid-cols-12 items-center px-6 py-4 border-b border-border/40 hover:bg-muted/10 transition-colors cursor-pointer group"
-                    >
-                      <div className="col-span-4 flex items-center gap-6">
-                        <span className="text-sm font-bold text-muted-foreground/50 w-5 shrink-0 text-left">
-                          {rowNumber}
-                        </span>
-                        <span className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                          {item.category}
-                        </span>
-                      </div>
-
-                      <div className="col-span-3 flex items-center gap-2">
-                        {!isUnranked && item.medal ? (
-                          <>
-                            <MedalIcon medal={item.medal} className="w-5 h-5 shrink-0" />
-                            <span className="text-xs font-medium text-foreground">
-                              {item.rank}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs font-light text-muted-foreground/60">
-                            Unranked
+                    return (
+                      <div
+                        key={item.category}
+                        onClick={() => navigate(`/discover?category=${encodeURIComponent(item.category)}`)}
+                        className="grid grid-cols-12 items-center px-5 py-3.5 border-b border-border/40 hover:bg-muted/10 transition-colors cursor-pointer group"
+                      >
+                        <div className="col-span-4 flex items-center gap-2.5 sm:gap-3 pr-2 min-w-0">
+                          <span className="text-xs sm:text-sm font-bold text-muted-foreground/50 w-4 shrink-0 text-left">
+                            {rowNumber}
                           </span>
-                        )}
-                      </div>
-
-                      <div className="col-span-3 flex items-center gap-3 pr-4">
-                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                          <div
-                            className={`h-full ${isUnranked ? "bg-slate-200" : cardTheme.progressBarClass} rounded-full`}
-                            style={{ width: `${item.percentage}%` }}
-                          />
+                          <span className="text-xs sm:text-sm font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                            {item.category}
+                          </span>
                         </div>
-                        <span className="text-xs font-medium text-muted-foreground shrink-0">
-                          {item.percentage}%
-                        </span>
-                      </div>
 
-                      <div className="col-span-1 text-right text-xs font-bold text-foreground">
-                        {item.currentExp.toLocaleString()}
-                      </div>
+                        <div className="col-span-3 flex items-center gap-1.5 sm:gap-2 pr-2 min-w-0">
+                          {!isUnranked && item.medal ? (
+                            <>
+                              <MedalIcon medal={item.medal} className="w-5 h-5 shrink-0" />
+                              <span className="text-xs font-medium text-foreground truncate">
+                                {item.rank}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-light text-muted-foreground/60 truncate">
+                              Unranked
+                            </span>
+                          )}
+                        </div>
 
-                      <div className="col-span-1 flex justify-end">
-                        <ChevronRightIcon className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                        <div className="col-span-3 flex items-center gap-2 sm:gap-3 pr-3">
+                          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${isUnranked ? "bg-slate-200" : cardTheme.progressBarClass} rounded-full`}
+                              style={{ width: `${item.percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-medium text-muted-foreground shrink-0">
+                            {item.percentage}%
+                          </span>
+                        </div>
+
+                        <div className="col-span-1 text-right text-xs font-bold text-foreground">
+                          {item.currentExp.toLocaleString()}
+                        </div>
+
+                        <div className="col-span-1 flex justify-end">
+                          <ChevronRightIcon className="w-4 h-4 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
             {/* Section 3: Footer Alert Info Box */}
             <div className="p-4 rounded-2xl bg-muted/40 border border-border/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs text-muted-foreground">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-foreground font-bold text-[10px]">i</span>
-                <span>Points are earned by creating rooms (+50 EXP) and posting messages (+15 EXP) in specific categories.</span>
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-muted text-foreground font-bold text-[12px]">i</span>
+                <span className= "text-[14px]">Points are earned by creating rooms (+50 EXP) and when your <b>"TAKES"</b> are reacted (+15 EXP) in specific categories.</span>
               </div>
               <button
                 onClick={() => setModal("ranking_help")}
@@ -1387,7 +1621,7 @@ export function UserProfile() {
         {activeTab === "achievements" && (
           <div className="space-y-6">
             <div className="flex flex-col gap-1.5">
-              <h3 
+              <h3
                 className="text-2xl text-foreground"
                 style={{ fontFamily: "'DM Serif Display', serif" }}
               >
@@ -1402,12 +1636,12 @@ export function UserProfile() {
               {ACHIEVEMENT_BADGES.map(ach => {
                 const isUnlocked = ach.checkUnlock(profileUser, stats);
                 const IconComponent = ach.icon;
-                
+
                 // Progress calculations (if applicable)
                 const current = ach.currentProgress ? ach.currentProgress(profileUser, stats) : null;
                 const target = ach.targetProgress ? ach.targetProgress(profileUser, stats) : null;
-                const percentage = current !== null && target !== null 
-                  ? Math.min(100, Math.round((current / target) * 100)) 
+                const percentage = current !== null && target !== null
+                  ? Math.min(100, Math.round((current / target) * 100))
                   : null;
 
                 return (
@@ -1415,8 +1649,8 @@ export function UserProfile() {
                     key={ach.id}
                     className={cn(
                       "group relative rounded-2xl border p-6 flex flex-col justify-between transition-all duration-300 overflow-hidden",
-                      isUnlocked 
-                        ? "bg-card border-border/60 hover:border-primary/30 shadow-sm hover:shadow-md hover:-translate-y-0.5" 
+                      isUnlocked
+                        ? "bg-card border-border/60 hover:border-primary/30 shadow-sm hover:shadow-md hover:-translate-y-0.5"
                         : "bg-muted/10 border-dashed border-border/70 opacity-60 hover:opacity-85"
                     )}
                     style={{
@@ -1425,7 +1659,7 @@ export function UserProfile() {
                   >
                     {/* Visual glowing aura for unlocked achievements */}
                     {isUnlocked && (
-                      <div 
+                      <div
                         className={cn(
                           "absolute -right-16 -top-16 w-32 h-32 rounded-full blur-3xl opacity-20 transition-opacity group-hover:opacity-30 bg-gradient-to-br",
                           ach.accent
@@ -1436,11 +1670,11 @@ export function UserProfile() {
                     <div className="space-y-4">
                       {/* Icon & Status header */}
                       <div className="flex items-center justify-between">
-                        <div 
+                        <div
                           className={cn(
                             "w-12 h-12 rounded-xl flex items-center justify-center transition-transform group-hover:scale-105 duration-300",
-                            isUnlocked 
-                              ? `bg-gradient-to-br ${ach.accent} text-white shadow-md` 
+                            isUnlocked
+                              ? `bg-gradient-to-br ${ach.accent} text-white shadow-md`
                               : "bg-muted/40 text-muted-foreground/60 border border-border/30"
                           )}
                         >
@@ -1486,8 +1720,8 @@ export function UserProfile() {
                           </div>
                           {percentage !== null && (
                             <div className="h-1 w-full bg-muted/50 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-muted-foreground/35 rounded-full transition-all duration-500" 
+                              <div
+                                className="h-full bg-muted-foreground/35 rounded-full transition-all duration-500"
                                 style={{ width: `${percentage}%` }}
                               />
                             </div>
@@ -1698,15 +1932,15 @@ export function UserProfile() {
           <p className="text-sm text-muted-foreground font-light leading-relaxed">
             CONNECT rewards active citizens who drive constructive dialogues across various news topics. Here is how your expertise score and rank are calculated:
           </p>
-          
+
           <div className="space-y-2.5">
-            <div className="flex justify-between items-center text-xs p-2.5 bg-muted/40 border border-border/30 rounded-xl">
-              <span className="font-semibold text-foreground">Post a Take (Message)</span>
-              <span className="text-emerald-600 font-bold font-mono">+15 EXP</span>
-            </div>
             <div className="flex justify-between items-center text-xs p-2.5 bg-muted/40 border border-border/30 rounded-xl">
               <span className="font-semibold text-foreground">Launch a Room</span>
               <span className="text-emerald-600 font-bold font-mono">+50 EXP</span>
+            </div>
+            <div className="flex justify-between items-center text-xs p-2.5 bg-muted/40 border border-border/30 rounded-xl">
+              <span className="font-semibold text-foreground">Reactions Received on your Take</span>
+              <span className="text-emerald-600 font-bold font-mono">+15 EXP</span>
             </div>
           </div>
 
@@ -1715,7 +1949,7 @@ export function UserProfile() {
             <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
               {[
                 { name: "Unranked (Lvl 0)", range: "0 EXP", medal: null },
-                { name: "Newcomer (Lvl 1)", range: "1 - 49 EXP", medal: null },
+                { name: "Newcomer (Lvl 1)", range: "1 - 49 EXP", medal: "novice" },
                 { name: "Contributor (Lvl 2)", range: "50 - 99 EXP", medal: "bronze1" },
                 { name: "Active Contributor (Lvl 3)", range: "100 - 199 EXP", medal: "bronze2" },
                 { name: "Senior Contributor (Lvl 4)", range: "200 - 299 EXP", medal: "bronze3" },

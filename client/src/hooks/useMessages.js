@@ -34,6 +34,17 @@ export const useRepliesQuery = (messageId) =>
     enabled: !!messageId,
   });
 
+const generateUUID = () => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+};
+
 // --- Standalone Mutations ---
 
 export const useSendMessageMutation = (roomId) => {
@@ -42,7 +53,7 @@ export const useSendMessageMutation = (roomId) => {
   return useMutation({
     mutationFn: async (data) => {
       if (!roomId) throw new Error("Room ID required");
-      const clientMessageId = crypto.randomUUID();
+      const clientMessageId = generateUUID();
       const res = await apiClient.post(`/rooms/${roomId}/messages`, {
         content: data.content,
         parentId: data.parentId || undefined,

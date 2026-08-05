@@ -12,9 +12,10 @@ export const configSchema = z.object({
     .string()
     .min(8, "JWT_SECRET must be at least 8 characters long"),
   CORS_ORIGIN: z.string().default("*"),
+  CLIENT_URL: z.string().optional(),
   GMAIL_USER: z.string().email().default("13835.yps@gmail.com"),
   GMAIL_CLIENT_ID: z.string().optional(),
   GMAIL_CLIENT_SECRET: z.string().optional(),
   GMAIL_REFRESH_TOKEN: z.string().optional(),
-  HUGGINGFACE_API_TOKEN: z.string().optional(),
+  FIRECRAWL_API_KEY: z.string().optional(),
 });

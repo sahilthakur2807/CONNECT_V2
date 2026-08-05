@@ -34,6 +34,8 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+import { useAuth } from "@/hooks/useAuth";
+
 // Helper to check for actual visible text content (ignores zero-width/invisible Unicode spaces and Braille blank spaces)
 const hasVisibleContent = (text) => {
   if (!text) return false;
@@ -57,6 +59,7 @@ export function MessageCard({
   isLastInGroup = true,
   roomCategory,
 }) {
+  const { user: currentUser } = useAuth();
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
@@ -117,7 +120,10 @@ export function MessageCard({
   const user = message.user;
   if (!user) return null;
 
-  const isOwn = currentUserId === message.userId;
+  const isOwn = (currentUserId && currentUserId === message.userId) || (currentUser && currentUser.id === message.userId);
+  const currentUserRole = currentUser?.role?.toUpperCase();
+  const isStaffOrAdmin = currentUserRole && ["SUPER_ADMIN", "PLATFORM_ADMIN", "PLATFORM_MOD", "ADMIN", "SUPERADMIN", "MODERATOR"].includes(currentUserRole);
+  const canDeleteMessage = isOwn || isStaffOrAdmin;
 
   const handleSaveEdit = async () => {
     if (!hasVisibleContent(editContent)) return;
@@ -530,25 +536,25 @@ export function MessageCard({
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-40 rounded-xl p-1 shadow-xl border-border/50 bg-card">
               {isOwn && (
-                <>
-                  <DropdownMenuItem
-                    onClick={() => setIsEditing(true)}
-                    className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-foreground bg-transparent"
-                  >
-                    <PencilSquareIcon className="w-3 h-3" /> Edit Take
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
-                  >
-                    <TrashIcon className="w-3 h-3" /> Delete Take
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem
+                  onClick={() => setIsEditing(true)}
+                  className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-foreground bg-transparent"
+                >
+                  <PencilSquareIcon className="w-3 h-3" /> Edit Take
+                </DropdownMenuItem>
+              )}
+              {canDeleteMessage && (
+                <DropdownMenuItem
+                  onClick={handleDelete}
+                  className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
+                >
+                  <TrashIcon className="w-3 h-3" /> Delete Take
+                </DropdownMenuItem>
               )}
               {!isOwn && (
                 <DropdownMenuItem
                   onClick={() => setReportOpen(true)}
-                  className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/20"
+                  className="gap-2.5 rounded-lg py-2 cursor-pointer font-medium text-xs text-amber-600 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950/20"
                 >
                   <FlagIcon className="w-3 h-3" /> Report Abuse
                 </DropdownMenuItem>

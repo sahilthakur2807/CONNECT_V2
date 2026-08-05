@@ -3,10 +3,10 @@ import { prisma } from "../../../../infrastructure/db/PrismaClient.js";
 import { Logger } from "../../../../shared/logger/Logger.js";
 import { io } from "../../../../infrastructure/socket/SocketServer.js";
 import { NotificationCreatedEvent } from "../../application/commands/SocialCommands.js";
+import { EmailService } from "../../../../infrastructure/email/EmailService.js";
 import crypto from "crypto";
 
 export function registerNotificationSubscribers() {
-  // Listen for message creation to trigger reply notifications
   EventBus.subscribe("message.created", async (event) => {
     Logger.info(`NotificationEventSubscribers: Processing message.created event for reply check (Message ID: ${event.messageId})`);
     try {
@@ -15,6 +15,9 @@ export function registerNotificationSubscribers() {
         include: {
           user: {
             select: { id: true, name: true, username: true }
+          },
+          room: {
+            select: { id: true, title: true }
           }
         }
       });
@@ -22,13 +25,17 @@ export function registerNotificationSubscribers() {
       if (reply && reply.parentId) {
         const parentMessage = await prisma.message.findUnique({
           where: { id: reply.parentId },
-          select: { userId: true }
+          include: {
+            user: {
+              select: { id: true, name: true, username: true, email: true }
+            }
+          }
         });
 
         // Only notify if replying to someone else's message
         if (parentMessage && parentMessage.userId !== reply.userId) {
-          const bodyPreview = reply.content.length > 60 
-            ? `${reply.content.substring(0, 60)}...` 
+          const bodyPreview = reply.content.length > 60
+            ? `${reply.content.substring(0, 60)}...`
             : reply.content;
 
           const triggerName = reply.user.name || reply.user.username;
@@ -54,6 +61,65 @@ export function registerNotificationSubscribers() {
 
           // Publish event on EventBus
           await EventBus.publish(new NotificationCreatedEvent(notification.id, parentMessage.userId));
+
+          // Dispatch email notification to parent message author
+          if (parentMessage.user && parentMessage.user.email) {
+            try {
+              // --- Build full thread context for the email ---
+
+              // Build the full ancestor chain: [rootMessage, ..., grandParent, parentMessage]
+              const ancestorChain = [];
+              let walkerCursor = {
+                id: parentMessage.id,
+                content: parentMessage.content,
+                userId: parentMessage.userId,
+                parentId: parentMessage.parentId,
+                createdAt: parentMessage.createdAt,
+                user: parentMessage.user
+              };
+              while (walkerCursor) {
+                ancestorChain.unshift(walkerCursor);
+                if (walkerCursor.parentId) {
+                  walkerCursor = await prisma.message.findUnique({
+                    where: { id: walkerCursor.parentId },
+                    include: {
+                      user: { select: { id: true, name: true, username: true, avatar: true } }
+                    }
+                  });
+                } else {
+                  break;
+                }
+              }
+
+              // Fetch all prior sibling replies (same parentId, before this reply)
+              const priorReplies = await prisma.message.findMany({
+                where: {
+                  parentId: reply.parentId,
+                  id: { not: reply.id },
+                  deleted: false,
+                  createdAt: { lte: reply.createdAt }
+                },
+                include: {
+                  user: { select: { id: true, name: true, username: true, avatar: true } }
+                },
+                orderBy: { createdAt: "asc" }
+              });
+
+              await EmailService.sendReplyNotificationEmail(
+                parentMessage.user.email,
+                parentMessage.user.username,
+                parentMessage.content,
+                reply.user.username,
+                reply.content,
+                reply.roomId,
+                reply.room.title,
+                ancestorChain,
+                priorReplies
+              );
+            } catch (err) {
+              Logger.error(`NotificationEventSubscribers: Failed to send reply notification email to ${parentMessage.user.email}:`, err);
+            }
+          }
 
           // Realtime alert emission directly to recipient's socket room
           if (io) {

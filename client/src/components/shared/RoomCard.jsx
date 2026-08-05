@@ -68,10 +68,17 @@ export function RoomCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full cursor-pointer gap-0",
+        "overflow-hidden hover:shadow-lg hover:border-primary/20 transition-all duration-300 flex flex-col h-full cursor-pointer gap-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
         className,
       )}
       onClick={() => onClick?.(room.id)}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.(room.id);
+        }
+      }}
     >
       <div className="h-32 overflow-hidden bg-muted relative">
         {(() => {

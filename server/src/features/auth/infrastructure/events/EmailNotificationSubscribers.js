@@ -6,7 +6,7 @@ import { UserRepository } from "../../../user/infrastructure/repository/UserRepo
 const userRepo = new UserRepository();
 
 export function registerEmailSubscribers() {
-  // 1. Send Verification Email on User Registration
+  // 1. Send Verification Email and Welcome Email on User Registration
   EventBus.subscribe("auth.user.registered", async (event) => {
     Logger.info(
       `EmailNotificationSubscribers: Processing user registration event for "${event.username}"`,
@@ -20,6 +20,18 @@ export function registerEmailSubscribers() {
     } catch (err) {
       Logger.error(
         `EmailNotificationSubscribers: Failed to process registration email dispatch for ${event.email}:`,
+        err,
+      );
+    }
+
+    try {
+      await EmailService.sendWelcomeEmail(
+        event.email,
+        event.username,
+      );
+    } catch (err) {
+      Logger.error(
+        `EmailNotificationSubscribers: Failed to process welcome email dispatch on registration for ${event.email}:`,
         err,
       );
     }

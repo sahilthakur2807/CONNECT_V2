@@ -133,6 +133,67 @@ export function useGlobalSocketEvents() {
       });
     };
 
+    const handleRoomCreatedGlobal = (payload) => {
+      const newRoom = payload?.data || payload;
+      if (!newRoom || !newRoom.id) {
+        queryClient.invalidateQueries({ queryKey: ["rooms"] });
+        return;
+      }
+
+      // 1. Invalidate room & community queries
+      queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      queryClient.invalidateQueries({ queryKey: ["communities"] });
+      if (newRoom.communityId) {
+        queryClient.invalidateQueries({
+          queryKey: ["communities", newRoom.communityId],
+        });
+      }
+
+      // 2. Optimistically prepend new room into all active room list caches
+      const activeQueries = queryClient.getQueryCache().findAll({
+        queryKey: ["rooms"],
+      });
+
+      activeQueries.forEach((query) => {
+        queryClient.setQueryData(query.queryKey, (oldData) => {
+          if (!oldData) return oldData;
+
+          const filters = query.queryKey[1];
+          if (filters && typeof filters === "object") {
+            if (
+              filters.category &&
+              filters.category !== "All Topics" &&
+              filters.category !== newRoom.category
+            ) {
+              return oldData;
+            }
+            if (
+              filters.communityId &&
+              filters.communityId !== newRoom.communityId
+            ) {
+              return oldData;
+            }
+          }
+
+          if (Array.isArray(oldData)) {
+            if (oldData.some((r) => r.id === newRoom.id)) return oldData;
+            return [newRoom, ...oldData];
+          }
+
+          if (oldData.rooms && Array.isArray(oldData.rooms)) {
+            if (oldData.rooms.some((r) => r.id === newRoom.id)) return oldData;
+            return {
+              ...oldData,
+              rooms: [newRoom, ...oldData.rooms],
+              total: (oldData.total || oldData.rooms.length) + 1,
+            };
+          }
+
+          return oldData;
+        });
+      });
+    };
+
     const handleReputationUpdated = (data) => {
       const currentUserId = localStorage.getItem("newsconnect_user_id");
       if (data && data.userId === currentUserId) {
@@ -148,6 +209,7 @@ export function useGlobalSocketEvents() {
     socket.on("friend.request.accepted", handleFriendRequestAccepted);
     socket.on("notification.created", handleNotificationCreated);
     socket.on("chat.message.created", handleMessageCreatedGlobal);
+    socket.on("room.created", handleRoomCreatedGlobal);
     socket.on("room.member.count.updated", handleRoomMemberCountUpdated);
     socket.on("room.message.count.updated", handleRoomMessageCountUpdated);
     socket.on("room.active.count.updated", handleRoomActiveCountUpdated);
@@ -163,6 +225,7 @@ export function useGlobalSocketEvents() {
       socket.off("friend.request.accepted", handleFriendRequestAccepted);
       socket.off("notification.created", handleNotificationCreated);
       socket.off("chat.message.created", handleMessageCreatedGlobal);
+      socket.off("room.created", handleRoomCreatedGlobal);
       socket.off("room.member.count.updated", handleRoomMemberCountUpdated);
       socket.off("room.message.count.updated", handleRoomMessageCountUpdated);
       socket.off("room.active.count.updated", handleRoomActiveCountUpdated);

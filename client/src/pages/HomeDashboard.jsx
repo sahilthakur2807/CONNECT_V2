@@ -135,6 +135,7 @@ export function HomeDashboard() {
 
   const { data: serverCategories } = useCategoriesQuery();
   const categories = serverCategories || CATEGORIES.filter(c => c !== "All Topics");
+  const categoriesList = serverCategories ? ["All Topics", ...serverCategories] : CATEGORIES;
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -193,7 +194,7 @@ export function HomeDashboard() {
   // Fetch Room Feeds
   const { data: trendingData, isLoading: trendingLoading } =
     useTrendingRoomsQuery(visibleLimits.trending, { enabled: activeTab === "trending" });
-  const { data: hotData, isLoading: hotLoading } = useHotRoomsQuery(visibleLimits.hot, { enabled: activeTab === "hot" });
+  const { data: hotData, isLoading: hotLoading } = useHotRoomsQuery(visibleLimits.hot);
   const { data: newData, isLoading: newLoading } = useNewRoomsQuery(visibleLimits.new, { enabled: activeTab === "new" });
 
   const trendingRooms = trendingData?.rooms || [];
@@ -478,6 +479,21 @@ export function HomeDashboard() {
         }
       />
 
+      {/* Mobile Categories Selector (Visible only below lg breakpoint) */}
+      <div className="lg:hidden w-full overflow-x-auto pb-4 flex gap-2 scroll-smooth shrink-0 -mx-4 px-4 sm:mx-0 sm:px-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {categoriesList.map((cat) => (
+          <button
+            key={cat}
+            onClick={() => {
+              navigate(`/discover?category=${encodeURIComponent(cat)}`);
+            }}
+            className="px-4 py-2 text-xs font-bold rounded-full transition-all shrink-0 cursor-pointer border bg-secondary text-muted-foreground border-border hover:text-foreground hover:bg-secondary/80"
+          >
+            {cat}
+          </button>
+        ))}
+      </div>
+
       {/* Active Friends Banner */}
       <div className="space-y-1 bg-card border border-border/50 p-6 rounded-3xl shadow-sm pb-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -690,7 +706,7 @@ export function HomeDashboard() {
       </div>
 
       {/* Debate of the Day Hero Banner */}
-      {trendingRooms.length > 0 && (
+      {hotRooms.length > 0 && (
         <div className="relative bg-foreground rounded-3xl text-background p-8 sm:p-10 overflow-hidden group shadow-xl dark:bg-[#1a1a1a] dark:text-foreground animate-in fade-in duration-500">
           <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/20 rounded-full blur-[120px] -mr-32 -mt-32 pointer-events-none" />
 
@@ -713,7 +729,7 @@ export function HomeDashboard() {
                 className="text-2xl sm:text-3xl lg:text-4xl leading-tight max-w-3xl font-black text-background dark:text-foreground"
                 style={{ fontFamily: "'Playfair Display', serif" }}
               >
-                "{trendingRooms[0].title}"
+                "{hotRooms[0].title}"
               </h2>
 
               <p
@@ -723,7 +739,7 @@ export function HomeDashboard() {
                   lineHeight: 1.6,
                 }}
               >
-                {trendingRooms[0].description}
+                {hotRooms[0].description}
               </p>
             </div>
 
@@ -740,7 +756,7 @@ export function HomeDashboard() {
                     className="text-base font-bold text-background dark:text-foreground"
                     style={{ fontFamily: "'Playfair Display', serif" }}
                   >
-                    {trendingRooms[0]._count?.members || 0} Citizens
+                    {hotRooms[0]._count?.members || 0} Citizens
                   </span>
                 </div>
                 <div className="space-y-1">
@@ -754,13 +770,13 @@ export function HomeDashboard() {
                     className="text-base font-bold text-background dark:text-foreground"
                     style={{ fontFamily: "'Playfair Display', serif" }}
                   >
-                    {trendingRooms[0]._count?.messages || 0} Replies
+                    {hotRooms[0]._count?.messages || 0} Replies
                   </span>
                 </div>
               </div>
 
               <Button
-                onClick={() => navigate(`/room/${trendingRooms[0].id}`)}
+                onClick={() => navigate(`/room/${hotRooms[0].id}`)}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl h-11 px-6 font-black uppercase text-[10px] tracking-widest cursor-pointer transition-all"
               >
                 Branch in →

@@ -153,11 +153,50 @@ function LeftSidebar() {
   );
 }
 
+function MobileBottomNav() {
+  const unreadCount = useAppSelector((state) => state.ui.unreadNotificationsCount);
+  const { user: currentUser } = useAuth();
+  const profilePath = currentUser ? `/profile/${currentUser.id}` : "/profile";
+
+  return (
+    <nav className="lg:hidden shrink-0 bg-card border-t border-border/50 h-16 flex items-center justify-around px-2 z-40">
+      {sideNavLinks.map((link) => {
+        const toPath = link.to === "/profile" ? profilePath : link.to;
+        return (
+          <NavLink
+            key={link.to}
+            to={toPath}
+            className={({ isActive }) =>
+              cn(
+                "flex flex-col items-center justify-center flex-1 py-1 text-xs gap-1 transition-all cursor-pointer",
+                isActive
+                  ? "text-primary font-bold"
+                  : "text-muted-foreground hover:text-foreground"
+              )
+            }
+          >
+            <div className="relative flex items-center justify-center">
+              {link.icon}
+              {link.to === "/notifications" && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-2 min-w-4 h-4 px-1 bg-primary text-primary-foreground text-[8px] font-black rounded-full flex items-center justify-center ring-2 ring-card">
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] tracking-tight">{link.label}</span>
+          </NavLink>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function AppLayout() {
   const location = useLocation();
 
   const isRoomPage = location.pathname.startsWith("/room/");
   const showSidebar = !isRoomPage;
+  const showBottomNav = !isRoomPage;
 
   const dispatch = useAppDispatch();
   
@@ -198,6 +237,8 @@ export function AppLayout() {
           </main>
         </div>
       </div>
+
+      {showBottomNav && <MobileBottomNav />}
     </div>
   );
 }

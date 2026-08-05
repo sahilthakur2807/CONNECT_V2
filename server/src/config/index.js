@@ -12,11 +12,12 @@ try {
     DATABASE_URL: process.env.DATABASE_URL,
     JWT_SECRET: process.env.JWT_SECRET,
     CORS_ORIGIN: process.env.CORS_ORIGIN,
+    CLIENT_URL: process.env.CLIENT_URL,
     GMAIL_USER: process.env.GMAIL_USER,
     GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
     GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
     GMAIL_REFRESH_TOKEN: process.env.GMAIL_REFRESH_TOKEN,
-    HUGGINGFACE_API_TOKEN: process.env.HUGGINGFACE_API_TOKEN,
+    FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY,
   });
 } catch (error) {
   console.error(

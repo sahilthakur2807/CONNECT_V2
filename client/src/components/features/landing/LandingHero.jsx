@@ -20,7 +20,7 @@ export function LandingHero() {
           setCount({
             topics: data.totalRooms || 0,
             threads: data.totalMessages || 0,
-            community: data.totalUsers || 0,
+            community: data.totalCommunities || 0,
           });
         })
         .catch(console.error);
@@ -59,7 +59,7 @@ export function LandingHero() {
       setCount({
         topics: data.totalRooms || 0,
         threads: data.totalMessages || 0,
-        community: data.totalUsers || 0,
+        community: data.totalCommunities || 0,
       });
     };
 

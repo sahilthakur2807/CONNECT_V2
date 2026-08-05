@@ -14,10 +14,17 @@ import {
   MoonIcon,
   XMarkIcon,
   ChevronDownIcon,
+  GlobeAltIcon,
+  ChatBubbleLeftRightIcon,
+  UserGroupIcon,
+  GlobeAmericasIcon,
+  HashtagIcon,
+  PuzzlePieceIcon,
 } from "@heroicons/react/24/outline";
 import { Avatar } from "@/components/shared/Avatar";
 import { Badge } from "@/components/shared/Badge";
 import { useAuth } from "@/hooks/useAuth";
+import { useRooms } from "@/hooks/useRooms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -34,12 +41,29 @@ import { useAppSelector } from "@/store";
 import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 
+const CATEGORIES = [
+  "All Topics",
+  "Politics",
+  "Technology",
+  "Economy",
+  "Environment",
+  "World Affairs",
+  "Science",
+  "Health",
+  "Culture",
+  "Sports",
+];
+
 export function Navbar() {
   const [searchFocused, setSearchFocused] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user, accessToken, isLoading, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const { useCategoriesQuery } = useRooms();
+  const { data: serverCategories } = useCategoriesQuery();
+  const categoriesList = serverCategories ? ["All Topics", ...serverCategories] : CATEGORIES;
 
   const [hasModeratedCommunities, setHasModeratedCommunities] = useState(false);
   const [hasAdminCommunities, setHasAdminCommunities] = useState(false);
@@ -68,8 +92,13 @@ export function Navbar() {
     (state) => state.ui.unreadNotificationsCount,
   );
 
-  const { useNotificationsQuery, markReadMutation, markAllReadMutation } = useNotifications();
+  const { useNotificationsQuery, markAllReadMutation } = useNotifications();
   const { data: notifications = [], isLoading: isLoadingNotifications } = useNotificationsQuery(40);
+
+  const handleDownloadExtension = () => {
+    window.location.href = "/api/extension/download";
+    toast.success("Downloading CONNECT Browser Extension package (.zip)...");
+  };
 
   const navLinks = [
     { to: "/home", label: "Home" },
@@ -193,6 +222,18 @@ export function Navbar() {
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            {/* Get Extension Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadExtension}
+              className="hidden sm:flex items-center gap-2 h-10 px-3.5 rounded-xl border-border/80 hover:bg-secondary transition-all cursor-pointer text-xs font-bold text-foreground hover:text-primary shrink-0"
+              title="Download CONNECT Browser Extension package (.zip)"
+            >
+              <PuzzlePieceIcon className="w-4 h-4 text-primary" />
+              <span className="hidden lg:inline">Get Extension</span>
+            </Button>
+
             {/* Notifications Dropdown Overlay */}
             <DropdownMenu>
               <DropdownMenuTrigger>
@@ -371,6 +412,13 @@ export function Navbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onClick={handleDownloadExtension}
+                  className="text-primary font-bold cursor-pointer"
+                >
+                  <PuzzlePieceIcon className="w-4 h-4 text-primary" />
+                  <span className="font-medium text-sm">Download Extension</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={() => navigate(`/profile/${user.id}`)}
                 >
                   <UserCircleIcon className="w-4 h-4 text-muted-foreground" />
@@ -443,8 +491,8 @@ export function Navbar() {
           />
 
           {/* Menu Card */}
-          <div className="relative ml-auto flex h-full w-full max-w-xs flex-col bg-card py-4 shadow-xl animate-in slide-in-from-right duration-200">
-            <div className="px-6 pb-4 border-b border-border flex items-center justify-between">
+          <div className="relative ml-auto flex h-full w-full max-w-xs flex-col bg-card shadow-xl animate-in slide-in-from-right duration-200">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between shrink-0">
               <span className="font-bold text-xl">Menu</span>
               <Button
                 variant="ghost"
@@ -455,7 +503,8 @@ export function Navbar() {
                 <XMarkIcon className="w-5 h-5" />
               </Button>
             </div>
-            <div className="px-6 py-4 space-y-6">
+
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
               <div className="relative">
                 <MagnifyingGlassIcon
                   className="w-[18px] h-[18px] absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -476,27 +525,84 @@ export function Navbar() {
                   className="pl-11 h-12 bg-secondary/50 border-none rounded-2xl"
                 />
               </div>
-              <nav className="flex flex-col gap-2">
-                {navLinks.map((link) => (
+
+              <div className="px-2">
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleDownloadExtension();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-all cursor-pointer w-full text-left"
+                >
+                  <PuzzlePieceIcon className="w-5 h-5 shrink-0" />
+                  <span>Download Extension</span>
+                </button>
+              </div>
+
+              <nav className="flex flex-col gap-1.5">
+                {[
+                  { to: "/home", label: "Home", icon: <HomeIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/discover", label: "Discover", icon: <GlobeAltIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/discussions", label: "Discussions", icon: <ChatBubbleLeftRightIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/communities", label: "Communities", icon: <UserGroupIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/world-chat", label: "World Chat", icon: <GlobeAmericasIcon className="w-5 h-5 shrink-0" /> },
+                  { to: "/notifications", label: "Notifications", icon: <BellIcon className="w-5 h-5 shrink-0" />, badge: unreadCount },
+                  { to: `/profile/${user.id}`, label: "Your Profile", icon: <UserCircleIcon className="w-5 h-5 shrink-0" /> },
+                ].map((link) => (
                   <NavLink
                     key={link.to}
                     to={link.to}
                     onClick={() => setMobileMenuOpen(false)}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 px-4 py-3.5 rounded-2xl text-base font-bold transition-all",
+                        "flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer",
                         isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-foreground hover:bg-secondary",
+                          ? "bg-primary/10 text-primary font-black"
+                          : "text-foreground hover:bg-secondary/80",
                       )
                     }
                   >
-                    {link.label}
+                    {link.icon}
+                    <span>{link.label}</span>
+                    {link.badge !== undefined && link.badge > 0 && (
+                      <span className="ml-auto text-[10px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                        {link.badge}
+                      </span>
+                    )}
                   </NavLink>
                 ))}
               </nav>
+
+              <div className="border-t border-border/50 pt-4 mt-2">
+                <div className="flex items-center gap-2 px-4 mb-2">
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] font-mono">
+                    Categories
+                  </span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {categoriesList.map((cat) => (
+                    <NavLink
+                      key={cat}
+                      to={`/discover?category=${encodeURIComponent(cat)}`}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex items-center gap-3.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer",
+                          location.pathname === "/discover" && new URLSearchParams(location.search).get("category")?.toLowerCase() === cat.toLowerCase()
+                            ? "bg-primary/10 text-primary font-black"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/80",
+                        )
+                      }
+                    >
+                      <HashtagIcon className="w-4 h-4 shrink-0 text-muted-foreground/50" />
+                      <span>{cat}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div className="mt-auto p-6 border-t border-border bg-secondary/20">
+
+            <div className="mt-auto p-6 border-t border-border bg-secondary/20 shrink-0">
               <div className="flex items-center gap-4 mb-6">
                 <Avatar
                   src={user.avatar || undefined}

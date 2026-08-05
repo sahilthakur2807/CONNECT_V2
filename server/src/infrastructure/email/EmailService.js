@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import os from "os";
 import { config } from "../../config/index.js";
 import { Logger } from "../../shared/logger/Logger.js";
 
@@ -35,6 +36,56 @@ class EmailServiceImpl {
         "EmailService: Gmail OAuth2 credentials not fully configured. Email operations will fallback to console logging.",
       );
     }
+  }
+
+  /**
+   * Helper to retrieve non-internal IPv4 address for LAN network host access
+   * @returns {string} e.g. "10.10.60.196" or "localhost" fallback
+   */
+  _getNetworkHostIp() {
+    try {
+      const interfaces = os.networkInterfaces();
+      for (const name of Object.keys(interfaces)) {
+        for (const net of interfaces[name]) {
+          if (net.family === "IPv4" && !net.internal) {
+            return net.address;
+          }
+        }
+      }
+    } catch (err) {
+      // Fallback if OS network lookup fails
+    }
+    return "localhost";
+  }
+
+  /**
+   * Resolves client base network URL for email action links.
+   * Dynamically uses network host IP so all users on the network can access email links.
+   * @returns {string} Clean base URL without trailing slash
+   */
+  _getClientBaseUrl() {
+    let url = config.CLIENT_URL;
+
+    if (!url && config.CORS_ORIGIN && config.CORS_ORIGIN !== "*") {
+      const origin = config.CORS_ORIGIN.split(",")[0].trim();
+      if (origin !== "*") {
+        url = origin;
+      }
+    }
+
+    const networkIp = this._getNetworkHostIp();
+    const defaultPort = process.env.VITE_PORT || "5173";
+
+    if (!url) {
+      return `http://${networkIp}:${defaultPort}`;
+    }
+
+    url = url.replace(/\/$/, "");
+    if (url.includes("localhost") || url.includes("127.0.0.1")) {
+      url = url.replace("localhost", networkIp).replace("127.0.0.1", networkIp);
+    }
+
+    return url;
   }
 
   /**
@@ -148,10 +199,7 @@ class EmailServiceImpl {
    * Dispatches verification email
    */
   async sendVerificationEmail(to, username, token) {
-    const clientBaseUrl =
-      config.CORS_ORIGIN && config.CORS_ORIGIN !== "*"
-        ? config.CORS_ORIGIN
-        : "http://localhost:5173";
+    const clientBaseUrl = this._getClientBaseUrl();
     const verificationUrl = `${clientBaseUrl}/verify-email?token=${token}`;
     const subject = "Verify your Connect Account";
 
@@ -204,10 +252,7 @@ TOKEN: ${token}
    * Dispatches password reset email
    */
   async sendPasswordResetEmail(to, username, token) {
-    const clientBaseUrl =
-      config.CORS_ORIGIN && config.CORS_ORIGIN !== "*"
-        ? config.CORS_ORIGIN
-        : "http://localhost:5173";
+    const clientBaseUrl = this._getClientBaseUrl();
     const resetUrl = `${clientBaseUrl}/reset-password?token=${token}`;
     const subject = "Reset your Connect Password";
 
@@ -260,10 +305,7 @@ TOKEN: ${token}
    * Dispatches welcome email
    */
   async sendWelcomeEmail(to, username) {
-    const clientBaseUrl =
-      config.CORS_ORIGIN && config.CORS_ORIGIN !== "*"
-        ? config.CORS_ORIGIN
-        : "http://localhost:5173";
+    const clientBaseUrl = this._getClientBaseUrl();
     const homeUrl = `${clientBaseUrl}/home`;
     const subject = "Welcome to Connect!";
 
@@ -311,6 +353,8 @@ PORTAL LINK: ${homeUrl}
    * Dispatches login notification email
    */
   async sendLoginNotificationEmail(to, username, ipAddress) {
+    const clientBaseUrl = this._getClientBaseUrl();
+    const profileUrl = `${clientBaseUrl}/profile`;
     const subject = "New Sign-in to your Connect Account";
 
     const body = `
@@ -320,6 +364,9 @@ PORTAL LINK: ${homeUrl}
         <strong>Time:</strong> ${new Date().toLocaleString()}<br>
         <strong>IP Address:</strong> ${ipAddress}<br>
         <strong>Device:</strong> Web Browser
+      </div>
+      <div style="text-align: center; margin: 32px 0;">
+        <a href="${profileUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff !important; font-weight: 700; font-size: 14px; text-decoration: none; padding: 14px 32px; border-radius: 16px; box-shadow: 0 4px 10px rgba(79, 70, 229, 0.3);" target="_blank">Account Security Settings</a>
       </div>
       <p style="font-size: 15px; line-height: 1.625; color: #4b5563;">If this was you, no action is needed. If you do not recognize this login, please change your password immediately to secure your account.</p>
     `;
@@ -352,6 +399,239 @@ IP ADDRESS: ${ipAddress}
       throw err;
     }
   }
+
+  /**
+   * Dispatches reply notification email.
+   * Renders the full conversation thread as a nested, pixel-faithful static snapshot
+   * of the MessageCard component tree — avatar, name, timestamp, "replying to @X",
+   * thread connector lines, consecutive grouping, and highlighted new reply.
+   *
+   * @param {string}   to
+   * @param {string}   parentUsername
+   * @param {string}   parentContent
+   * @param {string}   replyUsername
+   * @param {string}   replyContent
+   * @param {string}   roomId
+   * @param {string}   roomTitle
+   * @param {object[]} ancestorChain  – [rootMessage, ..., parentMessage]
+   * @param {object[]} priorReplies   – siblings before newReply (same parentId)
+   */
+  async sendReplyNotificationEmail(
+    to, parentUsername, parentContent, replyUsername, replyContent,
+    roomId, roomTitle = "Discussion Room", ancestorChain = [], priorReplies = []
+  ) {
+    const clientBaseUrl = this._getClientBaseUrl();
+    const roomUrl = `${clientBaseUrl}/room/${roomId}`;
+    const subject = `@${replyUsername} replied to your message in "${roomTitle}"`;
+
+    // ── Design tokens (globals.css :root) ──────────────────────────────
+    const FG       = "#111827";
+    const MUTED_FG = "#6b7280";
+    const BORDER   = "#e5e7eb";
+    const SECONDARY= "#f3f4f6";
+    const MUTED_BG = "#f9fafb";
+    const PRIMARY  = "#dc2626";   // red-600 — app primary
+
+    // ── Helpers ────────────────────────────────────────────────────────
+    const avatarBg = (name) => {
+      const palette = ["#dc2626","#ea580c","#d97706","#16a34a","#2563eb","#7c3aed","#db2777","#0891b2"];
+      let h = 0;
+      for (let i = 0; i < (name || "?").length; i++) h = (name.charCodeAt(i) + ((h << 5) - h)) | 0;
+      return palette[Math.abs(h) % palette.length];
+    };
+    const initial  = (n) => (n || "?").charAt(0).toUpperCase();
+    const fmtTime  = (iso) => {
+      if (!iso) return "";
+      try { return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+      catch { return ""; }
+    };
+
+    /**
+     * Render one MessageCard row.
+     * isConsecutive = same user as previous → no avatar, no header, small timestamp on left.
+     */
+    const renderCard = (msg, opts = {}) => {
+      const { isConsecutive = false, isHighlighted = false, replyingTo = null } = opts;
+      const u            = msg.user || {};
+      const displayName  = u.name || u.username || "Unknown";
+      const username     = u.username || displayName;
+      const ts           = fmtTime(msg.createdAt);
+
+      // Avatar / time-gutter cell (42 px wide — matches component's w-8 + gap)
+      const gutterCell = isConsecutive
+        ? `<td width="42" valign="top" style="padding-right:8px;text-align:right;padding-top:3px;">
+             <span style="font-size:9px;color:#9ca3af;font-family:'Courier New',monospace;">${ts}</span>
+           </td>`
+        : `<td width="42" valign="top" style="padding-right:10px;padding-top:2px;">
+             ${u.avatar
+               ? `<img src="${u.avatar}" width="32" height="32" alt="${displayName}" style="width:32px;height:32px;border-radius:8px;object-fit:cover;display:block;" />`
+               : `<table role="presentation" width="32" height="32" cellpadding="0" cellspacing="0" border="0" style="width:32px;height:32px;border-collapse:collapse;background:${avatarBg(displayName)};border-radius:8px;display:inline-table;">
+                    <tr>
+                      <td align="center" valign="middle" style="color:#ffffff;font-size:13px;font-weight:800;font-family:sans-serif;text-align:center;vertical-align:middle;line-height:32px;padding:0;width:32px;height:32px;">
+                        ${initial(displayName)}
+                      </td>
+                    </tr>
+                  </table>`
+             }
+           </td>`;
+
+      // Header row (hidden for consecutive messages)
+      const header = isConsecutive ? "" : `
+        <div style="margin-bottom:2px;line-height:1.4;">
+          <span style="font-size:13px;font-weight:700;color:${FG};letter-spacing:-0.01em;">${displayName}</span>
+          <span style="font-size:11px;color:${MUTED_FG};margin-left:3px;">@${username}</span>
+          ${replyingTo ? `<span style="font-size:11px;color:${MUTED_FG};"> replying to <span style="color:${PRIMARY};font-weight:700;">@${replyingTo}</span></span>` : ""}
+          ${ts ? `<span style="font-size:10px;color:#9ca3af;font-family:'Courier New',monospace;margin-left:5px;">${ts}</span>` : ""}
+          ${isHighlighted ? `<span style="display:inline-block;background:${PRIMARY};color:#fff;font-size:9px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;">NEW</span>` : ""}
+        </div>`;
+
+      // Card wrapper style
+      const wrapStyle = isHighlighted
+        ? `border:1.5px solid ${PRIMARY};border-radius:10px;padding:8px 10px;margin:0 0 4px 0;background:linear-gradient(135deg,#fff5f5 0%,#fff 100%);`
+        : `padding:${isConsecutive ? "1px 10px 4px" : "5px 10px 4px"};margin:0 0 1px 0;`;
+
+      return `
+        <div style="${wrapStyle}">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            <tr>
+              ${gutterCell}
+              <td valign="top">
+                ${header}
+                <div style="font-size:13.5px;line-height:1.5;color:${FG};white-space:pre-wrap;word-break:break-word;">${msg.content}</div>
+              </td>
+            </tr>
+          </table>
+        </div>`;
+    };
+
+    /**
+     * Recursively build the nested thread HTML.
+     * chain[0]  = current depth's message
+     * chain[1+] = deeper ancestors down to parentMessage
+     * At the leaf (chain.length === 1): render priorReplies + newReply.
+     */
+    const buildThread = (chain, depth = 0) => {
+      if (!chain || chain.length === 0) return "";
+
+      const current       = chain[0];
+      const rest          = chain.slice(1);
+      // Who this message is replying to (for depth > 0, it's the previous ancestor's username)
+      const replyingToLabel = depth > 0 ? (chain[0]?.user?.username || null) : null;
+
+      // The card for this level (no "replying to" on root; shown from depth 1+)
+      let html = renderCard(current, { replyingTo: depth > 0 ? null : null });
+
+      // Build the child section (everything nested under this card)
+      let childHtml = "";
+
+      if (rest.length > 0) {
+        // More ancestors → recurse
+        childHtml = buildThread(rest, depth + 1);
+      } else {
+        // Leaf: render priorReplies + new reply
+        const parentUsername = current.user?.username || parentUsername;
+        let prevUserId = null;
+
+        for (const r of priorReplies) {
+          const consecutive = prevUserId !== null && prevUserId === r.userId;
+          childHtml += renderCard(r, {
+            isConsecutive: consecutive,
+            replyingTo: consecutive ? null : parentUsername,
+          });
+          prevUserId = r.userId;
+        }
+
+        // New reply (highlighted)
+        const newConsecutive = prevUserId !== null && prevUserId === replyUsername;
+        const newMsg = {
+          content: replyContent,
+          createdAt: new Date().toISOString(),
+          user: { username: replyUsername, name: replyUsername, avatar: null }
+        };
+        childHtml += renderCard(newMsg, {
+          isConsecutive: newConsecutive,
+          isHighlighted: true,
+          replyingTo: newConsecutive ? null : parentUsername,
+        });
+      }
+
+      if (childHtml) {
+        // Wrap children with the thread connector line (border-left), like the component's pl-3 ml-0.5
+        html += `
+          <div style="margin-left:20px;padding-left:14px;border-left:2px solid ${BORDER};padding-top:2px;padding-bottom:2px;">
+            ${childHtml}
+          </div>`;
+      }
+
+      return html;
+    };
+
+    // Ensure we always have at least [parentMessage] in the chain
+    const chain = ancestorChain && ancestorChain.length > 0
+      ? ancestorChain
+      : [{ content: parentContent, user: { username: parentUsername, name: parentUsername, avatar: null } }];
+
+    const threadHtml = buildThread(chain);
+
+    const body = `
+      <!-- Room chip -->
+      <div style="display:inline-flex;align-items:center;gap:6px;background:${SECONDARY};border:1px solid ${BORDER};border-radius:999px;padding:4px 14px 4px 10px;margin-bottom:20px;">
+        <span style="font-size:14px;">💬</span>
+        <span style="font-size:11px;font-weight:700;color:${MUTED_FG};text-transform:uppercase;letter-spacing:0.1em;font-family:'Courier New',monospace;">${roomTitle}</span>
+      </div>
+
+      <h2 style="font-size:18px;font-weight:800;margin:0 0 4px 0;color:${FG};letter-spacing:-0.02em;">Someone replied to your take</h2>
+      <p style="font-size:14px;color:${MUTED_FG};margin:0 0 20px 0;line-height:1.5;">
+        <strong style="color:${FG};">@${replyUsername}</strong> replied in <strong style="color:${FG};">${roomTitle}</strong>. Here's the full thread:
+      </p>
+
+      <!-- Thread panel -->
+      <div style="background:${MUTED_BG};border:1px solid ${BORDER};border-radius:14px;padding:12px 10px 10px 10px;margin-bottom:24px;">
+        ${threadHtml}
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin:24px 0 8px 0;">
+        <a href="${roomUrl}"
+           style="display:inline-block;background:${PRIMARY};color:#fff !important;font-weight:700;font-size:14px;text-decoration:none;padding:13px 32px;border-radius:12px;letter-spacing:0.01em;"
+           target="_blank">Open Room &amp; Reply</a>
+      </div>
+      <div class="divider"></div>
+      <p style="font-size:12px;color:#9ca3af;margin-bottom:0;">You received this because you are a member of Connect. Manage preferences in your profile settings.</p>
+    `;
+
+    const html = this._getHtmlTemplate(subject, body);
+
+    if (!this.transport) {
+      Logger.info(`[MOCK EMAIL DISPATCH - GMAIL FALLBACK]
+-----------------------------------------
+TYPE: Reply Notification Email
+FROM: ${this.sender || "fallback@connect.com"}
+TO: ${to}
+SUBJECT: ${subject}
+ROOM: ${roomTitle}
+ROOM LINK: ${roomUrl}
+THREAD DEPTH: ${chain.length}
+PRIOR REPLIES: ${priorReplies.length}
+-----------------------------------------`);
+      return { messageId: "mock-gmail-id-success" };
+    }
+
+    try {
+      const response = await this.transport.sendMail({
+        from: `"Connect" <${this.sender}>`,
+        to,
+        subject,
+        html,
+      });
+      Logger.info(`EmailService: Reply notification email successfully sent to ${to}. ID: ${response.messageId}`);
+      return response;
+    } catch (err) {
+      Logger.error(`EmailService: Failed to send reply notification email to ${to}:`, err);
+      throw err;
+    }
+  }
 }
 
 export const EmailService = new EmailServiceImpl();
+

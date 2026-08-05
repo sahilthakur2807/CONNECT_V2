@@ -9,9 +9,35 @@ const REPUTATION_RULESETS = {
   "auth.user.registered": 10,
   "community.created": 50,
   "membership.created": 10,
-  "message.created": 5,
+  "message.created": 0,
   "friend.request.accepted": 15,
 };
+
+async function broadcastStats() {
+  try {
+    if (!prisma || !prisma.user || !prisma.room || !prisma.message || !prisma.community) {
+      Logger.debug("AnalyticsSubscriber: prisma or model properties undefined (probably mocked in tests). Skipping stats broadcast.");
+      return;
+    }
+    const [totalUsers, totalRooms, totalMessages, totalCommunities] = await Promise.all([
+      prisma.user.count({ where: { role: { not: "banned" } } }),
+      prisma.room.count({ where: { deleted: false } }),
+      prisma.message.count({ where: { deleted: false } }),
+      prisma.community.count({ where: { deleted: false } }),
+    ]);
+    if (io) {
+      io.emit("stats_update", {
+        totalUsers,
+        totalRooms,
+        totalMessages,
+        totalCommunities,
+      });
+      Logger.debug(`AnalyticsEventSubscribers: Broadcasted stats_update: rooms=${totalRooms}, messages=${totalMessages}, communities=${totalCommunities}, users=${totalUsers}`);
+    }
+  } catch (err) {
+    Logger.error("AnalyticsSubscriber: failed to broadcast stats update:", err);
+  }
+}
 
 export function registerAnalyticsSubscribers() {
   // 1. User Registered
@@ -30,6 +56,7 @@ export function registerAnalyticsSubscribers() {
       if (io) {
         io.to(event.userId).emit("user.reputation.updated", { userId: event.userId });
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process auth.user.registered:",
@@ -54,6 +81,7 @@ export function registerAnalyticsSubscribers() {
       if (io) {
         io.to(event.ownerId).emit("user.reputation.updated", { userId: event.ownerId });
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error(
         "AnalyticsSubscriber: failed to process community.created:",
@@ -110,6 +138,7 @@ export function registerAnalyticsSubscribers() {
       if (io) {
         io.to(event.creatorId).emit("user.reputation.updated", { userId: event.creatorId });
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process room.created:", err);
     }
@@ -133,33 +162,7 @@ export function registerAnalyticsSubscribers() {
           metadata: JSON.stringify({ messageId: message.id }),
         });
 
-        await reputationLogRepository.logAward(
-          message.userId,
-          REPUTATION_RULESETS["message.created"],
-          "message.posted",
-        );
-
-        // Award 15 EXP to the parent author if this is a reply to their message (excluding self-replies)
-        if (message.parentId) {
-          const parentMsg = await prisma.message.findUnique({
-            where: { id: message.parentId },
-            select: { userId: true },
-          });
-          if (parentMsg && parentMsg.userId !== message.userId) {
-            await reputationLogRepository.logAward(
-              parentMsg.userId,
-              15,
-              "reply.received",
-            );
-            if (io) {
-              io.to(parentMsg.userId).emit("user.reputation.updated", { userId: parentMsg.userId });
-            }
-          }
-        }
-
-        if (io) {
-          io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
-        }
+        await broadcastStats();
       }
     } catch (err) {
       Logger.error(
@@ -221,6 +224,7 @@ export function registerAnalyticsSubscribers() {
           io.to(room.createdById).emit("user.reputation.updated", { userId: room.createdById });
         }
       }
+      await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process room.deleted:", err);
     }
@@ -229,27 +233,18 @@ export function registerAnalyticsSubscribers() {
   // 8. Message Deleted
   EventBus.subscribe("message.deleted", async (event) => {
     try {
-      const message = await prisma.message.findFirst({
-        where: { id: event.messageId },
-        select: { userId: true, parentId: true, parent: { select: { userId: true } } },
-      });
-      if (message) {
-        if (message.parentId && message.parent && message.parent.userId !== message.userId) {
-          await reputationLogRepository.logAward(
-            message.parent.userId,
-            -15,
-            "reply.deleted",
-          );
-          if (io) {
-            io.to(message.parent.userId).emit("user.reputation.updated", { userId: message.parent.userId });
-          }
-        }
-        if (io) {
-          io.to(message.userId).emit("user.reputation.updated", { userId: message.userId });
-        }
-      }
+      await broadcastStats();
     } catch (err) {
       Logger.error("AnalyticsSubscriber: failed to process message.deleted:", err);
+    }
+  });
+
+  // 9. Community Deleted
+  EventBus.subscribe("community.deleted", async (event) => {
+    try {
+      await broadcastStats();
+    } catch (err) {
+      Logger.error("AnalyticsSubscriber: failed to process community.deleted:", err);
     }
   });
 }

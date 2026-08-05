@@ -262,7 +262,7 @@ export function getCategoryRankInfo(exp) {
   }
 
   const levels = [
-    { level: 1, min: 1, max: 50, rank: "Newcomer", medal: null },
+    { level: 1, min: 1, max: 50, rank: "Newcomer", medal: "novice" },
     { level: 2, min: 50, max: 100, rank: "Contributor", medal: "bronze1" },
     { level: 3, min: 100, max: 200, rank: "Active Contributor", medal: "bronze2" },
     { level: 4, min: 200, max: 300, rank: "Senior Contributor", medal: "bronze3" },
@@ -429,7 +429,7 @@ export class GetUserCategoryContributionsHandler {
 
     // 5. Calculate EXP and rank info for each category
     const result = Object.entries(categoryStats).map(([category, stats]) => {
-      const exp = (stats.repliesReceivedCount + stats.reactionsReceivedCount) * 15 + stats.roomsCreatedCount * 50;
+      const exp = stats.reactionsReceivedCount * 15 + stats.roomsCreatedCount * 50;
       const rankInfo = getCategoryRankInfo(exp);
       return {
         category,
