@@ -29,6 +29,7 @@ import { MessageCard } from "@/components/shared/MessageCard";
 import { Button } from "@/components/ui/button";
 import { buildMessageTree } from "@/utils/tree";
 import { cn } from "@/utils/cn";
+import { containsBadWords, getProfaneWords } from "@/utils/profanityFilter";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useRooms,
@@ -332,6 +333,8 @@ export function DiscussionRoom() {
   const [typingUsers, setTypingUsers] = useState([]);
   const [mobileInfoOpen, setMobileInfoOpen] = useState(false);
   const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [hasProfanity, setHasProfanity] = useState(false);
+  const [profaneWords, setProfaneWords] = useState([]);
   
   const feedRef = useRef(null);
   const inputRef = useRef(null);
@@ -415,9 +418,15 @@ export function DiscussionRoom() {
 
   const handleSend = async () => {
     if (!hasVisibleContent(messageText) || !currentUser || !roomId) return;
+    if (hasProfanity) {
+      toast.error("Your message contains inappropriate language. Please revise it.");
+      return;
+    }
     const text = messageText.trim();
 
     setMessageText("");
+    setHasProfanity(false);
+    setProfaneWords([]);
     const replyTargetId = replyingTo?.id;
     setReplyingTo(null);
 
@@ -1022,14 +1031,21 @@ export function DiscussionRoom() {
                   ref={inputRef}
                   value={messageText}
                   onChange={(e) => {
-                    setMessageText(e.target.value);
+                    const val = e.target.value;
+                    setMessageText(val);
+                    const bad = containsBadWords(val);
+                    setHasProfanity(bad);
+                    setProfaneWords(bad ? getProfaneWords(val) : []);
                     handleTyping();
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={replyingTo ? `Write your reply... (Shift + Enter for new lines)` : "Share your stance... (Shift + Enter for new lines)"}
                   rows={1}
                   maxLength={200}
-                  className="flex-grow bg-transparent border-none focus:outline-none resize-none py-1.5 text-sm font-medium placeholder:text-muted-foreground/45 text-foreground leading-relaxed min-h-[24px] max-h-[140px]"
+                  className={cn(
+                    "flex-grow bg-transparent border-none focus:outline-none resize-none py-1.5 text-sm font-medium placeholder:text-muted-foreground/45 leading-relaxed min-h-[24px] max-h-[140px]",
+                    hasProfanity ? "text-rose-500" : "text-foreground"
+                  )}
                 />
 
                 {/* Send Button & Counter */}
@@ -1085,15 +1101,23 @@ export function DiscussionRoom() {
 
                   <Button
                     onClick={handleSend}
-                    disabled={!hasVisibleContent(messageText)}
+                    disabled={!hasVisibleContent(messageText) || hasProfanity}
                     size="icon"
                     className="rounded-xl h-8 w-8 cursor-pointer shadow-sm hover:shadow transition-all flex items-center justify-center shrink-0"
-                    title="Send Take"
+                    title={hasProfanity ? "Remove inappropriate language to send" : "Send Take"}
                   >
                     <PaperAirplaneIcon className="w-3 h-3" />
                   </Button>
                 </div>
               </div>
+              {/* Profanity Warning Banner */}
+              {hasProfanity && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border-t border-rose-500/20 rounded-b-xl animate-in fade-in slide-in-from-top-1 duration-200">
+                  <span className="text-rose-500 text-[9px] font-black uppercase tracking-widest font-mono flex-1">
+                    🚫 Inappropriate language detected — please revise your message before sending.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
